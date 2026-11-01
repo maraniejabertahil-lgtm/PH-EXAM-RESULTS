@@ -1,8 +1,6 @@
-name: 1 - Monitor Approved Sources
+name: 1 - Manual Source Check (Owner Diagnostic)
 
 on:
-  schedule:
-    - cron: "0 */2 * * *"
   workflow_dispatch:
 
 permissions:
@@ -31,7 +29,7 @@ jobs:
       - name: Run Python unit tests
         working-directory: python-engine
         run: python -m unittest discover -s tests -v
-      - name: Monitor approved source registry
+      - name: Manually check approved source registry
         working-directory: python-engine
         env:
           CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
