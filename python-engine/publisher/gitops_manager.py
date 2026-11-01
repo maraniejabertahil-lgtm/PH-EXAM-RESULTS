@@ -19,30 +19,36 @@ def _safe_inline_code(value, limit: int = 120) -> str:
 
 
 def _find_open_publication_pr(repository: str, token: str, branch_prefix: str) -> dict | None:
-    """Prevent multiple pending imports for the same authority/exam/year."""
-    api_url = f"https://api.github.com/repos/{repository}/pulls?state=open&base=main&per_page=100"
-    request = urllib.request.Request(
-        api_url,
-        headers={
-            "Accept": "application/vnd.github+json",
-            "Authorization": "Bearer " + token,
-            "X-GitHub-Api-Version": "2022-11-28",
-        },
-        method="GET",
-    )
-    try:
-        with urllib.request.urlopen(request, timeout=30) as response:
-            pull_requests = json.loads(response.read().decode("utf-8"))
-    except (urllib.error.URLError, TimeoutError, OSError, json.JSONDecodeError) as exc:
-        raise GitOpsError(f"Could not check for an existing publication Pull Request: {exc}") from exc
-    if not isinstance(pull_requests, list):
-        raise GitOpsError("GitHub returned an invalid open Pull Request list.")
-    for pull_request in pull_requests:
-        head = pull_request.get("head") or {}
-        if str(head.get("ref", "")).startswith(branch_prefix):
-            return pull_request
-    return None
-
+    """Prevent duplicate pending imports across every page of open Pull Requests."""
+    page = 1
+    while True:
+        api_url = (
+            f"https://api.github.com/repos/{repository}/pulls"
+            f"?state=open&base=main&per_page=100&page={page}"
+        )
+        request = urllib.request.Request(
+            api_url,
+            headers={
+                "Accept": "application/vnd.github+json",
+                "Authorization": "Bearer " + token,
+                "X-GitHub-Api-Version": "2022-11-28",
+            },
+            method="GET",
+        )
+        try:
+            with urllib.request.urlopen(request, timeout=30) as response:
+                pull_requests = json.loads(response.read().decode("utf-8"))
+        except (urllib.error.URLError, TimeoutError, OSError, json.JSONDecodeError) as exc:
+            raise GitOpsError(f"Could not check for an existing publication Pull Request: {exc}") from exc
+        if not isinstance(pull_requests, list):
+            raise GitOpsError("GitHub returned an invalid open Pull Request list.")
+        for pull_request in pull_requests:
+            head = pull_request.get("head") or {}
+            if str(head.get("ref", "")).startswith(branch_prefix):
+                return pull_request
+        if len(pull_requests) < 100:
+            return None
+        page += 1
 
 def _dispatch_publication_quality_checks(repository: str, token: str, branch_name: str):
     """Dispatch CI on a GITHUB_TOKEN-created PR branch (which does not auto-trigger PR CI)."""
