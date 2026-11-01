@@ -76,7 +76,7 @@ def process_csv(args) -> int:
         "examination": args.exam,
         "year": args.year,
         "source_file": source.name,
-        "source_file_sha256": hashlib.sha256(source.read_bytes()).hexdigest(),
+        "source_file_sha256": file_sha256(source),
         "source_reference": args.source_reference or None,
         "actual_release_date": actual_release_date,
         "validation": validation,
@@ -402,6 +402,15 @@ def predict_release(args) -> int:
 
 def write_site_status(args) -> int:
     try:
+        if args.mode == "preparing":
+            client = D1Client.from_environment()
+            prediction = client.get_release_prediction(args.authority, args.exam, args.year)
+            if not prediction or not prediction.get("predicted_date"):
+                raise ValueError("No historical release prediction exists for this examination/year.")
+            predicted_date = date.fromisoformat(str(prediction["predicted_date"])[:10])
+            days_until = (predicted_date - date.today()).days
+            if days_until > 5:
+                raise ValueError("Preparing Mode can be activated only within five days of the predicted release date.")
         status = write_status(
             args.output,
             mode=args.mode,
@@ -411,7 +420,7 @@ def write_site_status(args) -> int:
             examination_name=args.examination_name,
             stage=args.stage,
         )
-    except ValueError as exc:
+    except (ValueError, D1Error) as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
         return 2
     print(json.dumps(status, ensure_ascii=False, indent=2))
