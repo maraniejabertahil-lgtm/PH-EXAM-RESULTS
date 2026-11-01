@@ -62,7 +62,7 @@ The registry is currently empty. Do not add guessed URLs or scrape a site withou
 9. Exact duplicates block publication PR creation. Resolve them in the source CSV and reprocess.
 10. Merge only after confirming the official source and the entire batch.
 
-Only CSV is accepted by the current automated import workflow. Manual CSV and PDF workflow inputs are capped at 50 MiB each.
+Only CSV is accepted by the current automated import workflow. Headers are normalized for case/spacing, but blank or duplicate headers and rows containing extra unlabelled values are rejected rather than silently discarded. Manual CSV and PDF workflow inputs are capped at 50 MiB each.
 
 ## PDF handling
 
@@ -86,6 +86,8 @@ For Preparing Mode, provide authority, examination identifier, year, public disp
 For normal homepage mode, select Searching.
 
 The workflow opens a PR. The public site changes only after merge and successful Pages deployment. The scheduled prediction workflow does not yet automatically activate Preparing Mode.
+
+Source monitoring, manual CSV imports, and homepage-status changes share one GitHub Actions concurrency group so they do not prepare conflicting owner-review PRs at the same time. A queued workflow may wait for another publication workflow to finish.
 
 ## Release predictions
 
