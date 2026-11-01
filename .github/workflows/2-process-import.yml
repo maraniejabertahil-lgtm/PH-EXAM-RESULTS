@@ -1,0 +1,107 @@
+name: 2 - Process Result Import and Open Approval PR
+
+on:
+  workflow_dispatch:
+    inputs:
+      input_path:
+        description: "CSV file path inside private-imports/"
+        required: true
+        type: string
+      authority:
+        description: "Examination authority"
+        required: true
+        type: choice
+        options:
+          - PRC
+          - CSC
+      examination:
+        description: "Examination identifier (for example LET)"
+        required: true
+        type: string
+      year:
+        description: "Examination year"
+        required: true
+        type: string
+      source_reference:
+        description: "Official source URL or verified source reference"
+        required: true
+        type: string
+      replace_existing:
+        description: "Explicitly replace an existing dataset for this examination/year"
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: result-import
+  cancel-in-progress: false
+
+jobs:
+  process-and-propose:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out main branch
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: python-engine/requirements.txt
+      - name: Install Python dependencies
+        run: python -m pip install -r python-engine/requirements.txt
+      - name: Validate private import path
+        env:
+          INPUT_PATH: \${{ inputs.input_path }}
+        run: |
+          set -euo pipefail
+          IMPORT_ROOT="$(realpath private-imports)"
+          INPUT_REAL="$(realpath "$INPUT_PATH")"
+          case "$INPUT_REAL" in
+            "$IMPORT_ROOT"/*) ;;
+            *) echo "Input must be inside private-imports/"; exit 1 ;;
+          esac
+          test -f "$INPUT_REAL"
+          case "$INPUT_REAL" in
+            *.csv|*.CSV) ;;
+            *) echo "The automated import workflow currently accepts CSV only. Use the PDF manual-review process for PDFs."; exit 1 ;;
+          esac
+      - name: Process and validate CSV
+        working-directory: python-engine
+        env:
+          INPUT_PATH: \${{ inputs.input_path }}
+          AUTHORITY: \${{ inputs.authority }}
+          EXAMINATION: \${{ inputs.examination }}
+          EXAM_YEAR: \${{ inputs.year }}
+        run: |
+          python main.py process \
+            --input "../$INPUT_PATH" \
+            --authority "$AUTHORITY" \
+            --exam "$EXAMINATION" \
+            --year "$EXAM_YEAR" \
+            --output ../artifacts/import-report.json
+      - name: Build datasets and open owner approval Pull Request
+        working-directory: python-engine
+        env:
+          GITHUB_TOKEN: \${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: \${{ github.repository }}
+          SOURCE_REFERENCE: \${{ inputs.source_reference }}
+          REPLACE_EXISTING: \${{ inputs.replace_existing }}
+        run: |
+          set -euo pipefail
+          ARGS=(
+            publish
+            --report ../artifacts/import-report.json
+            --source-reference "$SOURCE_REFERENCE"
+          )
+          if [[ "$REPLACE_EXISTING" == "true" ]]; then
+            ARGS+=(--replace-existing)
+          fi
+          python main.py "\${ARGS[@]}"
