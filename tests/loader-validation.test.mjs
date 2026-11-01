@@ -1,5 +1,10 @@
 import assert from "node:assert/strict";
-import { validateDatasetPayload } from "../public/assets/js/loader.js";
+import { readFileSync } from "node:fs";
+
+const loaderSource = readFileSync("public/assets/js/loader.js", "utf8")
+  .replace('import { getCachedDataset, setCachedDataset } from "./storage.js";', "");
+const loaderUrl = "data:text/javascript;base64," + Buffer.from(loaderSource).toString("base64");
+const { validateDatasetPayload } = await import(loaderUrl);
 
 const valid = {
   columns: ["name", "rating", "region", "seq"],
