@@ -308,7 +308,7 @@ searchForm.addEventListener("submit", async event => {
       manifest = refreshedManifest;
       feedback.textContent = "The catalogue was updated. Refreshing the selected results…";
       dataset = await loadSearchDataset(
-        manifest, activeAuthority, examination, year, query
+        manifest, authority, examination, year, query
       );
     }
     await ensureWorkerDataset(dataset);
