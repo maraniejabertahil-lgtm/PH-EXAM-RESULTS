@@ -1,7 +1,13 @@
+import json
+import tempfile
 import unittest
+from argparse import Namespace
 from datetime import date
+from pathlib import Path
+from unittest.mock import patch
 
-from main import build_parser, validate_preparing_prediction
+from database.d1_client import D1Error
+from main import build_parser, process_csv, validate_preparing_prediction
 
 
 class CliTests(unittest.TestCase):
@@ -35,6 +41,48 @@ class CliTests(unittest.TestCase):
             with self.subTest(prediction=prediction):
                 with self.assertRaises(ValueError):
                     validate_preparing_prediction(prediction, today)
+
+    def _process_csv_text(self, folder, content):
+        source = Path(folder) / "input.csv"
+        output = Path(folder) / "report.json"
+        source.write_text(content, encoding="utf-8")
+        args = Namespace(
+            input=str(source),
+            authority="PRC",
+            exam="LET",
+            year=2026,
+            actual_release_date=None,
+            source_reference="https://official.example/results",
+            output=str(output),
+        )
+        with patch("main.D1Client.from_environment", side_effect=D1Error("D1 not configured")):
+            code = process_csv(args)
+        return code, output
+
+    def test_process_accepts_normalized_unique_headers(self):
+        with tempfile.TemporaryDirectory() as folder:
+            code, output = self._process_csv_text(
+                folder, " Name ,Rating,Region,Seq\nJUAN DELA CRUZ,85,NCR,1\n"
+            )
+            self.assertEqual(code, 0)
+            report = json.loads(output.read_text(encoding="utf-8"))
+            self.assertEqual(report["records"][0]["name"], "JUAN DELA CRUZ")
+
+    def test_process_rejects_duplicate_headers_after_normalization(self):
+        with tempfile.TemporaryDirectory() as folder:
+            code, output = self._process_csv_text(
+                folder, "Name,name,rating\nJUAN,JUAN,85\n"
+            )
+            self.assertEqual(code, 2)
+            self.assertFalse(output.exists())
+
+    def test_process_rejects_rows_with_extra_values(self):
+        with tempfile.TemporaryDirectory() as folder:
+            code, output = self._process_csv_text(
+                folder, "name,rating\nJUAN,85,UNEXPECTED\n"
+            )
+            self.assertEqual(code, 2)
+            self.assertFalse(output.exists())
 
     def test_process_requires_source_metadata_fields(self):
         parser = build_parser()
