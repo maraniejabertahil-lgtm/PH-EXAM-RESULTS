@@ -4,6 +4,12 @@
 
 The public catalogue is empty. The source registry and examination prediction configuration are empty. No result is presented as live or official until a verified batch is owner-approved and merged.
 
+## Enforce owner approval before publication
+
+The automation creates Pull Requests and never merges them. However, the repository's `main` branch protection settings have not been verified. Until the owner configures GitHub to require an approved Pull Request review and prevent direct pushes that bypass review, owner approval is a documented operating rule rather than a technically enforced control.
+
+Before production use, open **Settings → Branches** (or the repository rulesets page), configure protection for `main`, require a Pull Request review, and ensure the owner/reviewer policy matches the publication approval process. Do not treat the approval gate as enforced until the setting is visibly confirmed in GitHub.
+
 ## GitHub Actions workflows
 
 | Workflow | Purpose |
