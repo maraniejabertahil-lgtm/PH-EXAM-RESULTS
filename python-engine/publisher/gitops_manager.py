@@ -170,6 +170,8 @@ def create_publication_pull_request(
 
     batch_metadata_path = None
     d1_batch_id = report.get("d1_batch_id")
+    if d1_batch_id and not re.fullmatch(r"[a-f0-9]{32}", str(d1_batch_id)):
+        raise GitOpsError("The internal D1 batch identifier is invalid.")
     if d1_batch_id:
         batch_metadata_path = root / ".internal" / "import-batches" / f"{d1_batch_id}.json"
         batch_metadata_path.parent.mkdir(parents=True, exist_ok=True)
