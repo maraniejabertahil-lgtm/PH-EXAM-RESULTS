@@ -20,6 +20,8 @@ class PublicDatasetTests(unittest.TestCase):
             data_root = root / "data"
             entries = build_public_datasets(records, data_root, "PRC", "LET", 2026)
             self.assertEqual({item["shard"] for item in entries}, {"A-M", "N-Z", "OTHER"})
+            for entry in entries:
+                self.assertIn(entry["hash"][:12], Path(entry["path"]).stem)
             manifest = build_manifest(data_root, root / "data" / "manifest.json")
             dataset = manifest["authorities"]["PRC"]["examinations"]["LET"]["years"]["2026"]
             self.assertTrue(dataset["sharded"])
