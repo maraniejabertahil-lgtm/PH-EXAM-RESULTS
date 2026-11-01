@@ -1,7 +1,22 @@
 import { getCachedDataset, setCachedDataset } from "./storage.js";
 
+export async function fetchWithTimeout(resource, options = {}, timeoutMs = 45000) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(resource, { ...options, signal: controller.signal });
+  } catch (error) {
+    if (error?.name === "AbortError") {
+      throw new Error("The request took too long. Check your connection and try again.");
+    }
+    throw error;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 export async function loadManifest() {
-  const response = await fetch("/data/manifest.json", { cache: "no-store" });
+  const response = await fetchWithTimeout("/data/manifest.json", { cache: "no-store" });
   if (!response.ok) throw new Error("The published examination catalogue is unavailable.");
   const manifest = await response.json();
   if (manifest.schema_version !== 2 || !manifest.authorities) {
@@ -11,7 +26,7 @@ export async function loadManifest() {
 }
 
 export async function loadSiteStatus() {
-  const response = await fetch("/data/site-status.json", { cache: "no-store" });
+  const response = await fetchWithTimeout("/data/site-status.json", { cache: "no-store" });
   if (!response.ok) return { mode: "search", preparation: null };
   const status = await response.json();
   return status && status.mode === "preparing"
@@ -97,7 +112,7 @@ async function fetchVerifiedDataset(file) {
     // Continue without IndexedDB when browser privacy settings disable it.
   }
 
-  const response = await fetch(file.path, { cache: "default" });
+  const response = await fetchWithTimeout(file.path, { cache: "default" });
   if (!response.ok) throw new Error("The selected examination dataset could not be downloaded.");
   const buffer = await response.arrayBuffer();
   const actualHash = await sha256Hex(buffer);
