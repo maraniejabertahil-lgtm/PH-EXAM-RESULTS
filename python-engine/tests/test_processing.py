@@ -9,6 +9,11 @@ class NormalizerTests(unittest.TestCase):
     def test_normalize_name_ignores_case_and_repeated_spaces(self):
         self.assertEqual(normalize_name("  JUAN   DELA CRUZ "), "juan dela cruz")
 
+    def test_missing_name_is_not_converted_to_literal_none(self):
+        record = normalize_record({"name": None}, "PRC", "LET", 2026)
+        self.assertEqual(record["name"], "")
+        self.assertEqual(record["search_key"], "")
+
     def test_normalize_record_preserves_original_display_name(self):
         record = normalize_record(
             {"name": "DELA CRUZ, JUAN A", "rating": "85.5", "region": "NCR", "seq": "4"},
