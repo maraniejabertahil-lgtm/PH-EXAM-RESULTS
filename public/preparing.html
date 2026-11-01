@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#087e83">
+  <meta name="description" content="Philippine examination results search portal.">
+  <title>Results Preparation | Exam Results</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/assets/css/global.css">
+  <script type="module" src="/assets/js/app.js"></script>
+</head>
+<body>
+  <main id="app" class="app-shell">
+    <section id="search-page" class="page search-page" aria-labelledby="search-heading">
+      <header class="brand-header">
+        <a class="brand" href="#" aria-label="Exam Results home">
+          <span class="brand-mark" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none"><path d="M10.8 18.2H6.3A2.3 2.3 0 0 1 4 15.9V6.3A2.3 2.3 0 0 1 6.3 4h8.9a2.3 2.3 0 0 1 2.3 2.3v3.1" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><path d="M8 8h5.4M8 11.3h3.8M16.7 16.7l3.1 3.1m-.5-5.2a4.2 4.2 0 1 1-8.4 0 4.2 4.2 0 0 1 8.4 0Z" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+          </span>
+          <span class="brand-copy">
+            <span class="brand-name">EXAM RESULTS</span>
+            <span class="brand-subtitle">Examination Search Portal</span>
+          </span>
+        </a>
+        <button id="menu-button" class="icon-button menu-button" type="button" aria-label="Open portal menu" aria-expanded="false" aria-controls="portal-menu">
+          <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+        </button>
+        <nav id="portal-menu" class="portal-menu" hidden>
+          <a href="#search-form">Search examination results</a>
+        </nav>
+      </header>
+
+      <div class="page-content">
+        <h1 id="search-heading" class="page-heading">Find Your Name</h1>
+        <section class="search-card" aria-label="Examination search">
+          <div class="authority-tabs" role="tablist" aria-label="Examination authority">
+            <button class="authority-tab is-active" id="prc-tab" type="button" role="tab" aria-selected="true" data-authority="PRC">PRC</button>
+            <button class="authority-tab" id="csc-tab" type="button" role="tab" aria-selected="false" data-authority="CSC">CSC</button>
+          </div>
+
+          <form id="search-form" class="search-form">
+            <div class="field-group">
+              <label for="passer-name">NAME OF PASSER</label>
+              <div class="input-wrap">
+                <input id="passer-name" name="name" type="search" placeholder="Enter name" autocomplete="name" required>
+                <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="10.8" cy="10.8" r="6.6" stroke="currentColor" stroke-width="1.7"/><path d="m16 16 4.2 4.2" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+              </div>
+            </div>
+
+            <div class="select-row">
+              <div class="field-group examination-field">
+                <label for="examination">EXAMINATION</label>
+                <div class="select-wrap">
+                  <select id="examination" name="examination" required>
+                    <option value="" selected disabled>Select exam</option>
+                  </select>
+                  <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="m7 9 5 5 5-5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                </div>
+              </div>
+              <div class="field-group year-field">
+                <label for="exam-year">YEAR</label>
+                <div class="select-wrap">
+                  <select id="exam-year" name="year" required>
+                    <option value="" selected disabled>Year</option>
+                  </select>
+                  <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="m7 9 5 5 5-5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                </div>
+              </div>
+            </div>
+
+            <button class="submit-button" type="submit">
+              <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="10.8" cy="10.8" r="6.6" stroke="currentColor" stroke-width="1.8"/><path d="m16 16 4.2 4.2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+              <span>Search Results</span>
+            </button>
+            <p id="search-feedback" class="form-feedback" role="status" aria-live="polite"></p>
+            <div id="search-results" class="search-results" aria-live="polite"></div>
+          </form>
+        </section>
+      </div>
+      <footer class="site-footer">EXAM RESULTS PORTAL</footer>
+    </section>
+
+    <section id="preparing-page" class="page preparing-page" aria-labelledby="preparing-heading" hidden>
+      <header class="preparing-header">
+        <a class="preparing-brand" href="#" aria-label="Exam Results home">EXAM RESULTS</a>
+        <button id="open-search" class="icon-button search-navigation" type="button" aria-label="Open examination search" title="Search examination results">
+          <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="10.8" cy="10.8" r="6.6" stroke="currentColor" stroke-width="1.8"/><path d="m16 16 4.2 4.2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+        </button>
+      </header>
+      <div class="preparing-content">
+        <p class="eyebrow">RESULTS PREPARATION</p>
+        <div class="progress-ring" role="img" aria-label="No active preparation data">
+          <svg viewBox="0 0 240 240" aria-hidden="true">
+            <circle class="progress-track" cx="120" cy="120" r="103"></circle>
+            <circle id="progress-arc" class="progress-arc" cx="120" cy="120" r="103"></circle>
+          </svg>
+          <div class="progress-center">
+            <span id="progress-value" class="progress-value">0%</span>
+            <span class="progress-caption">COMPLETED</span>
+          </div>
+        </div>
+        <h1 id="preparing-heading" class="exam-title">PRC – LET Examination</h1>
+        <p class="preparing-status">Preparing examination results…</p>
+        <p id="preparation-note" class="demo-note">Preparation information will appear when an examination enters the approved preparation period.</p>
+      </div>
+    </section>
+  </main>
+</body>
+</html>
