@@ -3,12 +3,16 @@
 
 import hashlib
 import json
+import re
 import sys
 from pathlib import Path
 
 
 EXPECTED_COLUMNS = ["name", "rating", "region", "seq"]
 MAX_ASSET_BYTES = 10 * 1024 * 1024
+SHARD_FILENAME_PATTERN = re.compile(
+    r"^\\d{4}-(?:[A-Z]-[A-Z]|OTHER)(?:-(?P<content_hash>[a-f0-9]{64}))?\\.json$"
+)
 
 
 def validate_public_directory(public_root: str | Path) -> list[str]:
@@ -44,6 +48,14 @@ def validate_public_directory(public_root: str | Path) -> list[str]:
                     actual_hash = hashlib.sha256(raw).hexdigest()
                     if actual_hash != entry.get("hash"):
                         errors.append(f"Hash mismatch: {entry.get('path')}")
+                    filename_match = SHARD_FILENAME_PATTERN.fullmatch(target.name)
+                    if not filename_match:
+                        errors.append(f"Invalid dataset shard filename: {entry.get('path')}")
+                    elif (
+                        filename_match.group("content_hash")
+                        and filename_match.group("content_hash") != actual_hash
+                    ):
+                        errors.append(f"Filename hash mismatch: {entry.get('path')}")
                     try:
                         payload = json.loads(raw.decode("utf-8"))
                     except (UnicodeDecodeError, json.JSONDecodeError):
