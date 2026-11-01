@@ -60,6 +60,40 @@ class D1ClientTests(unittest.TestCase):
         )
         self.assertEqual(stats["estimated_storage_bytes"], 1234)
 
+    def test_query_serializes_all_bound_parameters_as_strings(self):
+        client = D1Client("account", "database", "secret")
+        response = MagicMock()
+        response.__enter__.return_value = response
+        response.read.return_value = (
+            b'{"success":true,"result":[{"success":true,"results":[]}]}'
+        )
+        with patch("database.d1_client.urllib.request.urlopen", return_value=response) as opener:
+            client.query("SELECT ?, ?, ?", ["text", 2026, True])
+        request = opener.call_args.args[0]
+        payload = json.loads(request.data.decode("utf-8"))
+        self.assertEqual(payload["params"], ["text", "2026", "1"])
+
+    def test_query_rejects_null_bound_parameters(self):
+        client = D1Client("account", "database", "secret")
+        with self.assertRaises(D1Error):
+            client.query("SELECT ?", [None])
+
+    def test_nullable_source_state_values_use_sql_null_literals(self):
+        client = D1Client("account", "database", "secret")
+        with patch.object(client, "query") as query:
+            client.save_source_state("source-1", None, "modified", None, "checked")
+        sql, params = query.call_args.args
+        self.assertIn("VALUES (?, NULL, ?, NULL, ?)", sql)
+        self.assertEqual(params, ["source-1", "modified", "checked"])
+
+    def test_nullable_monitor_log_values_use_sql_null_literals(self):
+        client = D1Client("account", "database", "secret")
+        with patch.object(client, "query") as query:
+            client.record_monitoring_log("source-1", "reachable", "checked")
+        sql, params = query.call_args.args
+        self.assertIn("VALUES (?, ?, ?, ?, NULL, NULL, NULL)", sql)
+        self.assertEqual(len(params), 4)
+
     def test_import_batch_status_reflects_duplicate_review_requirements(self):
         cases = [
             ({"exact_duplicates": [{"first_index": 0, "duplicate_index": 1}], "fuzzy_candidates": []},
