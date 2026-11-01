@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 const loaderSource = readFileSync("public/assets/js/loader.js", "utf8")
   .replace('import { getCachedDataset, setCachedDataset } from "./storage.js";', "");
 const loaderUrl = "data:text/javascript;base64," + Buffer.from(loaderSource).toString("base64");
-const { fetchWithTimeout, loadSiteStatus, selectShards, validateDatasetPayload } = await import(loaderUrl);
+const { fetchWithTimeout, loadSiteStatus, selectShards, validateDatasetPayload, validateManifestFileEntry } = await import(loaderUrl);
 
 const valid = {
   columns: ["name", "rating", "region", "seq"],
@@ -20,6 +20,34 @@ const shardFiles = {
   OTHER: { path: "/data/other.json" }
 };
 assert.deepEqual(selectShards(shardFiles), Object.values(shardFiles));
+
+const validHash = "a".repeat(64);
+const validManifestFile = {
+  path: `/data/prc/let/2026-A-M-${validHash}.json`,
+  hash: validHash,
+  record_count: 1,
+  size_bytes: 100
+};
+assert.equal(
+  validateManifestFileEntry(validManifestFile, "PRC", "LET", "2026", "A-M"),
+  validManifestFile
+);
+assert.throws(
+  () => validateManifestFileEntry({ ...validManifestFile, path: "/outside/2026-A-M.json" }, "PRC", "LET", "2026", "A-M"),
+  /invalid dataset reference/
+);
+assert.throws(
+  () => validateManifestFileEntry({ ...validManifestFile, hash: "bad" }, "PRC", "LET", "2026", "A-M"),
+  /invalid dataset reference/
+);
+assert.throws(
+  () => validateManifestFileEntry({ ...validManifestFile, record_count: 0 }, "PRC", "LET", "2026", "A-M"),
+  /invalid dataset reference/
+);
+assert.throws(
+  () => validateManifestFileEntry({ ...validManifestFile, size_bytes: 11 * 1024 * 1024 }, "PRC", "LET", "2026", "A-M"),
+  /invalid dataset reference/
+);
 assert.throws(
   () => validateDatasetPayload({ columns: ["rating"], data: [[85]] }),
   /invalid structure/
