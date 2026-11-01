@@ -3,6 +3,7 @@
 
 import argparse
 import csv
+import hashlib
 import json
 from datetime import date
 import os
@@ -63,6 +64,7 @@ def process_csv(args) -> int:
         "examination": args.exam,
         "year": args.year,
         "source_file": source.name,
+        "source_file_sha256": hashlib.sha256(source.read_bytes()).hexdigest(),
         "source_reference": args.source_reference or None,
         "actual_release_date": actual_release_date,
         "validation": validation,
