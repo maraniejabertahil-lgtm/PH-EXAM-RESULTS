@@ -107,7 +107,10 @@ def create_publication_pull_request(
 
     _git(root, "config", "user.name", "github-actions[bot]")
     _git(root, "config", "user.email", "41898282+github-actions[bot]@users.noreply.github.com")
-    _git(root, "add", "--", "public/data", ".internal/import-batches")
+    if batch_metadata_path is not None:
+        _git(root, "add", "--", "public/data", ".internal/import-batches")
+    else:
+        _git(root, "add", "--", "public/data")
     _git(root, "commit", "-m", f"Prepare {report['authority']} {report['examination']} {year} results")
     _git(root, "push", "origin", branch_name)
 
