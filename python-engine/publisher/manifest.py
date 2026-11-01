@@ -6,7 +6,7 @@ from pathlib import Path
 
 
 SHARD_PATTERN = re.compile(
-    r"^(?P<year>\d{4})-(?P<shard>[A-Z]-[A-Z]|OTHER)(?:-(?P<content_hash>[a-f0-9]{12}))?\.json$"
+    r"^(?P<year>\d{4})-(?P<shard>[A-Z]-[A-Z]|OTHER)(?:-(?P<content_hash>[a-f0-9]{64}))?\.json$"
 )
 
 
