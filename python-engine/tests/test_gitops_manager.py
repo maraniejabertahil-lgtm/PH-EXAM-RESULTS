@@ -6,7 +6,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from processor.normalizer import normalize_record
-from publisher.gitops_manager import GitOpsError, _safe_inline_code, create_publication_pull_request
+from publisher.gitops_manager import GitOpsError, _find_open_publication_pr, _safe_inline_code, create_publication_pull_request
 
 
 class FakeResponse:
@@ -24,6 +24,25 @@ class FakeResponse:
 
 
 class GitOpsIsolationTests(unittest.TestCase):
+    def test_pending_publication_search_checks_later_api_pages(self):
+        first_page = [
+            {"head": {"ref": f"unrelated-{index}"}} for index in range(100)
+        ]
+        matching_pr = {
+            "head": {"ref": "data-import/prc-let-2026-existing"},
+            "html_url": "https://github.com/example/repo/pull/999"
+        }
+        with patch(
+            "publisher.gitops_manager.urllib.request.urlopen",
+            side_effect=[FakeResponse(first_page), FakeResponse([matching_pr])],
+        ) as urlopen_mock:
+            result = _find_open_publication_pr(
+                "example/repo", "test-token", "data-import/prc-let-2026-"
+            )
+        self.assertEqual(result, matching_pr)
+        self.assertEqual(urlopen_mock.call_count, 2)
+        self.assertIn("page=2", urlopen_mock.call_args_list[1].args[0].full_url)
+
     def test_untrusted_markdown_values_are_safely_escaped(self):
         rendered = _safe_inline_code("result.csv\n\n### Injected heading `")
         self.assertEqual(rendered, "`result.csv  ### Injected heading '`")
