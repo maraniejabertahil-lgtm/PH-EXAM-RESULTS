@@ -4,25 +4,49 @@ from pathlib import Path
 
 
 COLUMNS = ["name", "rating", "region", "seq"]
-SHARDS = ("A-M", "N-Z", "OTHER")
+MAX_SHARD_BYTES = 10 * 1024 * 1024
 
 
-def _shard_for(name: str) -> str:
-    first = next((char.upper() for char in (name or "") if char.isalpha()), "")
-    if "A" <= first <= "M":
-        return "A-M"
-    if "N" <= first <= "Z":
-        return "N-Z"
-    return "OTHER"
+def _initial_letter(name: str) -> str | None:
+    for character in (name or "").upper():
+        if "A" <= character <= "Z":
+            return character
+    return None
 
 
-def _public_row(record: dict) -> list:
-    return [
-        record.get("name", ""),
-        record.get("rating"),
-        record.get("region"),
-        record.get("seq"),
-    ]
+def _encode(records: list[dict]) -> bytes:
+    payload = {
+        "columns": COLUMNS,
+        "data": [
+            [
+                record.get("name", ""),
+                record.get("rating"),
+                record.get("region"),
+                record.get("seq"),
+            ]
+            for record in records
+        ],
+    }
+    return (json.dumps(payload, ensure_ascii=False, separators=(",", ":")) + "\n").encode("utf-8")
+
+
+def _split_range(records: list[dict], start: str, end: str) -> list[tuple[str, list[dict]]]:
+    if len(_encode(records)) <= MAX_SHARD_BYTES:
+        return [(f"{start}-{end}", records)]
+    if start == end:
+        raise ValueError(
+            f"Alphabetical shard {start}-{end} exceeds 10 MiB. "
+            "It needs a finer-grained partition before publication."
+        )
+    midpoint = (ord(start) + ord(end)) // 2
+    left_end = chr(midpoint)
+    right_start = chr(midpoint + 1)
+    left = [record for record in records if (letter := _initial_letter(record.get("name"))) and start <= letter <= left_end]
+    right = [record for record in records if (letter := _initial_letter(record.get("name"))) and right_start <= letter <= end]
+    return (
+        _split_range(left, start, left_end)
+        + _split_range(right, right_start, end)
+    )
 
 
 def build_public_datasets(
@@ -33,14 +57,16 @@ def build_public_datasets(
     year: int,
     replace_existing: bool = False,
 ) -> list[dict]:
-    """Write compact array-of-arrays JSON shards and return manifest entries."""
+    """Write compact array-of-arrays JSON shards, capped at 10 MiB each."""
     authority_key = authority.lower()
     exam_key = examination.lower().replace(" ", "-")
     base = Path(output_root) / authority_key / exam_key
-    buckets = {shard: [] for shard in SHARDS}
     if replace_existing:
-        for shard in SHARDS:
-            (base / f"{int(year)}-{shard}.json").unlink(missing_ok=True)
+        for old_file in base.glob(f"{int(year)}-*.json") if base.exists() else []:
+            old_file.unlink()
+
+    letter_buckets = {chr(code): [] for code in range(ord("A"), ord("Z") + 1)}
+    other_records = []
 
     for record in records:
         if record.get("authority") != authority.upper():
@@ -52,21 +78,28 @@ def build_public_datasets(
         name = record.get("name")
         if not isinstance(name, str) or not name.strip():
             raise ValueError("Public records require a non-empty name")
-        buckets[_shard_for(name)].append(record)
+        letter = _initial_letter(name)
+        if letter:
+            letter_buckets[letter].append(record)
+        else:
+            other_records.append(record)
+
+    groups = []
+    left = [record for letter in "ABCDEFGHIJKLM" for record in letter_buckets[letter]]
+    right = [record for letter in "NOPQRSTUVWXYZ" for record in letter_buckets[letter]]
+    if left:
+        groups.extend(_split_range(left, "A", "M"))
+    if right:
+        groups.extend(_split_range(right, "N", "Z"))
+    if other_records:
+        if len(_encode(other_records)) > MAX_SHARD_BYTES:
+            raise ValueError("The OTHER alphabetical shard exceeds 10 MiB and requires review.")
+        groups.append(("OTHER", other_records))
 
     entries = []
-    for shard in SHARDS:
-        shard_records = buckets[shard]
-        if not shard_records:
-            continue
+    for shard, shard_records in groups:
         shard_records.sort(key=lambda item: (item.get("search_key", ""), item["name"]))
-        payload = {
-            "columns": COLUMNS,
-            "data": [_public_row(record) for record in shard_records],
-        }
-        encoded = (
-            json.dumps(payload, ensure_ascii=False, separators=(",", ":")) + "\n"
-        ).encode("utf-8")
+        encoded = _encode(shard_records)
         filename = f"{int(year)}-{shard}.json"
         destination = base / filename
         destination.parent.mkdir(parents=True, exist_ok=True)
