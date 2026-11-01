@@ -81,7 +81,14 @@ if (
 async function fetchVerifiedDataset(file) {
   try {
     const cached = await getCachedDataset(file.path, file.hash);
-    if (cached) return cached;
+    if (cached) {
+      try {
+        validateDatasetPayload(cached);
+        return cached;
+      } catch {
+        // A damaged local cache must never bypass validation; fetch a clean copy.
+      }
+    }
   } catch {
     // Continue without IndexedDB when browser privacy settings disable it.
   }
