@@ -14,7 +14,9 @@ Before production use, open **Settings → Branches** (or the repository ruleset
 
 | Workflow | Purpose |
 |---|---|
-| 1 - Monitor Approved Sources | Checks configured sources every two hours; with D1 configured, it can detect changes, acquire approved CSV/PDF files, process them, and propose a PR |
+| 1 - Manual Source Check (Owner Diagnostic) | Manually runs the legacy Python metadata check; no scheduled trigger remains |
+| Cloudflare Watcher | Runs scheduled source monitoring every minute; Peak Week checks twice 30 seconds apart and sends `source-detected` repository dispatch events |
+| Process Detected Source and Manual Drop | Receives and validates Watcher events and manual-drop pushes; Phase 1 does not yet run Python extraction |
 | 2 - Process Result Import and Open Approval PR | Manually processes an owner-supplied CSV in `private-imports/` |
 | 2B - Extract PDF Text for Manual Review | Extracts text from a private PDF and stores a review artifact; does not publish results |
 | 3 - Deploy Public Site to Cloudflare Pages | Validates and deploys the approved `public/` directory |
@@ -36,7 +38,7 @@ Cloudflare Pages:
 
 GitHub Actions uses its automatically supplied `GITHUB_TOKEN` for PR creation, branch pushes, and dispatching the quality-check workflow on generated result PR branches. The repository setting **Allow GitHub Actions to create and approve pull requests** must be enabled under **Settings → Actions → General → Workflow permissions**; the workflows also declare the required per-workflow permissions. Do not copy the token into source files.
 
-These secrets and Cloudflare resources have not been configured or verified by this implementation.
+These secrets and Cloudflare resources have not been configured or verified by this implementation. The Watcher separately requires a Cloudflare Worker secret named `GITHUB_TOKEN` and a KV namespace binding named `PEAK_WEEK`; see below.
 
 ### D1 Free-plan guardrails
 
@@ -52,16 +54,31 @@ These are official starting points identified for owner review only. They are no
 
 Do not enable `auto_acquire` for these index pages. The source registry remains empty until the owner approves each precise source and its supported acquisition method. The downloader follows only same-host, same-port HTTPS redirects and rejects cross-origin redirects before following them. Some PRC Google Drive attachments may redirect to a different Google host; those must remain manual-download/manual-review inputs unless a compliant direct-download route is verified.
 
+## Cloudflare Watcher setup (Phase 1)
+
+1. Open `watcher-bot/wrangler.toml` and replace `REPLACE_WITH_CLOUDFLARE_KV_NAMESPACE_ID` with the ID of a Workers KV namespace created in the correct Cloudflare account.
+2. Set a Cloudflare Worker secret named `GITHUB_TOKEN`. Use a fine-grained GitHub token limited to this repository with **Contents: Read and write** permission. Read is needed to load the private source registry; write is needed for the repository-dispatch endpoint.
+3. Confirm `GITHUB_REPOSITORY`, `GITHUB_SOURCE_REF`, and `GITHUB_SOURCE_PATH` in `wrangler.toml`.
+4. From the `watcher-bot/` folder, authenticate Wrangler to the intended Cloudflare account and deploy the Worker.
+5. Confirm the one-minute Cron Trigger appears in the Worker dashboard and inspect its invocation logs.
+6. Set the KV key `PEAK_WEEK` to the text value `true` to enable Peak Week Mode; set it to `false` to return to Standard Mode.
+7. Do not call Phase 1 live until a real owner-approved source is configured and a real PDF detection reaches the GitHub Actions receiver.
+
+The GitHub receiver is on the PR branch. GitHub `repository_dispatch` workflows must exist on the repository's default branch to run. Therefore, the live webhook receiver cannot be verified until the reviewed implementation is merged into `main`. No merge or deployment is performed by Phase 1 code changes.
+
+The Watcher uses a maximum of 45 outbound subrequests per scheduled invocation to stay below the Workers Free subrequest limit. It does not monitor any source while the registry is empty.
+
 ## Configure source monitoring
 
 1. Confirm the official source and that the intended access method is authorized.
 2. Add an entry to `python-engine/config/sources.json`.
 3. Include a unique ID, authority, exam identifier, source type, HTTPS URL, enabled flag, and authorization flag.
-4. Keep `auto_acquire` false until a direct file URL and format have been tested.
-5. For CSV, verify the `name` column and optional `rating`, `region`, and `seq` columns.
-6. For PDF, expect text extraction only and manual review.
-7. Add a third-party source only after owner verification. It is used only when configured official sources for that authority/exam are unavailable.
-8. Enable automatic acquisition only after the source and sample file are verified.
+4. If preemptive checking is needed, add owner-approved `preemptive_url_templates` that expand only on the same HTTPS origin. Supported placeholders are `{EXAM}`, `{YYYY}`, `{YY}`, `{MM}`, and `{YYYYMM}`; the Worker checks the current and next UTC month during Peak Week.
+5. Keep `auto_acquire` false until a direct file URL and format have been tested.
+6. For CSV, verify the `name` column and optional `rating`, `region`, and `seq` columns.
+7. For PDF, expect text extraction only and manual review.
+8. Add a third-party source only after owner verification. It is used only when configured official sources for that authority/exam are unavailable.
+9. Enable automatic acquisition only after the source and sample file are verified.
 
 The registry is currently empty. Do not add guessed URLs or scrape a site without permission.
 
@@ -103,7 +120,7 @@ For normal homepage mode, select Searching.
 
 The workflow opens a PR. The public site changes only after merge and successful Pages deployment. The scheduled prediction workflow does not yet automatically activate Preparing Mode.
 
-Source monitoring, manual CSV imports, and homepage-status changes share one GitHub Actions concurrency group so they do not prepare conflicting owner-review PRs at the same time. A queued workflow may wait for another publication workflow to finish.
+Manual source diagnostics, manual CSV imports, and homepage-status changes share one GitHub Actions concurrency group so they do not prepare conflicting owner-review PRs at the same time. Scheduled source monitoring is handled by the Cloudflare Watcher, not GitHub Actions.
 
 ## Release predictions
 
