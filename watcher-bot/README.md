@@ -15,18 +15,44 @@ This folder implements Phase 1 of the approved Master Technical Blueprint. It is
 - Dispatches GitHub `repository_dispatch` event type `source-detected` only after a PDF candidate returns a successful HTTP response.
 - Uses KV to remember source metadata and successfully dispatched PDF URLs, preventing repeated dispatches.
 - Rejects cross-origin redirects and cross-origin PDF links. Those sources require a separately verified/manual route.
-- Caps outbound subrequests at 45 per scheduled invocation to stay below the Workers Free subrequest ceiling.
+- Counts both outbound HTTP requests and KV operations, then stops at 45 total subrequests per invocation to leave headroom below the Workers Free limit of 50.
 
 ## Required Cloudflare setup
 
-1. Create one Workers KV namespace, for example `PH_EXAM_RESULTS_WATCHER`.
-2. Copy its namespace ID into `wrangler.toml`, replacing `REPLACE_WITH_CLOUDFLARE_KV_NAMESPACE_ID`.
-3. Set the Worker secret `GITHUB_TOKEN` to a fine-grained token for this repository with **Contents: Read and write**. Read is used for the source registry; write is required by GitHub's repository-dispatch endpoint.
-4. Confirm `GITHUB_REPOSITORY`, `GITHUB_SOURCE_REF`, and `GITHUB_SOURCE_PATH` in `wrangler.toml`.
-5. Deploy from this folder with Wrangler after authenticating to the correct Cloudflare account.
-6. Confirm the one-minute Cron Trigger is visible in the Worker dashboard.
+Run these commands in the GitHub Codespaces terminal from this folder:
 
-Do not put the GitHub token in `wrangler.toml`, source code, or GitHub files.
+```bash
+cd watcher-bot
+npx wrangler login
+npx wrangler kv namespace create PH_EXAM_RESULTS_WATCHER --binding PEAK_WEEK --update-config
+```
+
+The last command creates the KV namespace and updates `wrangler.toml` with its real namespace ID. Keep that updated configuration; the namespace ID is not a secret.
+
+Create a fine-grained GitHub personal access token limited to this repository, with **Contents: Read and write**. Read is used for the source registry; write is required by GitHub's repository-dispatch endpoint. Do not paste the token into chat or save it in a repository file.
+
+Deploy the Worker, then enter the token when Wrangler prompts:
+
+```bash
+npx wrangler deploy
+npx wrangler secret put GITHUB_TOKEN
+```
+
+Confirm the Worker is deployed, the one-minute Cron Trigger is visible, and its logs show successful registry reads. New Cron Trigger changes can take several minutes to propagate.
+
+To enable Peak Week Mode only when approved source entries are configured:
+
+```bash
+npx wrangler kv key put --binding=PEAK_WEEK PEAK_WEEK true --remote
+```
+
+Return to Standard Mode with:
+
+```bash
+npx wrangler kv key put --binding=PEAK_WEEK PEAK_WEEK false --remote
+```
+
+Do not put the GitHub token in `wrangler.toml`, source code, or GitHub files. The Worker secret must be configured with Wrangler's secret command.
 
 ## Source registry additions
 
