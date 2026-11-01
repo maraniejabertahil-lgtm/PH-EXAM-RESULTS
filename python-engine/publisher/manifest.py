@@ -30,6 +30,10 @@ def build_manifest(data_root: str | Path, output_path: str | Path) -> dict:
                     year = match.group("year")
                     shard = match.group("shard")
                     raw = dataset.read_bytes()
+                    content_hash = hashlib.sha256(raw).hexdigest()
+                    filename_hash = match.group("content_hash")
+                    if filename_hash and filename_hash != content_hash:
+                        raise ValueError(f"Content hash in dataset filename does not match file: {dataset}")
                     try:
                         payload = json.loads(raw.decode("utf-8"))
                     except (UnicodeDecodeError, json.JSONDecodeError) as exc:
@@ -41,7 +45,7 @@ def build_manifest(data_root: str | Path, output_path: str | Path) -> dict:
                         "path": "/" + dataset.as_posix().replace(
                             root.parent.as_posix().rstrip("/") + "/", ""
                         ),
-                        "hash": hashlib.sha256(raw).hexdigest(),
+                        "hash": content_hash,
                         "record_count": len(payload["data"]),
                         "size_bytes": len(raw),
                     }
