@@ -31,6 +31,7 @@ def download_approved_file(
         raise DownloadError("Only valid HTTPS source URLs are allowed.")
 
     request = Request(url, headers={"User-Agent": USER_AGENT})
+    original_port = original.port or 443
     target = Path(destination)
     target.parent.mkdir(parents=True, exist_ok=True)
     digest = hashlib.sha256()
@@ -44,6 +45,7 @@ def download_approved_file(
                 or final.username
                 or final.password
                 or (final.hostname or "").lower() != original.hostname.lower()
+                or (final.port or 443) != original_port
             ):
                 raise DownloadError("Cross-host or non-HTTPS redirect rejected.")
             with target.open("wb") as output:
