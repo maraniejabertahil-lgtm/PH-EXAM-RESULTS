@@ -118,6 +118,47 @@ class D1Client:
             [authority.upper(), exam, int(year), predicted_date, int(data_points), timestamp],
         )
 
+
+    def record_import_batch(self, report: dict, source_reference: str = "") -> str:
+        batch_id = str(uuid4())
+        timestamp = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+        validation = report.get("validation", {})
+        duplicates = report.get("duplicates", {})
+        self.query(
+            "INSERT INTO import_batches "
+            "(batch_id, authority, exam, year, total_records, valid_records, "
+            "invalid_records, exact_duplicates, fuzzy_candidates, status, "
+            "created_at, source_reference, report_path) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            [
+                batch_id,
+                report.get("authority"),
+                report.get("examination"),
+                int(report.get("year")),
+                int(validation.get("total_records", 0)),
+                int(validation.get("valid_records", 0)),
+                len(validation.get("invalid_records", [])),
+                len(duplicates.get("exact_duplicates", [])),
+                len(duplicates.get("fuzzy_candidates", [])),
+                "validation_passed" if validation.get("is_valid") else "validation_failed",
+                timestamp,
+                source_reference or None,
+                report.get("source_file"),
+            ],
+        )
+        return batch_id
+
+    def record_actual_release_date(self, authority: str, exam: str, year: int, actual_date: str):
+        timestamp = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+        self.query(
+            "INSERT INTO release_predictions "
+            "(authority, exam, year, predicted_date, actual_date, data_points, updated_at) "
+            "VALUES (?, ?, ?, NULL, ?, 0, ?) "
+            "ON CONFLICT(authority, exam, year) DO UPDATE SET "
+            "actual_date = excluded.actual_date, updated_at = excluded.updated_at",
+            [authority.upper(), exam, int(year), actual_date, timestamp],
+        )
+
     def record_monitoring_log(self, source_id: str, status: str, timestamp: str, error: str | None = None, etag: str | None = None, last_modified: str | None = None):
         self.query(
             "INSERT INTO monitoring_logs "
