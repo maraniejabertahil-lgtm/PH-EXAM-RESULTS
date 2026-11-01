@@ -37,11 +37,11 @@
         <h1 id="search-heading" class="page-heading">Find Your Name</h1>
         <section class="search-card" aria-label="Examination search">
           <div class="authority-tabs" role="tablist" aria-label="Examination authority">
-            <button class="authority-tab is-active" id="prc-tab" type="button" role="tab" aria-selected="true" tabindex="0" data-authority="PRC">PRC</button>
-            <button class="authority-tab" id="csc-tab" type="button" role="tab" aria-selected="false" tabindex="-1" data-authority="CSC">CSC</button>
+            <button class="authority-tab is-active" id="prc-tab" type="button" role="tab" aria-selected="true" aria-controls="search-form" tabindex="0" data-authority="PRC">PRC</button>
+            <button class="authority-tab" id="csc-tab" type="button" role="tab" aria-selected="false" aria-controls="search-form" tabindex="-1" data-authority="CSC">CSC</button>
           </div>
 
-          <form id="search-form" class="search-form">
+          <form id="search-form" class="search-form" role="tabpanel" aria-labelledby="prc-tab">
             <div class="field-group">
               <label for="passer-name">NAME OF PASSER</label>
               <div class="input-wrap">
