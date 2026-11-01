@@ -100,6 +100,11 @@ def create_publication_pull_request(
     # Monitoring can prepare more than one import in a single Actions run.
     # Always start each publication from a clean copy of approved main so a
     # later PR cannot accidentally include an earlier source's unmerged files.
+    # A previous failed build may have left generated untracked shards on
+    # this runner. Remove only generated publication paths before starting
+    # the next source batch; preserve reports and downloaded source artifacts.
+    _git(root, "reset", "--hard")
+    _git(root, "clean", "-fd", "--", "public/data", ".internal/import-batches")
     _git(root, "fetch", "origin", "main")
     _git(root, "switch", "main")
     _git(root, "reset", "--hard", "origin/main")
