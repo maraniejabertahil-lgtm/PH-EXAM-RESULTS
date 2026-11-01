@@ -36,6 +36,16 @@ These secrets and Cloudflare resources have not been configured or verified by t
 
 Cloudflare's current published Free limits include a 500 MB maximum per database, 5 GB total D1 storage per account, 5 million rows read per day, and 100,000 rows written per day. The weekly maintenance workflow reports the selected database's size against the 500 MB per-database reference. Public visitor searches do not query D1, which keeps public search traffic away from the D1 daily row limits. If a daily read/write limit is reached, D1 queries fail until the daily reset; if the storage ceiling is reached, further writes and schema changes can fail. Keep D1 limited to internal operational metadata.
 
+## Official source entry-point candidates (not yet authorized in the registry)
+
+These are official starting points identified for owner review only. They are not configured as sources, and this documentation change does not authorize automated acquisition.
+
+- PRC examination-result articles: https://www.prc.gov.ph/articles/exam-results. Individual PRC result articles link to official result documents; the inspected example linked its list of successful examinees through Google Drive. Each direct document URL and its download/redirect behavior must be verified separately before enabling acquisition.
+- CSC Examination Portal: https://exam.csc.gov.ph/list_passers.php. The portal exposes official passer-search categories and exam-year links, but its list-of-passers interface is interactive. A monitor-only page check is not equivalent to extracting a complete result dataset.
+- CSC examination advisories: https://csc.gov.ph/examination-advisories/. These official notices can identify result-release announcements, but the actual passer list still needs to be retrieved from the official CSC portal or a specifically linked official document.
+
+Do not enable `auto_acquire` for these index pages. The source registry remains empty until the owner approves each precise source and its supported acquisition method.
+
 ## Configure source monitoring
 
 1. Confirm the official source and that the intended access method is authorized.
