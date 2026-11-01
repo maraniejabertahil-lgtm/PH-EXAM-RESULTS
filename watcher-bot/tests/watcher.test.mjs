@@ -240,14 +240,17 @@ test("Peak Week safety budget counts HTTP and KV subrequests together", async ()
     url: `https://csc.example.gov.ph/exam-results/${index + 1}`
   }));
   let fetchCalls = 0;
-  const { fetchImpl } = githubFetch(sources, async (_url, init) => {
-    fetchCalls += 1;
+  const mocked = githubFetch(sources, async (_url, init) => {
     assert.equal(init.method, "HEAD");
     return new Response(null, {
       status: 200,
       headers: { etag: '"stable"', "content-type": "text/html" }
     });
   });
+  const fetchImpl = async (...args) => {
+    fetchCalls += 1;
+    return mocked.fetchImpl(...args);
+  };
   const env = envFor(true);
   const kv = new CountingKV({ PEAK_WEEK: "true" });
   env.PEAK_WEEK = kv;
