@@ -28,11 +28,15 @@ export function getYears(manifest, authority, examination) {
   return Object.keys(years).sort((a, b) => Number(b) - Number(a));
 }
 
-function shardForQuery(query) {
+function selectShards(files, query) {
   const first = Array.from(query.normalize("NFKC").toUpperCase())
     .find(character => character >= "A" && character <= "Z");
-  if (!first) return "OTHER";
-  return first >= "A" && first <= "M" ? "A-M" : "N-Z";
+  if (!first) return files.OTHER ? [files.OTHER] : Object.values(files);
+  for (const [range, file] of Object.entries(files)) {
+    const match = /^([A-Z])-([A-Z])$/.exec(range);
+    if (match && first >= match[1] && first <= match[2]) return [file];
+  }
+  return Object.values(files);
 }
 
 async function sha256Hex(buffer) {
@@ -78,8 +82,7 @@ export async function loadSearchDataset(manifest, authority, examination, year, 
   if (!yearEntry || !yearEntry.files) throw new Error("No published results exist for that selection.");
 
   const files = yearEntry.files;
-  const preferred = files[shardForQuery(query)];
-  const selected = preferred ? [preferred] : Object.values(files);
+  const selected = selectShards(files, query);
   const datasets = await Promise.all(selected.map(fetchVerifiedDataset));
   if (!datasets.length) throw new Error("No published dataset is available.");
 
