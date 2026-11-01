@@ -159,6 +159,13 @@ class D1Client:
             [authority.upper(), exam, int(year), actual_date, timestamp],
         )
 
+
+    def update_import_batch_status(self, batch_id: str, status: str):
+        self.query(
+            "UPDATE import_batches SET status = ? WHERE batch_id = ?",
+            [status, batch_id],
+        )
+
     def record_monitoring_log(self, source_id: str, status: str, timestamp: str, error: str | None = None, etag: str | None = None, last_modified: str | None = None):
         self.query(
             "INSERT INTO monitoring_logs "
