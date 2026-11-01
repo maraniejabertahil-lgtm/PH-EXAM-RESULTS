@@ -139,8 +139,12 @@ def load_registry(path: str | Path) -> list[dict]:
         seen_ids.add(source_id)
         if source.get("authority") not in {"PRC", "CSC"}:
             raise ValueError(f"Source {source_id} must specify PRC or CSC authority.")
-        if not isinstance(source.get("exam"), str) or not source["exam"].strip():
-            raise ValueError(f"Source {source_id} requires an examination identifier.")
+        if not isinstance(source.get("exam"), str) or not re.fullmatch(
+            r"[A-Za-z0-9][A-Za-z0-9_-]{0,39}", source["exam"]
+        ):
+            raise ValueError(
+                f"Source {source_id} requires a safe 1-40 character exam identifier."
+            )
         if source.get("source_type") not in {"official", "verified_third_party"}:
             raise ValueError(f"Source {source_id} has an unsupported source_type.")
         if not isinstance(source.get("enabled"), bool):
