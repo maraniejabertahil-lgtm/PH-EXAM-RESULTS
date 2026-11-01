@@ -30,7 +30,33 @@ class FakeRangeResponse:
         return b"x"
 
 
+class FakeRedirectResponse:
+    status = 200
+    headers = {}
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        return False
+
+    def geturl(self):
+        return "https://official.example:8443/results"
+
+
 class SourceMonitorTests(unittest.TestCase):
+    def test_rejects_redirect_to_different_https_port(self):
+        source = {
+            "id": "official-port-redirect",
+            "source_type": "official",
+            "authorized": True,
+            "enabled": True,
+            "url": "https://official.example/results",
+        }
+        with patch("scraper.monitor.urlopen", return_value=FakeRedirectResponse()):
+            result = monitor_source(source)
+        self.assertEqual(result["status"], "redirect_rejected")
+
     def test_range_fallback_uses_total_content_range_size(self):
         source = {
             "id": "official-range",
