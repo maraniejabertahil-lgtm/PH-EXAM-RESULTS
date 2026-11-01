@@ -63,7 +63,7 @@ jobs:
         run: python -m pip install -r python-engine/requirements.txt
       - name: Validate private import path
         env:
-          INPUT_PATH: \${{ inputs.input_path }}
+          INPUT_PATH: ${{ inputs.input_path }}
         run: |
           set -euo pipefail
           IMPORT_ROOT="$(realpath private-imports)"
@@ -80,32 +80,29 @@ jobs:
       - name: Process and validate CSV
         working-directory: python-engine
         env:
-          INPUT_PATH: \${{ inputs.input_path }}
-          AUTHORITY: \${{ inputs.authority }}
-          EXAMINATION: \${{ inputs.examination }}
-          EXAM_YEAR: \${{ inputs.year }}
+          INPUT_PATH: ${{ inputs.input_path }}
+          AUTHORITY: ${{ inputs.authority }}
+          EXAMINATION: ${{ inputs.examination }}
+          EXAM_YEAR: ${{ inputs.year }}
+          SOURCE_REFERENCE: ${{ inputs.source_reference }}
+          ACTUAL_RELEASE_DATE: ${{ inputs.actual_release_date }}
+          CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+          CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
+          D1_DATABASE_ID: ${{ secrets.D1_DATABASE_ID }}
         run: |
-          python main.py process \
-            --input "../$INPUT_PATH" \
-            --authority "$AUTHORITY" \
-            --exam "$EXAMINATION" \
-            --year "$EXAM_YEAR" \
-            --output ../artifacts/import-report.json
+          set -euo pipefail
+          ARGS=(process --input "../$INPUT_PATH" --authority "$AUTHORITY" --exam "$EXAMINATION" --year "$EXAM_YEAR" --output ../artifacts/import-report.json --source-reference "$SOURCE_REFERENCE")
+          if [[ -n "$ACTUAL_RELEASE_DATE" ]]; then ARGS+=(--actual-release-date "$ACTUAL_RELEASE_DATE"); fi
+          python main.py "${ARGS[@]}"
       - name: Build datasets and open owner approval Pull Request
         working-directory: python-engine
         env:
-          GITHUB_TOKEN: \${{ secrets.GITHUB_TOKEN }}
-          GITHUB_REPOSITORY: \${{ github.repository }}
-          SOURCE_REFERENCE: \${{ inputs.source_reference }}
-          REPLACE_EXISTING: \${{ inputs.replace_existing }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          SOURCE_REFERENCE: ${{ inputs.source_reference }}
+          REPLACE_EXISTING: ${{ inputs.replace_existing }}
         run: |
           set -euo pipefail
-          ARGS=(
-            publish
-            --report ../artifacts/import-report.json
-            --source-reference "$SOURCE_REFERENCE"
-          )
-          if [[ "$REPLACE_EXISTING" == "true" ]]; then
-            ARGS+=(--replace-existing)
-          fi
-          python main.py "\${ARGS[@]}"
+          ARGS=(publish --report ../artifacts/import-report.json --source-reference "$SOURCE_REFERENCE")
+          if [[ "$REPLACE_EXISTING" == "true" ]]; then ARGS+=(--replace-existing); fi
+          python main.py "${ARGS[@]}"
