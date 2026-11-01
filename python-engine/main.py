@@ -253,6 +253,9 @@ def monitor_sources(args) -> int:
                                                         replace_existing=source.get("replace_existing") is True,
                                                     )
                                                     item["pull_request_url"] = publication.get("pull_request_url")
+                                                    item["quality_checks_dispatched"] = publication.get("quality_checks_dispatched")
+                                                    if publication.get("quality_check_warning"):
+                                                        item["quality_check_warning"] = publication["quality_check_warning"]
                                                     batch_id = processed_report.get("d1_batch_id")
                                                     if batch_id:
                                                         try:
