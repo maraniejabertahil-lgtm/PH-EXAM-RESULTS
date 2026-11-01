@@ -220,9 +220,24 @@ searchForm.addEventListener("submit", async event => {
   feedback.textContent = "Loading the published examination dataset…";
 
   try {
-    const dataset = await loadSearchDataset(
-      manifest, activeAuthority, examination, year, query
-    );
+    let dataset;
+    try {
+      dataset = await loadSearchDataset(
+        manifest, activeAuthority, examination, year, query
+      );
+    } catch (firstError) {
+      // A page left open across a publication may still hold the previous
+      // manifest. Refresh it once if the published manifest has changed.
+      const refreshedManifest = await loadManifest();
+      if (refreshedManifest.last_updated === manifest.last_updated) {
+        throw firstError;
+      }
+      manifest = refreshedManifest;
+      feedback.textContent = "The catalogue was updated. Refreshing the selected results…";
+      dataset = await loadSearchDataset(
+        manifest, activeAuthority, examination, year, query
+      );
+    }
     await ensureWorkerDataset(dataset);
     const searchResult = await runWorkerSearch(query);
     feedback.textContent = "Source: published examination dataset · " +
