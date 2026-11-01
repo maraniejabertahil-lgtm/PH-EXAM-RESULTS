@@ -1,9 +1,38 @@
+import tempfile
 import unittest
+from pathlib import Path
+from unittest.mock import patch
 
 from scraper.downloader import DownloadError, download_approved_file
 
 
+class FakeRedirectResponse:
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        return False
+
+    def geturl(self):
+        return "https://example.com:8443/file.csv"
+
+
 class DownloaderSafetyTests(unittest.TestCase):
+    def test_rejects_redirect_to_different_https_port(self):
+        source = {
+            "id": "official-port-redirect",
+            "source_type": "official",
+            "authorized": True,
+            "enabled": True,
+            "url": "https://example.com/file.csv",
+        }
+        with tempfile.TemporaryDirectory() as folder:
+            target = Path(folder) / "file.csv"
+            with patch("scraper.downloader.urlopen", return_value=FakeRedirectResponse()):
+                with self.assertRaises(DownloadError):
+                    download_approved_file(source, target)
+            self.assertFalse(target.exists())
+
     def test_rejects_non_https_url_from_approved_source(self):
         source = {
             "id": "official-test",
