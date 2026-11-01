@@ -12,6 +12,12 @@ class GitOpsError(Exception):
     """Raised when a data publication Pull Request cannot be prepared."""
 
 
+def _safe_inline_code(value, limit: int = 120) -> str:
+    """Render untrusted source text safely inside a Markdown inline-code span."""
+    cleaned = str(value).replace("\\r", " ").replace("\\n", " ").replace("`", "'")
+    return "`" + cleaned[:limit] + "`"
+
+
 def _git(repo_root: Path, *arguments: str):
     result = subprocess.run(
         ["git", *arguments],
@@ -135,11 +141,11 @@ def create_publication_pull_request(
             and 0 <= first_index < len(records)
             and 0 <= other_index < len(records)
         ):
-            first_name = str(records[first_index].get("name", ""))[:120]
-            other_name = str(records[other_index].get("name", ""))[:120]
+            first_name = _safe_inline_code(records[first_index].get("name", ""))
+            other_name = _safe_inline_code(records[other_index].get("name", ""))
             similarity = candidate.get("similarity", "not supplied")
             fuzzy_review_lines.append(
-                f"- `{first_name}` ↔ `{other_name}` (similarity: {similarity})"
+                f"- {first_name} ↔ {other_name} (similarity: {similarity})"
             )
     fuzzy_review_section = (
         "\n".join(fuzzy_review_lines)
@@ -150,7 +156,7 @@ def create_publication_pull_request(
         fuzzy_review_section += (
             f"\n- Showing first {len(fuzzy_review_lines)} of {fuzzy_count} candidates."
         )
-    source_line = source_reference or "Not supplied"
+    source_line = _safe_inline_code(source_reference or "Not supplied", limit=500)
     body = f"""## Examination result import review
 
 **Authority:** {report['authority']}
