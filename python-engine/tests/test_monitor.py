@@ -5,7 +5,7 @@ from pathlib import Path
 from unittest.mock import patch
 from urllib.error import HTTPError
 
-from scraper.monitor import monitor_registry, monitor_source
+from scraper.monitor import load_registry, monitor_registry, monitor_source
 
 
 class FakeRangeResponse:
@@ -69,6 +69,38 @@ class SourceMonitorTests(unittest.TestCase):
         ):
             result = monitor_source(source)
         self.assertIsNone(result["content_length"])
+
+    def test_registry_rejects_unsafe_ids_and_embedded_url_credentials(self):
+        invalid_sources = [
+            {
+                "id": "unsafe/source",
+                "authority": "PRC",
+                "exam": "LET",
+                "source_type": "official",
+                "authorized": True,
+                "enabled": True,
+                "url": "https://official.example/results",
+            },
+            {
+                "id": "official-source",
+                "authority": "PRC",
+                "exam": "LET",
+                "source_type": "official",
+                "authorized": True,
+                "enabled": True,
+                "url": "https://user:password@official.example/results",
+            },
+        ]
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "sources.json"
+            for source in invalid_sources:
+                path.write_text(
+                    json.dumps({"schema_version": 1, "sources": [source]}),
+                    encoding="utf-8",
+                )
+                with self.subTest(source_id=source["id"]):
+                    with self.assertRaises(ValueError):
+                        load_registry(path)
 
     def test_empty_registry_is_safe_noop(self):
         with tempfile.TemporaryDirectory() as folder:
