@@ -10,7 +10,8 @@ This repository contains the initial implementation of the approved architecture
 - Public search uses static JSON datasets, a browser Web Worker, and IndexedDB caching.
 - Python processes CSV records, extracts text from text-based PDFs, normalizes names, validates records, and flags duplicate candidates.
 - Python generates compact array-of-arrays JSON datasets and a SHA-256 manifest.
-- GitHub Actions provides two-hour source monitoring/acquisition, manual CSV import, release-prediction updates, Preparing/Search status PRs, tests, maintenance, and Cloudflare Pages deployment workflows.
+- The Cloudflare Watcher is being added for one-minute source monitoring; GitHub Actions receives `source-detected` events. Phase 1 validates and records the event only; Phase 2 connects Python acquisition/extraction and Greenlight processing.
+- GitHub Actions retains manual source diagnostics, manual CSV import, release-prediction updates, Preparing/Search status PRs, tests, maintenance, and Cloudflare Pages deployment workflows.
 - Cloudflare D1 REST integration and initial metadata schema are included.
 - The official source registry is intentionally empty.
 - No official examination records are included.
@@ -20,13 +21,15 @@ This repository contains the initial implementation of the approved architecture
 
 ## Architecture
 
-1. Python performs monitoring, acquisition support, extraction, normalization, validation, duplicate detection, prediction, and public dataset generation.
-2. GitHub Actions runs Python on scheduled or manually dispatched jobs.
-3. Cloudflare D1 stores internal operational metadata only.
-4. GitHub Pull Requests are the owner approval gate for result publication.
-5. Cloudflare Pages serves the static `public/` directory.
-6. JavaScript loads only the selected result shard and searches locally inside a Web Worker.
-7. IndexedDB caches verified datasets by path and SHA-256 hash.
+1. Cloudflare Workers monitors only explicitly authorized sources on a one-minute schedule; Peak Week performs two checks 30 seconds apart.
+2. When a PDF is detected, the Watcher sends a GitHub `repository_dispatch` event. The Phase 1 receiver validates the event against the owner-approved source registry. Phase 2 will connect the Python processing pipeline.
+3. Python performs acquisition, extraction, normalization, validation, duplicate detection, prediction, and public dataset generation.
+4. GitHub Actions runs Python on webhook or manually dispatched jobs.
+5. Cloudflare D1 stores internal operational metadata only.
+6. GitHub Pull Requests are the owner approval gate for result publication.
+7. Cloudflare Pages serves the static `public/` directory.
+8. JavaScript loads only the selected result shard and searches locally inside a Web Worker.
+9. IndexedDB caches verified datasets by path and SHA-256 hash.
 
 Ordinary visitor searches do not call Python, D1, or a Cloudflare Worker.
 
@@ -35,12 +38,14 @@ Ordinary visitor searches do not call Python, D1, or a Cloudflare Worker.
 - `public/`: Cloudflare Pages static root.
 - `public/assets/js/`: frontend, dataset loader, IndexedDB cache, and Web Worker.
 - `public/data/`: public manifest, site status, and approved result datasets.
+- `watcher-bot/`: Cloudflare source-monitoring Worker, Cron Trigger configuration, and local tests.
 - `python-engine/`: Python processing and automation package.
 - `python-engine/config/sources.json`: authorized source registry; initially empty.
 - `python-engine/config/examinations.json`: prediction targets; initially empty.
 - `python-engine/database/schema.sql`: internal D1 schema.
 - `python-engine/tests/`: Python unit tests.
-- `.github/workflows/`: monitoring, import, test, deployment, and maintenance workflows.
+- `.github/workflows/`: webhook receiver, manual import, tests, deployment, and maintenance workflows.
+- `manual-drop/`: owner-supplied PDF fallback folder; processing is connected in Phase 2.
 - `private-imports/`: owner-supplied source files in this private repository; never deployed.
 - `docs/`: architecture and operating documentation.
 - `tests/search-worker.test.mjs`: 50,000-row Web Worker search performance check.
@@ -55,6 +60,8 @@ cd python-engine
 python -m unittest discover -s tests -v
 cd ..
 node tests/search-worker.test.mjs
+cd watcher-bot
+npm test
 ```
 
 The PDF extractor uses `pdfplumber`. It extracts text only; scanned PDFs and uncertain layouts require manual review. It does not claim perfect automatic passer-name extraction.
@@ -91,13 +98,13 @@ The manual import workflow accepts CSV only. Exact duplicate candidates block pu
 
 ## Source monitoring
 
-The two-hour monitoring workflow checks only explicitly authorized HTTPS source endpoints.
+The Cloudflare Watcher runs every minute and reads only `python-engine/config/sources.json`. Standard Mode checks once. Peak Week Mode is activated by setting the Cloudflare KV key `PEAK_WEEK` to the text value `true`; it performs two scans 30 seconds apart. The Worker uses HTTPS `HEAD` checks, detects metadata changes, checks same-origin PDF links, and expands only owner-configured preemptive URL templates. A successful PDF detection triggers a GitHub `repository_dispatch` event. GitHub Actions validates the event against the approved registry; Python extraction/Greenlight processing is connected in Phase 2.
 
 The initial source registry is empty:
 
 `python-engine/config/sources.json`
 
-A configured source must have a unique ID, authority, exam identifier, source type, HTTPS URL, and enabled flag. Official sources require explicit authorization. Verified third-party sources are checked only when configured official sources for the same examination are unavailable.
+A configured source must have a unique ID, authority, exam identifier, source type, HTTPS URL, and enabled flag. Official sources require explicit authorization. Verified third-party sources are checked only when configured official sources for the same examination are unavailable. Optional `preemptive_url_templates` must use the same HTTPS origin as the approved source URL. Do not add guessed or unapproved source URLs or templates.
 
 When D1 is configured, Python compares ETag, Last-Modified, and content length. A source with no reliable change metadata is not automatically acquired. Set `auto_acquire: true` only after verifying a direct CSV/PDF file URL and its format. CSV files can be processed into an owner-approval PR; PDF text extraction remains a manual-review step.
 
@@ -111,13 +118,20 @@ The scheduled prediction workflow uses `python-engine/config/examinations.json`,
 
 ## GitHub Actions workflows
 
-- **1 - Monitor Approved Sources:** scheduled source monitoring and approved automatic acquisition.
+- **1 - Manual Source Check (Owner Diagnostic):** manually runs the legacy Python metadata check; it has no scheduled trigger. The Cloudflare Watcher owns scheduled monitoring.
+- **Process Detected Source and Manual Drop:** receives the Watcher's `source-detected` webhook and manual-drop pushes. Phase 1 validates and records the event only; Phase 2 connects Python processing.
 - **2 - Process Result Import and Open Approval PR:** manual CSV import.
 - **2B - Extract PDF Text for Manual Review:** owner-triggered text extraction from a private PDF; it never publishes records.
 - **3 - Deploy Public Site to Cloudflare Pages:** production static deployment after approved changes reach main.
 - **4 - Weekly Maintenance:** tests, public dataset integrity, and D1 storage checks.
 - **5 - Set Preparing or Searching Mode:** owner-controlled homepage status PR.
 - **6 - Update Release Predictions:** scheduled prediction updates for configured examinations.
+
+## Cloudflare Watcher setup
+
+See `watcher-bot/README.md`. Deployment requires a Workers KV namespace bound as `PEAK_WEEK`, a Worker secret named `GITHUB_TOKEN`, and the correct repository/ref variables. The GitHub token must have repository Contents read/write permission: read the source registry and write to the repository-dispatch endpoint. The token must be stored as a Cloudflare Worker secret, never in source code or GitHub files.
+
+The Watcher is not considered live until the Worker is deployed, the Cron Trigger is visible, the KV binding and secret are verified, and a real authorized source test successfully reaches the GitHub receiver.
 
 ## D1 configuration
 
@@ -167,6 +181,7 @@ Free-tier limits and GitHub account allowances can change. Verify current limits
 - PDF extraction is not a universal layout parser; OCR is not implemented.
 - Release prediction requires sufficient actual release history in D1.
 - Preparing Mode is controlled through an owner-approved status PR and requires a D1 prediction within the five-day activation window; automatic prediction-based activation is not yet connected.
+- The Watcher code has local mocked tests, but Cloudflare deployment, KV, GitHub credentials, and real-source/webhook integration are not yet verified.
 - The 30,000–59,000 concurrent visitor target has not been load-tested.
 - Cloudflare Pages deployment and D1 connectivity have not been verified.
 
