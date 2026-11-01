@@ -1,0 +1,1 @@
+"""Preparing-mode status generation."""
