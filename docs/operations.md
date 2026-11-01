@@ -28,7 +28,7 @@ Cloudflare Pages:
 - `CF_ACCOUNT_ID`: Cloudflare account ID.
 - `CF_PAGES_PROJECT_NAME`: exact existing Pages project name.
 
-GitHub Actions uses its automatically supplied `GITHUB_TOKEN` for PR creation and branch pushes. Do not copy it into source files.
+GitHub Actions uses its automatically supplied `GITHUB_TOKEN` for PR creation, branch pushes, and dispatching the quality-check workflow on generated result PR branches. The repository setting **Allow GitHub Actions to create and approve pull requests** must be enabled under **Settings → Actions → General → Workflow permissions**; the workflows also declare the required per-workflow permissions. Do not copy the token into source files.
 
 These secrets and Cloudflare resources have not been configured or verified by this implementation.
 
