@@ -28,6 +28,10 @@ def _validate_https_url(url: str) -> tuple[str, str]:
         raise ValueError("Only valid HTTPS source URLs are allowed.")
     if parsed.username or parsed.password:
         raise ValueError("Source URLs must not embed usernames or passwords.")
+    try:
+        parsed.port
+    except ValueError as exc:
+        raise ValueError("Source URLs must contain a valid port number.") from exc
     return parsed.hostname.lower(), url
 
 
