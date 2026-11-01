@@ -1,4 +1,5 @@
 import json
+import re
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -27,8 +28,10 @@ def build_status(
         raise ValueError("mode must be search or preparing")
     if authority not in {"PRC", "CSC"}:
         raise ValueError("preparing mode requires PRC or CSC authority")
-    if not exam or not str(exam).strip():
-        raise ValueError("preparing mode requires an examination identifier")
+    if not isinstance(exam, str) or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_-]{0,39}", exam):
+        raise ValueError(
+            "preparing mode requires a safe 1-40 character examination identifier"
+        )
     if not isinstance(year, int) or not 1900 <= year <= 2100:
         raise ValueError("preparing mode requires a valid examination year")
     if not examination_name or not examination_name.strip():
