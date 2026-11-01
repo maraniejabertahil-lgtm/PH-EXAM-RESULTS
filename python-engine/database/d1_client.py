@@ -178,6 +178,38 @@ class D1Client:
             "estimated_storage_bytes": page_count * page_size,
         }
 
+
+    def get_storage_stats(self) -> dict:
+        url = (
+            "https://api.cloudflare.com/client/v4/accounts/"
+            + self.account_id
+            + "/d1/database/"
+            + self.database_id
+            + "?fields=file_size,name,version"
+        )
+        request = urllib.request.Request(
+            url,
+            headers={"Authorization": "Bearer " + self.api_token},
+            method="GET",
+        )
+        try:
+            with urllib.request.urlopen(request, timeout=30) as response:
+                payload = json.loads(response.read().decode("utf-8"))
+        except (urllib.error.URLError, TimeoutError, OSError, json.JSONDecodeError) as exc:
+            raise D1Error(f"Could not retrieve D1 database details: {exc}") from exc
+        if not payload.get("success"):
+            errors = payload.get("errors") or []
+            message = "; ".join(str(item.get("message", "D1 API error")) for item in errors)
+            raise D1Error(message or "D1 database details request failed.")
+        result = payload.get("result") or {}
+        if result.get("file_size") is None:
+            raise D1Error("Cloudflare did not return the D1 file_size field.")
+        return {
+            "estimated_storage_bytes": int(result["file_size"]),
+            "database_name": result.get("name"),
+            "database_version": result.get("version"),
+        }
+
     def record_monitoring_log(self, source_id: str, status: str, timestamp: str, error: str | None = None, etag: str | None = None, last_modified: str | None = None):
         self.query(
             "INSERT INTO monitoring_logs "
