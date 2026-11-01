@@ -26,6 +26,15 @@ def _validate_https_url(url: str) -> tuple[str, str]:
     return parsed.hostname.lower(), url
 
 
+def _response_content_length(response) -> str | None:
+    content_range = response.headers.get("Content-Range", "")
+    if "/" in content_range:
+        total = content_range.rsplit("/", 1)[-1].strip()
+        if total.isdigit():
+            return total
+    return response.headers.get("Content-Length")
+
+
 def monitor_source(source: dict) -> dict:
     source_id = str(source.get("id", "unknown"))
     approved, reason = _is_approved_source(source)
@@ -75,7 +84,7 @@ def monitor_source(source: dict) -> dict:
                         "http_status": response.status,
                         "etag": response.headers.get("ETag"),
                         "last_modified": response.headers.get("Last-Modified"),
-                        "content_length": response.headers.get("Content-Length"),
+                        "content_length": _response_content_length(response),
                         "checked_at": checked_at,
                     }
             except HTTPError as get_error:
