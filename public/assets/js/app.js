@@ -28,7 +28,7 @@ let workerDatasetKey = null;
 let nextRequestId = 1;
 const pendingSearches = new Map();
 const pendingWorkerLoads = new Map();
-const searchWorker = new Worker(new URL("./search.js", import.meta.url), { type: "module" });
+let searchWorker = null;
 
 function showPage(page) {
   const showPreparing = page === "preparing";
@@ -134,7 +134,7 @@ function ensureWorkerDataset(dataset) {
   if (workerDatasetKey === dataset.datasetKey) return Promise.resolve();
   return new Promise((resolve, reject) => {
     pendingWorkerLoads.set(dataset.datasetKey, { resolve, reject });
-    searchWorker.postMessage({
+    ensureSearchWorker().postMessage({
       type: "load",
       datasetKey: dataset.datasetKey,
       columns: dataset.columns,
@@ -147,11 +147,19 @@ function runWorkerSearch(query) {
   const requestId = nextRequestId++;
   return new Promise((resolve, reject) => {
     pendingSearches.set(requestId, { resolve, reject });
-    searchWorker.postMessage({ type: "search", requestId, query });
+    ensureSearchWorker().postMessage({ type: "search", requestId, query });
   });
 }
 
-searchWorker.addEventListener("message", event => {
+function rejectPendingWorkerRequests(error) {
+  workerDatasetKey = null;
+  for (const pending of pendingWorkerLoads.values()) pending.reject(error);
+  for (const pending of pendingSearches.values()) pending.reject(error);
+  pendingWorkerLoads.clear();
+  pendingSearches.clear();
+}
+
+function handleWorkerMessage(event) {
   const message = event.data || {};
   if (message.type === "loaded") {
     const pending = pendingWorkerLoads.get(message.datasetKey);
@@ -173,7 +181,25 @@ searchWorker.addEventListener("message", event => {
       else pending.resolve({ matches: message.matches || [], totalMatches: message.totalMatches || 0 });
     }
   }
-});
+}
+
+function ensureSearchWorker() {
+  if (searchWorker) return searchWorker;
+  const worker = new Worker(new URL("./search.js", import.meta.url), { type: "module" });
+  worker.addEventListener("message", handleWorkerMessage);
+  const handleFailure = () => {
+    if (searchWorker !== worker) return;
+    worker.terminate();
+    searchWorker = null;
+    rejectPendingWorkerRequests(
+      new Error("The search engine stopped unexpectedly. Please submit your search again.")
+    );
+  };
+  worker.addEventListener("error", handleFailure);
+  worker.addEventListener("messageerror", handleFailure);
+  searchWorker = worker;
+  return worker;
+}
 
 document.querySelectorAll(".authority-tab").forEach(tab => {
   tab.addEventListener("click", () => setAuthority(tab.dataset.authority));
