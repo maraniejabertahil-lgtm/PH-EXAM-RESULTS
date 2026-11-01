@@ -43,6 +43,11 @@ jobs:
             *) echo "Input must be inside private-imports/"; exit 1 ;;
           esac
           test -f "$PDF_REAL"
+          SIZE_BYTES="$(stat -c%s "$PDF_REAL")"
+          if (( SIZE_BYTES > 52428800 )); then
+            echo "PDF exceeds the 50 MiB extraction safety limit."
+            exit 1
+          fi
           case "$PDF_REAL" in
             *.pdf|*.PDF) ;;
             *) echo "Input must be a PDF file."; exit 1 ;;
