@@ -6,7 +6,7 @@ from main import build_parser
 class CliTests(unittest.TestCase):
     def test_expected_commands_are_registered(self):
         parser = build_parser()
-        for command in ("monitor", "process", "extract-pdf", "publish", "predict", "predict-all", "site-status"):
+        for command in ("monitor", "process", "extract-pdf", "publish", "predict", "predict-all", "site-status", "d1-size"):
             with self.subTest(command=command):
                 parsed = parser.parse_args([command, "--help"]) if False else None
                 self.assertIn(command, parser._subparsers._group_actions[0].choices)
