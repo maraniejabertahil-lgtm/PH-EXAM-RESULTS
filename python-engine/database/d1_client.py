@@ -189,7 +189,6 @@ class D1Client:
             + self.account_id
             + "/d1/database/"
             + self.database_id
-            + "?fields=file_size,name,version"
         )
         request = urllib.request.Request(
             url,
