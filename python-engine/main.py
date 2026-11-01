@@ -463,6 +463,23 @@ def mark_published(args) -> int:
 
 
 
+
+def d1_size(args) -> int:
+    try:
+        client = D1Client.from_environment()
+        stats = client.get_storage_stats()
+    except D1Error as exc:
+        print(f"ERROR: Could not read D1 storage usage: {exc}", file=sys.stderr)
+        return 2
+    stats["estimated_storage_mib"] = round(
+        stats["estimated_storage_bytes"] / (1024 * 1024), 2
+    )
+    stats["free_tier_reference_mib"] = 500
+    print(json.dumps(stats, indent=2))
+    return 0
+
+
+
 def build_parser():
     parser = argparse.ArgumentParser(description="PH-EXAM-RESULTS Python engine")
     commands = parser.add_subparsers(dest="command", required=True)
@@ -499,6 +516,9 @@ def build_parser():
     status_parser.add_argument("--examination-name")
     status_parser.add_argument("--stage", choices=("monitoring", "source_detected", "document_acquired", "extracting", "validating", "awaiting_approval"))
     status_parser.set_defaults(handler=write_site_status)
+
+    d1_size_parser = commands.add_parser("d1-size", help="Report internal D1 storage usage")
+    d1_size_parser.set_defaults(handler=d1_size)
 
     prediction_parser = commands.add_parser("predict", help="Estimate a release date from D1 history")
     prediction_parser.add_argument("--authority", required=True, choices=("PRC", "CSC"))
