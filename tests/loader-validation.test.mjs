@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 const loaderSource = readFileSync("public/assets/js/loader.js", "utf8")
   .replace('import { getCachedDataset, setCachedDataset } from "./storage.js";', "");
 const loaderUrl = "data:text/javascript;base64," + Buffer.from(loaderSource).toString("base64");
-const { validateDatasetPayload } = await import(loaderUrl);
+const { selectShards, validateDatasetPayload } = await import(loaderUrl);
 
 const valid = {
   columns: ["name", "rating", "region", "seq"],
@@ -12,6 +12,13 @@ const valid = {
 };
 
 assert.equal(validateDatasetPayload(valid), valid);
+
+const shardFiles = {
+  "A-M": { path: "/data/a-m.json" },
+  "N-Z": { path: "/data/n-z.json" },
+  OTHER: { path: "/data/other.json" }
+};
+assert.deepEqual(selectShards(shardFiles), Object.values(shardFiles));
 assert.throws(
   () => validateDatasetPayload({ columns: ["rating"], data: [[85]] }),
   /invalid structure/
