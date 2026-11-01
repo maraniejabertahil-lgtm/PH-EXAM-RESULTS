@@ -7,6 +7,9 @@ import json
 import sys
 from pathlib import Path
 
+from scraper.monitor import monitor_registry
+from database.d1_client import D1Client, D1Error
+
 from extractor.pdf_parser import PDFExtractionError, extract_pdf_lines
 from processor.duplicates import find_duplicates
 from processor.normalizer import normalize_record
@@ -107,11 +110,68 @@ def extract_pdf(args) -> int:
     return 0
 
 
+
+
+def monitor_sources(args) -> int:
+    try:
+        report = monitor_registry(args.registry)
+    except (OSError, ValueError, json.JSONDecodeError) as exc:
+        print(f"ERROR: Could not monitor source registry: {exc}", file=sys.stderr)
+        return 2
+
+    d1_status = "not_configured"
+    try:
+        client = D1Client.from_environment()
+        schema_path = Path(__file__).parent / "database" / "schema.sql"
+        client.apply_schema(schema_path)
+        for item in report["results"]:
+            source_id = item["source_id"]
+            previous = client.get_source_state(source_id)
+            if item["status"] == "reachable":
+                if previous is None:
+                    item["status"] = "baseline_created"
+                elif (
+                    item.get("etag") != previous.get("etag")
+                    or item.get("last_modified") != previous.get("last_modified")
+                ):
+                    item["status"] = "changed"
+                    report["changes_detected"] = True
+                client.save_source_state(
+                    source_id, item.get("etag"), item.get("last_modified"), item["checked_at"]
+                )
+            client.record_monitoring_log(
+                source_id,
+                item["status"],
+                item["checked_at"],
+                item.get("error"),
+                item.get("etag"),
+                item.get("last_modified"),
+            )
+        d1_status = "connected"
+    except D1Error as exc:
+        report["d1_notice"] = str(exc)
+
+    report["d1_status"] = d1_status
+    destination = Path(args.output)
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    destination.write_text(
+        json.dumps(report, ensure_ascii=False, indent=2) + "\\n",
+        encoding="utf-8",
+    )
+    print(json.dumps({
+        "source_count": report["source_count"],
+        "changes_detected": report["changes_detected"],
+        "d1_status": d1_status,
+        "output": str(destination),
+    }, indent=2))
+    return 0
+
+
 def build_parser():
     parser = argparse.ArgumentParser(description="PH-EXAM-RESULTS Python engine")
     commands = parser.add_subparsers(dest="command", required=True)
 
-    csv_parser = commands.add_parser("process", help="Normalize and validate a CSV batch")
+    monitor_parser = commands.add_parser("monitor", help="Check approved source endpoints")\n    monitor_parser.add_argument("--registry", default="config/sources.json")\n    monitor_parser.add_argument("--output", default="artifacts/monitor-report.json")\n    monitor_parser.set_defaults(handler=monitor_sources)\n\n    csv_parser = commands.add_parser("process", help="Normalize and validate a CSV batch")
     csv_parser.add_argument("--input", required=True)
     csv_parser.add_argument("--authority", required=True, choices=("PRC", "CSC"))
     csv_parser.add_argument("--exam", required=True)
