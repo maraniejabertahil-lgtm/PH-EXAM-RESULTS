@@ -11,7 +11,7 @@ from pathlib import Path
 EXPECTED_COLUMNS = ["name", "rating", "region", "seq"]
 MAX_ASSET_BYTES = 10 * 1024 * 1024
 SHARD_FILENAME_PATTERN = re.compile(
-    r"^\\d{4}-(?:[A-Z]-[A-Z]|OTHER)(?:-(?P<content_hash>[a-f0-9]{64}))?\\.json$"
+    r"^\d{4}-(?:[A-Z]-[A-Z]|OTHER)(?:-(?P<content_hash>[a-f0-9]{64}))?\.json$"
 )
 
 
