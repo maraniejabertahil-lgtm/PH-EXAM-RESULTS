@@ -3,6 +3,8 @@ from pathlib import Path
 from urllib.parse import urlsplit
 from urllib.request import Request, urlopen
 
+from scraper.monitor import _is_approved_source
+
 
 USER_AGENT = "PH-EXAM-RESULTS-Acquirer/1.0"
 DEFAULT_MAX_BYTES = 50 * 1024 * 1024
@@ -13,12 +15,16 @@ class DownloadError(Exception):
 
 
 def download_approved_file(
-    url: str,
+    source: dict,
     destination: str | Path,
     max_bytes: int = DEFAULT_MAX_BYTES,
 ) -> dict:
-    """Download an HTTPS file without following cross-host redirects."""
-    original = urlsplit(url or "")
+    """Download a file only from an explicitly approved HTTPS source."""
+    approved, reason = _is_approved_source(source)
+    if not approved or source.get("enabled") is not True:
+        raise DownloadError(reason or "Source is disabled.")
+    url = source.get("url", "")
+    original = urlsplit(url)
     if original.scheme != "https" or not original.hostname:
         raise DownloadError("Only valid HTTPS source URLs are allowed.")
 
