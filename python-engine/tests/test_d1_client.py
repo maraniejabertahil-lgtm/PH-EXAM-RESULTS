@@ -1,9 +1,11 @@
 import json
 import os
+import sqlite3
 import unittest
 from unittest.mock import MagicMock, patch
 
 from database.d1_client import D1Client, D1Error
+from pathlib import Path
 
 
 class D1ClientTests(unittest.TestCase):
@@ -94,6 +96,54 @@ class D1ClientTests(unittest.TestCase):
         sql, params = query.call_args.args
         self.assertIn("VALUES (?, ?, ?, ?, NULL, NULL, NULL)", sql)
         self.assertEqual(len(params), 4)
+
+    def test_d1_insert_statements_execute_with_optional_values(self):
+        client = D1Client("account", "database", "secret")
+        connection = sqlite3.connect(":memory:")
+        schema_path = Path(__file__).resolve().parents[1] / "database" / "schema.sql"
+        connection.executescript(schema_path.read_text(encoding="utf-8"))
+
+        def execute_locally(sql, params=None):
+            cursor = connection.execute(sql, params or [])
+            if cursor.description:
+                columns = [column[0] for column in cursor.description]
+                return [dict(zip(columns, row)) for row in cursor.fetchall()]
+            return []
+
+        report = {
+            "authority": "PRC",
+            "examination": "LET",
+            "year": 2026,
+            "source_file": "results.csv",
+            "validation": {
+                "is_valid": True,
+                "total_records": 1,
+                "valid_records": 1,
+                "invalid_records": [],
+            },
+            "duplicates": {"exact_duplicates": [], "fuzzy_candidates": []},
+        }
+        with patch.object(client, "query", side_effect=execute_locally):
+            client.save_source_state("source-1", None, "modified", None, "checked")
+            client.record_monitoring_log("source-1", "reachable", "checked")
+            batch_id = client.record_import_batch(report)
+
+        source_state = connection.execute(
+            "SELECT etag, last_modified, content_length FROM source_states WHERE source_id = ?",
+            ("source-1",),
+        ).fetchone()
+        self.assertEqual(source_state, (None, "modified", None))
+        log_values = connection.execute(
+            "SELECT error_details, etag, last_modified FROM monitoring_logs WHERE source_id = ?",
+            ("source-1",),
+        ).fetchone()
+        self.assertEqual(log_values, (None, None, None))
+        batch_values = connection.execute(
+            "SELECT source_reference, report_path FROM import_batches WHERE batch_id = ?",
+            (batch_id,),
+        ).fetchone()
+        self.assertEqual(batch_values, (None, "results.csv"))
+        connection.close()
 
     def test_import_batch_status_reflects_duplicate_review_requirements(self):
         cases = [
