@@ -48,6 +48,79 @@ export function getYears(manifest, authority, examination) {
   return Object.keys(years).sort((a, b) => Number(b) - Number(a));
 }
 
+export function validateManifestFileEntry(file, authority, examination, year, shard) {
+  const expectedPrefix = `/data/${String(authority).toLowerCase()}/${String(examination).toLowerCase()}/`;
+  const filenamePattern = new RegExp(
+    `^${String(year)}-${String(shard)}(?:-[a-f0-9]{64})?\\.jsonimport { getCachedDataset, setCachedDataset } from "./storage.js";
+
+export async function fetchWithTimeout(resource, options = {}, timeoutMs = 45000) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(resource, { ...options, signal: controller.signal });
+  } catch (error) {
+    if (error?.name === "AbortError") {
+      throw new Error("The request took too long. Check your connection and try again.");
+    }
+    throw error;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+export async function loadManifest() {
+  const response = await fetchWithTimeout("/data/manifest.json", { cache: "no-store" });
+  if (!response.ok) throw new Error("The published examination catalogue is unavailable.");
+  const manifest = await response.json();
+  if (manifest.schema_version !== 2 || !manifest.authorities) {
+    throw new Error("The published examination catalogue has an unsupported format.");
+  }
+  return manifest;
+}
+
+export async function loadSiteStatus() {
+  try {
+    const response = await fetchWithTimeout("/data/site-status.json", { cache: "no-store" });
+    if (!response.ok) return { mode: "search", preparation: null };
+    const status = await response.json();
+    return status && status.schema_version === 1 && status.mode === "preparing"
+      ? status
+      : { mode: "search", preparation: null };
+  } catch {
+    // Status is supplemental; a status-file outage must not disable result search.
+    return { mode: "search", preparation: null };
+  }
+}
+
+export function getExaminations(manifest, authority) {
+  return Object.keys(manifest.authorities?.[authority]?.examinations || {}).sort();
+}
+
+export function getYears(manifest, authority, examination) {
+  const years = manifest.authorities?.[authority]?.examinations?.[examination]?.years || {};
+  return Object.keys(years).sort((a, b) => Number(b) - Number(a));
+}
+
+
+  );
+  if (
+    !file ||
+    typeof file !== "object" ||
+    typeof file.path !== "string" ||
+    !file.path.startsWith(expectedPrefix) ||
+    !filenamePattern.test(file.path.slice(expectedPrefix.length)) ||
+    !/^[a-f0-9]{64}$/.test(file.hash || "") ||
+    !Number.isInteger(file.record_count) ||
+    file.record_count < 1 ||
+    !Number.isInteger(file.size_bytes) ||
+    file.size_bytes < 1 ||
+    file.size_bytes > 10 * 1024 * 1024
+  ) {
+    throw new Error("The examination catalogue contains an invalid dataset reference.");
+  }
+  return file;
+}
+
 export function selectShards(files) {
   // Search uses substring matching, so a query can occur anywhere in a name.
   // Selecting only the shard matching the query's first letter would miss
@@ -140,7 +213,13 @@ export async function loadSearchDataset(manifest, authority, examination, year, 
   if (!yearEntry || !yearEntry.files) throw new Error("No published results exist for that selection.");
 
   const files = yearEntry.files;
-  const selected = selectShards(files, query);
+  if (!files || typeof files !== "object" || Array.isArray(files)) {
+    throw new Error("The examination catalogue contains invalid dataset references.");
+  }
+  const selected = Object.entries(files).map(([shard, file]) =>
+    validateManifestFileEntry(file, authority, examination, year, shard)
+  );
+  if (!selected.length) throw new Error("No published dataset is available.");
   const datasets = await Promise.all(selected.map(fetchVerifiedDataset));
   if (!datasets.length) throw new Error("No published dataset is available.");
 
