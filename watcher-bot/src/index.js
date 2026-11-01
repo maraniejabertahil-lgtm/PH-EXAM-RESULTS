@@ -361,6 +361,33 @@ async function runScan(sources, env, fetchImpl, now, peakWeek) {
   return { checked_targets: checkedTargets, skipped_targets: skippedTargets, results };
 }
 
+function createSubrequestBudget(env, fetchImpl) {
+  let used = 0;
+  const consume = () => {
+    if (used >= MAX_SUBREQUESTS_PER_INVOCATION) {
+      throw new Error("Cloudflare Free subrequest safety budget reached; remaining checks were skipped.");
+    }
+    used += 1;
+  };
+  return {
+    fetch: async (...args) => {
+      consume();
+      return fetchImpl(...args);
+    },
+    kv: {
+      get: async (...args) => {
+        consume();
+        return env.PEAK_WEEK.get(...args);
+      },
+      put: async (...args) => {
+        consume();
+        return env.PEAK_WEEK.put(...args);
+      }
+    },
+    used: () => used
+  };
+}
+
 export async function runScheduled({
   env, fetchImpl = fetch,
   sleepImpl = (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
@@ -369,29 +396,23 @@ export async function runScheduled({
   if (!env.PEAK_WEEK || typeof env.PEAK_WEEK.get !== "function" || typeof env.PEAK_WEEK.put !== "function") {
     throw new Error("The PEAK_WEEK KV namespace binding is not configured.");
   }
-  let subrequestsUsed = 0;
-  const budgetFetch = async (...args) => {
-    if (subrequestsUsed >= MAX_SUBREQUESTS_PER_INVOCATION) {
-      throw new Error("Cloudflare free-tier subrequest safety budget reached; remaining checks were skipped.");
-    }
-    subrequestsUsed += 1;
-    return fetchImpl(...args);
-  };
-  const peakWeek = parseBoolean(await env.PEAK_WEEK.get("PEAK_WEEK"));
-  const sources = await readSourceRegistry(env, budgetFetch);
+  const budget = createSubrequestBudget(env, fetchImpl);
+  const budgetEnv = { ...env, PEAK_WEEK: budget.kv };
+  const peakWeek = parseBoolean(await budget.kv.get("PEAK_WEEK"));
+  const sources = await readSourceRegistry(env, budget.fetch);
   const activeSources = sources.filter(isApprovedSource);
-  const first = await runScan(sources, env, budgetFetch, new Date(scheduledTime), peakWeek);
+  const first = await runScan(sources, budgetEnv, budget.fetch, new Date(scheduledTime), peakWeek);
   let second = null;
   if (peakWeek) {
     await sleepImpl(30_000);
-    second = await runScan(sources, env, budgetFetch, new Date(scheduledTime + 30_000), true);
+    second = await runScan(sources, budgetEnv, budget.fetch, new Date(scheduledTime + 30_000), true);
   }
   const report = {
     checked_at: isoNow(new Date(scheduledTime)),
     mode: peakWeek ? "peak_week" : "standard",
     configured_sources: sources.length,
     approved_enabled_sources: activeSources.length,
-    outbound_subrequests_used: subrequestsUsed,
+    outbound_subrequests_used: budget.used(),
     outbound_subrequest_safety_limit: MAX_SUBREQUESTS_PER_INVOCATION,
     first_check: first,
     second_check: second
