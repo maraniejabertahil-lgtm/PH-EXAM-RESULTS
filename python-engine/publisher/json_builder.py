@@ -41,10 +41,12 @@ def _split_range(records: list[dict], start: str, end: str) -> list[tuple[str, l
     right_start = chr(midpoint + 1)
     left = [record for record in records if (letter := _initial_letter(record.get("name"))) and start <= letter <= left_end]
     right = [record for record in records if (letter := _initial_letter(record.get("name"))) and right_start <= letter <= end]
-    return (
-        _split_range(left, start, left_end)
-        + _split_range(right, right_start, end)
-    )
+    result = []
+    if left:
+        result.extend(_split_range(left, start, left_end))
+    if right:
+        result.extend(_split_range(right, right_start, end))
+    return result
 
 
 def build_public_datasets(
