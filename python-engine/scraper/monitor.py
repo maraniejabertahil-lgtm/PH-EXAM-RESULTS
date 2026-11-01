@@ -55,11 +55,18 @@ def monitor_source(source: dict) -> dict:
 
     try:
         original_host, url = _validate_https_url(source.get("url", ""))
+        original_port = urlsplit(url).port or 443
         request = Request(url, headers={"User-Agent": USER_AGENT}, method="HEAD")
         with urlopen(request, timeout=TIMEOUT_SECONDS) as response:
             final_url = urlsplit(response.geturl())
             final_host = (final_url.hostname or "").lower()
-            if final_url.scheme != "https" or final_url.username or final_url.password or final_host != original_host:
+            if (
+                final_url.scheme != "https"
+                or final_url.username
+                or final_url.password
+                or final_host != original_host
+                or (final_url.port or 443) != original_port
+            ):
                 return {
                     "source_id": source_id,
                     "status": "redirect_rejected",
@@ -85,7 +92,13 @@ def monitor_source(source: dict) -> dict:
                 with urlopen(request, timeout=TIMEOUT_SECONDS) as response:
                     final_url = urlsplit(response.geturl())
                     final_host = (final_url.hostname or "").lower()
-                    if final_url.scheme != "https" or final_url.username or final_url.password or final_host != original_host:
+                    if (
+                        final_url.scheme != "https"
+                        or final_url.username
+                        or final_url.password
+                        or final_host != original_host
+                        or (final_url.port or 443) != original_port
+                    ):
                         return {"source_id": source_id, "status": "redirect_rejected", "checked_at": checked_at}
                     response.read(1)
                     return {
