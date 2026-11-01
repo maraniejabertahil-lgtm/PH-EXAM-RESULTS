@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 const loaderSource = readFileSync("public/assets/js/loader.js", "utf8")
   .replace('import { getCachedDataset, setCachedDataset } from "./storage.js";', "");
 const loaderUrl = "data:text/javascript;base64," + Buffer.from(loaderSource).toString("base64");
-const { selectShards, validateDatasetPayload } = await import(loaderUrl);
+const { fetchWithTimeout, selectShards, validateDatasetPayload } = await import(loaderUrl);
 
 const valid = {
   columns: ["name", "rating", "region", "seq"],
@@ -52,5 +52,23 @@ assert.throws(
   () => validateDatasetPayload({ columns: ["name", "rating", "region", "seq"], data: [["A", null, null, -1]] }),
   /invalid record/
 );
+
+const originalFetch = globalThis.fetch;
+try {
+  globalThis.fetch = async (url, options) => ({ url, signal: options.signal });
+  const response = await fetchWithTimeout("/test-resource", {}, 1000);
+  assert.equal(response.url, "/test-resource");
+  assert.ok(response.signal instanceof AbortSignal);
+
+  globalThis.fetch = async () => {
+    throw new DOMException("Request aborted", "AbortError");
+  };
+  await assert.rejects(
+    fetchWithTimeout("/slow-resource", {}, 1000),
+    /took too long/
+  );
+} finally {
+  globalThis.fetch = originalFetch;
+}
 
 console.log("Public dataset structure validation tests passed.");
