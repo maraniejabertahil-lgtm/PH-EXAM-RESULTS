@@ -89,6 +89,7 @@ export async function loadSearchDataset(manifest, authority, examination, year, 
   }
   return {
     columns,
-    rows: datasets.flatMap(dataset => dataset.data)
+    rows: datasets.flatMap(dataset => dataset.data),
+    datasetKey: selected.map(file => file.path + ":" + file.hash).join("|")
   };
 }
