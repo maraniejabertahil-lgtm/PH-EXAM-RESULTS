@@ -403,6 +403,22 @@ def predict_release(args) -> int:
 def write_site_status(args) -> int:
     try:
         if args.mode == "preparing":
+            existing_status_path = Path(args.output)
+            if existing_status_path.is_file():
+                existing_status = json.loads(existing_status_path.read_text(encoding="utf-8"))
+                active = existing_status.get("preparation") or {}
+                if (
+                    existing_status.get("mode") == "preparing"
+                    and (
+                        active.get("authority") != args.authority
+                        or active.get("exam") != args.exam
+                        or active.get("year") != args.year
+                    )
+                ):
+                    raise ValueError(
+                        "Another examination is already in Preparing Mode. "
+                        "Clear or complete that mode before activating a different examination."
+                    )
             client = D1Client.from_environment()
             prediction = client.get_release_prediction(args.authority, args.exam, args.year)
             if not prediction or not prediction.get("predicted_date"):
