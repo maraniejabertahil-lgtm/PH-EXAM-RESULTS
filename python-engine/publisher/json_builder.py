@@ -106,7 +106,7 @@ def build_public_datasets(
         shard_records.sort(key=lambda item: (item.get("search_key", ""), item["name"]))
         encoded = _encode(shard_records)
         content_hash = hashlib.sha256(encoded).hexdigest()
-        filename = f"{int(year)}-{shard}-{content_hash[:12]}.json"
+        filename = f"{int(year)}-{shard}-{content_hash}.json"
         destination = base / filename
         destination.parent.mkdir(parents=True, exist_ok=True)
         destination.write_bytes(encoded)
