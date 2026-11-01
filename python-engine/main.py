@@ -13,6 +13,7 @@ from extractor.pdf_parser import PDFExtractionError, extract_pdf_lines
 from processor.duplicates import find_duplicates
 from processor.normalizer import normalize_record
 from processor.validator import validate_batch
+from prediction.release_predictor import predict_next_release
 from publisher.gitops_manager import create_publication_pull_request, GitOpsError
 from scraper.monitor import monitor_registry
 
@@ -207,6 +208,35 @@ def publish_batch(args) -> int:
 
 
 
+
+def predict_release(args) -> int:
+    try:
+        client = D1Client.from_environment()
+        client.apply_schema(Path(__file__).parent / "database" / "schema.sql")
+        dates = client.get_actual_release_dates(args.authority, args.exam, limit=6)
+    except D1Error as exc:
+        print(f"ERROR: D1 is required for release prediction: {exc}", file=sys.stderr)
+        return 2
+
+    prediction = predict_next_release(dates)
+    if prediction["predicted_date"]:
+        client.save_release_prediction(
+            args.authority,
+            args.exam,
+            args.year,
+            prediction["predicted_date"],
+            prediction["data_points"],
+        )
+    print(json.dumps({
+        "authority": args.authority,
+        "examination": args.exam,
+        "target_year": args.year,
+        **prediction,
+    }, indent=2))
+    return 0
+
+
+
 def build_parser():
     parser = argparse.ArgumentParser(description="PH-EXAM-RESULTS Python engine")
     commands = parser.add_subparsers(dest="command", required=True)
@@ -223,6 +253,12 @@ def build_parser():
     csv_parser.add_argument("--year", required=True, type=int)
     csv_parser.add_argument("--output", required=True)
     csv_parser.set_defaults(handler=process_csv)
+
+    prediction_parser = commands.add_parser("predict", help="Estimate a release date from D1 history")
+    prediction_parser.add_argument("--authority", required=True, choices=("PRC", "CSC"))
+    prediction_parser.add_argument("--exam", required=True)
+    prediction_parser.add_argument("--year", required=True, type=int)
+    prediction_parser.set_defaults(handler=predict_release)
 
     publish_parser = commands.add_parser("publish", help="Prepare datasets and open an owner-approval PR")
     publish_parser.add_argument("--report", required=True)
