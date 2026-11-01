@@ -14,7 +14,7 @@ class GitOpsError(Exception):
 
 def _safe_inline_code(value, limit: int = 120) -> str:
     """Render untrusted source text safely inside a Markdown inline-code span."""
-    cleaned = str(value).replace("\\r", " ").replace("\\n", " ").replace("`", "'")
+    cleaned = str(value).replace("\r", " ").replace("\n", " ").replace("`", "'")
     return "`" + cleaned[:limit] + "`"
 
 
