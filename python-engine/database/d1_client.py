@@ -73,20 +73,20 @@ class D1Client:
 
     def get_source_state(self, source_id: str):
         rows = self.query(
-            "SELECT source_id, etag, last_modified, checked_at "
+            "SELECT source_id, etag, last_modified, content_length, checked_at "
             "FROM source_states WHERE source_id = ?",
             [source_id],
         )
         return rows[0] if rows else None
 
-    def save_source_state(self, source_id: str, etag: str | None, last_modified: str | None, checked_at: str):
+    def save_source_state(self, source_id: str, etag: str | None, last_modified: str | None, content_length: str | None, checked_at: str):
         self.query(
-            "INSERT INTO source_states (source_id, etag, last_modified, checked_at) "
-            "VALUES (?, ?, ?, ?) "
+            "INSERT INTO source_states (source_id, etag, last_modified, content_length, checked_at) "
+            "VALUES (?, ?, ?, ?, ?) "
             "ON CONFLICT(source_id) DO UPDATE SET "
             "etag = excluded.etag, last_modified = excluded.last_modified, "
-            "checked_at = excluded.checked_at",
-            [source_id, etag, last_modified, checked_at],
+            "content_length = excluded.content_length, checked_at = excluded.checked_at",
+            [source_id, etag, last_modified, content_length, checked_at],
         )
 
 
