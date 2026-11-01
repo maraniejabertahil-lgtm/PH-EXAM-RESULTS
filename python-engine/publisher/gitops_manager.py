@@ -123,7 +123,33 @@ def create_publication_pull_request(
     validation = report.get("validation", {})
     duplicates = report.get("duplicates", {})
     exact_count = len(duplicates.get("exact_duplicates", []))
-    fuzzy_count = len(duplicates.get("fuzzy_candidates", []))
+    fuzzy_candidates = duplicates.get("fuzzy_candidates", [])
+    fuzzy_count = len(fuzzy_candidates)
+    records = report.get("records", [])
+    fuzzy_review_lines = []
+    for candidate in fuzzy_candidates[:20]:
+        first_index = candidate.get("first_index")
+        other_index = candidate.get("candidate_index")
+        if (
+            isinstance(first_index, int) and isinstance(other_index, int)
+            and 0 <= first_index < len(records)
+            and 0 <= other_index < len(records)
+        ):
+            first_name = str(records[first_index].get("name", ""))[:120]
+            other_name = str(records[other_index].get("name", ""))[:120]
+            similarity = candidate.get("similarity", "not supplied")
+            fuzzy_review_lines.append(
+                f"- `{first_name}` ↔ `{other_name}` (similarity: {similarity})"
+            )
+    fuzzy_review_section = (
+        "\\n".join(fuzzy_review_lines)
+        if fuzzy_review_lines
+        else "No fuzzy duplicate candidates were identified."
+    )
+    if fuzzy_count > len(fuzzy_review_lines):
+        fuzzy_review_section += (
+            f"\\n- Showing first {len(fuzzy_review_lines)} of {fuzzy_count} candidates."
+        )
     source_line = source_reference or "Not supplied"
     body = f"""## Examination result import review
 
@@ -143,6 +169,9 @@ def create_publication_pull_request(
 - Fuzzy duplicate candidates: {fuzzy_count}
 - Generated dataset shards: {len(entries)}
 - Manifest schema: {manifest.get('schema_version')}
+
+### Fuzzy duplicate review
+{fuzzy_review_section}
 
 ### Owner review required
 This Pull Request is the publication approval gate. Review the official source and all validation/duplicate findings before merging. No data in this branch is public until this Pull Request is merged and the production deployment completes.
