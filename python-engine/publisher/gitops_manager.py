@@ -102,6 +102,8 @@ def create_publication_pull_request(
 **Examination:** {report['examination']}
 **Year:** {year}
 **Source reference:** {source_line}
+**Source file:** {report.get('source_file', 'Not supplied')}  
+**Source SHA-256:** `{report.get('source_file_sha256', 'Not recorded')}`
 **Internal batch ID:** {report.get('d1_batch_id', 'D1 not configured')}
 
 ### Validation report
