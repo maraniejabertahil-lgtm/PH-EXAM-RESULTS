@@ -6,8 +6,8 @@ def validate_record(record: dict) -> list[str]:
 
     if record.get("authority") not in {"PRC", "CSC"}:
         errors.append("authority must be PRC or CSC")
-    if not isinstance(record.get("examination"), str) or not record["examination"].strip():
-        errors.append("examination is required")
+    if not isinstance(record.get("examination"), str) or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_-]{0,39}", record["examination"]):
+        errors.append("examination must be a 1-40 character identifier using letters, numbers, hyphens, or underscores")
     if not isinstance(record.get("year"), int) or not 1900 <= record["year"] <= 2100:
         errors.append("year must be a valid four-digit year")
     if not isinstance(record.get("name"), str) or not record["name"].strip():
