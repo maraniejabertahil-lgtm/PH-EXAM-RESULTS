@@ -28,6 +28,7 @@ let workerDatasetKey = null;
 let nextRequestId = 1;
 const pendingSearches = new Map();
 const pendingWorkerLoads = new Map();
+const WORKER_RESPONSE_TIMEOUT_MS = 30000;
 let searchWorker = null;
 
 function showPage(page) {
@@ -133,7 +134,8 @@ function renderResults(rows, columns, totalMatches = rows.length) {
 function ensureWorkerDataset(dataset) {
   if (workerDatasetKey === dataset.datasetKey) return Promise.resolve();
   return new Promise((resolve, reject) => {
-    pendingWorkerLoads.set(dataset.datasetKey, { resolve, reject });
+    const timer = setTimeout(() => failSearchWorker(searchWorker, new Error("The search engine did not respond. Please try your search again.")), WORKER_RESPONSE_TIMEOUT_MS);
+    pendingWorkerLoads.set(dataset.datasetKey, { resolve, reject, timer });
     ensureSearchWorker().postMessage({
       type: "load",
       datasetKey: dataset.datasetKey,
@@ -146,15 +148,22 @@ function ensureWorkerDataset(dataset) {
 function runWorkerSearch(query) {
   const requestId = nextRequestId++;
   return new Promise((resolve, reject) => {
-    pendingSearches.set(requestId, { resolve, reject });
+    const timer = setTimeout(() => failSearchWorker(searchWorker, new Error("The search engine did not respond. Please try your search again.")), WORKER_RESPONSE_TIMEOUT_MS);
+    pendingSearches.set(requestId, { resolve, reject, timer });
     ensureSearchWorker().postMessage({ type: "search", requestId, query });
   });
 }
 
 function rejectPendingWorkerRequests(error) {
   workerDatasetKey = null;
-  for (const pending of pendingWorkerLoads.values()) pending.reject(error);
-  for (const pending of pendingSearches.values()) pending.reject(error);
+  for (const pending of pendingWorkerLoads.values()) {
+    clearTimeout(pending.timer);
+    pending.reject(error);
+  }
+  for (const pending of pendingSearches.values()) {
+    clearTimeout(pending.timer);
+    pending.reject(error);
+  }
   pendingWorkerLoads.clear();
   pendingSearches.clear();
 }
@@ -165,6 +174,7 @@ function handleWorkerMessage(event) {
     const pending = pendingWorkerLoads.get(message.datasetKey);
     if (pending) {
       pendingWorkerLoads.delete(message.datasetKey);
+      clearTimeout(pending.timer);
       if (message.error) pending.reject(new Error(message.error));
       else {
         workerDatasetKey = message.datasetKey;
@@ -177,24 +187,28 @@ function handleWorkerMessage(event) {
     const pending = pendingSearches.get(message.requestId);
     if (pending) {
       pendingSearches.delete(message.requestId);
+      clearTimeout(pending.timer);
       if (message.error) pending.reject(new Error(message.error));
       else pending.resolve({ matches: message.matches || [], totalMatches: message.totalMatches || 0 });
     }
   }
 }
 
+function failSearchWorker(worker, error) {
+  if (!worker || searchWorker !== worker) return;
+  worker.terminate();
+  searchWorker = null;
+  rejectPendingWorkerRequests(error);
+}
+
 function ensureSearchWorker() {
   if (searchWorker) return searchWorker;
   const worker = new Worker(new URL("./search.js", import.meta.url), { type: "module" });
   worker.addEventListener("message", handleWorkerMessage);
-  const handleFailure = () => {
-    if (searchWorker !== worker) return;
-    worker.terminate();
-    searchWorker = null;
-    rejectPendingWorkerRequests(
-      new Error("The search engine stopped unexpectedly. Please submit your search again.")
-    );
-  };
+  const handleFailure = () => failSearchWorker(
+    worker,
+    new Error("The search engine stopped unexpectedly. Please submit your search again.")
+  );
   worker.addEventListener("error", handleFailure);
   worker.addEventListener("messageerror", handleFailure);
   searchWorker = worker;
