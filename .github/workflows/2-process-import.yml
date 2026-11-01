@@ -85,6 +85,7 @@ jobs:
             *.csv|*.CSV) ;;
             *) echo "The automated import workflow currently accepts CSV only. Use the PDF manual-review process for PDFs."; exit 1 ;;
           esac
+          echo "INPUT_REAL=$INPUT_REAL" >> "$GITHUB_ENV"
       - name: Process and validate CSV
         working-directory: python-engine
         env:
@@ -99,7 +100,7 @@ jobs:
           D1_DATABASE_ID: ${{ secrets.D1_DATABASE_ID }}
         run: |
           set -euo pipefail
-          ARGS=(process --input "../$INPUT_PATH" --authority "$AUTHORITY" --exam "$EXAMINATION" --year "$EXAM_YEAR" --output ../artifacts/import-report.json --source-reference "$SOURCE_REFERENCE")
+          ARGS=(process --input "$INPUT_REAL" --authority "$AUTHORITY" --exam "$EXAMINATION" --year "$EXAM_YEAR" --output ../artifacts/import-report.json --source-reference "$SOURCE_REFERENCE")
           if [[ -n "$ACTUAL_RELEASE_DATE" ]]; then ARGS+=(--actual-release-date "$ACTUAL_RELEASE_DATE"); fi
           python main.py "${ARGS[@]}"
       - name: Build datasets and open owner approval Pull Request
