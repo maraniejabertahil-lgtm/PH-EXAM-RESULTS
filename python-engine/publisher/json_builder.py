@@ -105,14 +105,15 @@ def build_public_datasets(
     for shard, shard_records in groups:
         shard_records.sort(key=lambda item: (item.get("search_key", ""), item["name"]))
         encoded = _encode(shard_records)
-        filename = f"{int(year)}-{shard}.json"
+        content_hash = hashlib.sha256(encoded).hexdigest()
+        filename = f"{int(year)}-{shard}-{content_hash[:12]}.json"
         destination = base / filename
         destination.parent.mkdir(parents=True, exist_ok=True)
         destination.write_bytes(encoded)
         entries.append({
             "shard": shard,
             "path": "/data/" + destination.relative_to(Path(output_root)).as_posix(),
-            "hash": hashlib.sha256(encoded).hexdigest(),
+            "hash": content_hash,
             "record_count": len(shard_records),
             "size_bytes": len(encoded),
         })
