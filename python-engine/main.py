@@ -295,6 +295,44 @@ def write_site_status(args) -> int:
 
 
 
+
+def predict_all(args) -> int:
+    try:
+        config = json.loads(Path(args.config).read_text(encoding="utf-8"))
+        examinations = config.get("examinations", [])
+        if not isinstance(examinations, list):
+            raise ValueError("examinations must be an array")
+        client = D1Client.from_environment()
+        client.apply_schema(Path(__file__).parent / "database" / "schema.sql")
+    except (OSError, json.JSONDecodeError, ValueError, D1Error) as exc:
+        print(f"ERROR: Cannot update predictions: {exc}", file=sys.stderr)
+        return 2
+
+    results = []
+    for item in examinations:
+        authority = item.get("authority")
+        exam = item.get("exam")
+        year = item.get("target_year")
+        if authority not in {"PRC", "CSC"} or not exam or not isinstance(year, int):
+            print(f"Skipping invalid examination configuration: {item}", file=sys.stderr)
+            continue
+        dates = client.get_actual_release_dates(authority, exam, limit=6)
+        prediction = predict_next_release(dates)
+        if prediction["predicted_date"]:
+            client.save_release_prediction(
+                authority, exam, year, prediction["predicted_date"], prediction["data_points"]
+            )
+        results.append({
+            "authority": authority,
+            "exam": exam,
+            "target_year": year,
+            **prediction,
+        })
+    print(json.dumps({"configured_examinations": len(examinations), "results": results}, indent=2))
+    return 0
+
+
+
 def build_parser():
     parser = argparse.ArgumentParser(description="PH-EXAM-RESULTS Python engine")
     commands = parser.add_subparsers(dest="command", required=True)
@@ -313,6 +351,10 @@ def build_parser():
     csv_parser.add_argument("--source-reference", default="")
     csv_parser.add_argument("--actual-release-date", default="")
     csv_parser.set_defaults(handler=process_csv)
+
+    predict_all_parser = commands.add_parser("predict-all", help="Update predictions for configured examinations")
+    predict_all_parser.add_argument("--config", default="config/examinations.json")
+    predict_all_parser.set_defaults(handler=predict_all)
 
     status_parser = commands.add_parser("site-status", help="Generate approved Preparing/Search mode status JSON")
     status_parser.add_argument("--mode", required=True, choices=("search", "preparing"))
