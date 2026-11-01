@@ -10,7 +10,7 @@ This repository contains the initial implementation of the approved architecture
 - Public search uses static JSON datasets, a browser Web Worker, and IndexedDB caching.
 - Python processes CSV records, extracts text from text-based PDFs, normalizes names, validates records, and flags duplicate candidates.
 - Python generates compact array-of-arrays JSON datasets and a SHA-256 manifest.
-- The Cloudflare Watcher is being added for one-minute source monitoring; GitHub Actions receives `source-detected` events. Phase 1 validates and records the event only; Phase 2 connects Python acquisition/extraction and Greenlight processing.
+- The Cloudflare Watcher implementation is included in the current implementation PR for one-minute source monitoring, but it is not deployed yet. GitHub Actions receives `source-detected` events. Phase 1 validates and records the event only; Phase 2 connects Python acquisition/extraction and Greenlight processing.
 - GitHub Actions retains manual source diagnostics, manual CSV import, release-prediction updates, Preparing/Search status PRs, tests, maintenance, and Cloudflare Pages deployment workflows.
 - Cloudflare D1 REST integration and initial metadata schema are included.
 - The official source registry is intentionally empty.
