@@ -1,4 +1,5 @@
 import unittest
+from unittest.mock import patch
 
 from processor.duplicates import find_duplicates
 from processor.normalizer import normalize_name, normalize_record
@@ -52,6 +53,17 @@ class DuplicateTests(unittest.TestCase):
         result = find_duplicates(rows)
         self.assertEqual(len(result["exact_duplicates"]), 1)
         self.assertEqual(len(rows), 2)
+
+    def test_fuzzy_comparisons_respect_per_record_candidate_cap(self):
+        rows = [
+            normalize_record({"name": f"COMMON NAME {index:05d}"}, "PRC", "LET", 2026)
+            for index in range(100)
+        ]
+        with patch("processor.duplicates.SequenceMatcher") as matcher:
+            matcher.return_value.ratio.return_value = 0.99
+            result = find_duplicates(rows, max_candidates_per_record=3)
+        self.assertLessEqual(matcher.call_count, len(rows) * 3)
+        self.assertTrue(result["fuzzy_candidates"])
 
     def test_different_exams_are_not_compared(self):
         rows = [
