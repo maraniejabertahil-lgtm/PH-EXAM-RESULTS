@@ -85,9 +85,24 @@ def create_publication_pull_request(
             )
             status_reset = True
 
+    batch_metadata_path = None
+    d1_batch_id = report.get("d1_batch_id")
+    if d1_batch_id:
+        batch_metadata_path = root / ".internal" / "import-batches" / f"{d1_batch_id}.json"
+        batch_metadata_path.parent.mkdir(parents=True, exist_ok=True)
+        batch_metadata_path.write_text(
+            json.dumps({
+                "batch_id": d1_batch_id,
+                "authority": report.get("authority"),
+                "exam": report.get("examination"),
+                "year": year,
+            }, ensure_ascii=False, indent=2) + "\\n",
+            encoding="utf-8",
+        )
+
     _git(root, "config", "user.name", "github-actions[bot]")
     _git(root, "config", "user.email", "41898282+github-actions[bot]@users.noreply.github.com")
-    _git(root, "add", "--", "public/data")
+    _git(root, "add", "--", "public/data", ".internal/import-batches")
     _git(root, "commit", "-m", f"Prepare {report['authority']} {report['examination']} {year} results")
     _git(root, "push", "origin", branch_name)
 
