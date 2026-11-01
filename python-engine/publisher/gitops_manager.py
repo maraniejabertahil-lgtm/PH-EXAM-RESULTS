@@ -1,4 +1,5 @@
 import json
+import re
 import os
 import subprocess
 import urllib.error
@@ -33,8 +34,12 @@ def create_publication_pull_request(
     replace_existing: bool = False,
 ) -> dict:
     root = Path(repo_root).resolve()
+    if report.get("authority") not in {"PRC", "CSC"}:
+        raise GitOpsError("Authority must be PRC or CSC.")
+    if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_-]{0,39}", str(report.get("examination", ""))):
+        raise GitOpsError("Examination identifier contains unsupported characters.")
     authority = report["authority"].lower()
-    exam = report["examination"].lower().replace(" ", "-")
+    exam = report["examination"].lower()
     year = int(report["year"])
     target_dir = root / "public" / "data" / authority / exam
     existing = list(target_dir.glob(f"{year}-*.json")) if target_dir.exists() else []
