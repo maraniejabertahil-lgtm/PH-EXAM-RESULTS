@@ -76,6 +76,11 @@ jobs:
             *) echo "Input must be inside private-imports/"; exit 1 ;;
           esac
           test -f "$INPUT_REAL"
+          SIZE_BYTES="$(stat -c%s "$INPUT_REAL")"
+          if (( SIZE_BYTES > 52428800 )); then
+            echo "CSV exceeds the 50 MiB processing safety limit."
+            exit 1
+          fi
           case "$INPUT_REAL" in
             *.csv|*.CSV) ;;
             *) echo "The automated import workflow currently accepts CSV only. Use the PDF manual-review process for PDFs."; exit 1 ;;
