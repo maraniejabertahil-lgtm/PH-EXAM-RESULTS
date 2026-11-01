@@ -166,6 +166,18 @@ class D1Client:
             [status, batch_id],
         )
 
+
+    def get_storage_stats(self) -> dict:
+        page_rows = self.query("PRAGMA page_count")
+        size_rows = self.query("PRAGMA page_size")
+        page_count = int(page_rows[0].get("page_count", 0)) if page_rows else 0
+        page_size = int(size_rows[0].get("page_size", 0)) if size_rows else 0
+        return {
+            "page_count": page_count,
+            "page_size_bytes": page_size,
+            "estimated_storage_bytes": page_count * page_size,
+        }
+
     def record_monitoring_log(self, source_id: str, status: str, timestamp: str, error: str | None = None, etag: str | None = None, last_modified: str | None = None):
         self.query(
             "INSERT INTO monitoring_logs "
