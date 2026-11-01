@@ -16,7 +16,8 @@ def normalize_record(
     examination: str,
     year: int,
 ) -> dict:
-    original_name = str(row.get("name", "")).strip()
+    raw_name = row.get("name")
+    original_name = "" if raw_name is None else str(raw_name).strip()
     return {
         "authority": authority.upper().strip(),
         "examination": examination.strip(),
