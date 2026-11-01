@@ -227,7 +227,10 @@ def monitor_sources(args) -> int:
                                     processed_report = json.loads(report_path.read_text(encoding="utf-8"))
                                     item["validation"] = processed_report.get("validation")
                                     item["duplicates"] = processed_report.get("duplicates")
-                                    if process_code == 0:
+                                    if process_code == 0 and processed_report.get("duplicates", {}).get("exact_duplicates"):
+                                        item["status"] = "exact_duplicates_review_required"
+                                        item["manual_review_required"] = True
+                                    elif process_code == 0:
                                         token = os.getenv("GITHUB_TOKEN")
                                         repository = os.getenv("GITHUB_REPOSITORY")
                                         if token and repository:
