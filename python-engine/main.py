@@ -227,6 +227,12 @@ def publish_batch(args) -> int:
         print(f"ERROR: {exc}", file=sys.stderr)
         return 1
 
+    batch_id = report.get("d1_batch_id")
+    if batch_id:
+        try:
+            D1Client.from_environment().update_import_batch_status(batch_id, "awaiting_approval")
+        except D1Error:
+            pass
     print(json.dumps(result, ensure_ascii=False, indent=2))
     return 0
 
