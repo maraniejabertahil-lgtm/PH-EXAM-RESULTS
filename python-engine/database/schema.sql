@@ -2,6 +2,7 @@ CREATE TABLE IF NOT EXISTS source_states (
   source_id TEXT PRIMARY KEY,
   etag TEXT,
   last_modified TEXT,
+  content_length TEXT,
   checked_at TEXT NOT NULL
 );
 
