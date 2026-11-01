@@ -62,11 +62,11 @@ The registry is currently empty. Do not add guessed URLs or scrape a site withou
 9. Exact duplicates block publication PR creation. Resolve them in the source CSV and reprocess.
 10. Merge only after confirming the official source and the entire batch.
 
-Only CSV is accepted by the current automated import workflow.
+Only CSV is accepted by the current automated import workflow. Manual CSV and PDF workflow inputs are capped at 50 MiB each.
 
 ## PDF handling
 
-For an iPad-friendly workflow, place the PDF inside `private-imports/`, then run **2B - Extract PDF Text for Manual Review** from GitHub Actions. Download the resulting artifact and manually verify/map the records. The workflow never publishes PDF content or extracted names.
+For an iPad-friendly workflow, place a PDF of no more than 50 MiB inside `private-imports/`, then run **2B - Extract PDF Text for Manual Review** from GitHub Actions. Download the resulting artifact and manually verify/map the records. The workflow never publishes PDF content or extracted names.
 
 The equivalent local command extracts text from text-based PDFs:
 
