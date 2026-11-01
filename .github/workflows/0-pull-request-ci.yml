@@ -44,6 +44,6 @@ jobs:
             node --input-type=module --check < "$file"
           done < <(find public/assets/js -type f -name '*.js' -print)
       - name: Test public dataset structure validation
-        run: node --experimental-default-type=module tests/loader-validation.test.mjs
+        run: node tests/loader-validation.test.mjs
       - name: Test Web Worker search with 50,000 records
         run: node tests/search-worker.test.mjs
