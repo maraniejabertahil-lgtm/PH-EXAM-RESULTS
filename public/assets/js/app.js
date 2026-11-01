@@ -90,7 +90,7 @@ function setAuthority(authority) {
   feedback.textContent = "";
 }
 
-function renderResults(rows, columns) {
+function renderResults(rows, columns, totalMatches = rows.length) {
   resultsContainer.replaceChildren();
   const nameIndex = columns.indexOf("name");
   const ratingIndex = columns.indexOf("rating");
@@ -98,9 +98,11 @@ function renderResults(rows, columns) {
 
   const summary = document.createElement("p");
   summary.className = "results-summary";
-  summary.textContent = rows.length
-    ? rows.length + (rows.length === 1 ? " matching record" : " matching records")
-    : "No matching names found in the published dataset.";
+  summary.textContent = totalMatches === 0
+    ? "No matching names found in the published dataset."
+    : totalMatches > rows.length
+      ? "Showing the first " + rows.length + " of " + totalMatches + " matching records. Refine your search to narrow the list."
+      : totalMatches + (totalMatches === 1 ? " matching record" : " matching records");
   resultsContainer.append(summary);
 
   for (const row of rows) {
@@ -168,7 +170,7 @@ searchWorker.addEventListener("message", event => {
     if (pending) {
       pendingSearches.delete(message.requestId);
       if (message.error) pending.reject(new Error(message.error));
-      else pending.resolve(message.matches || []);
+      else pending.resolve({ matches: message.matches || [], totalMatches: message.totalMatches || 0 });
     }
   }
 });
@@ -222,10 +224,10 @@ searchForm.addEventListener("submit", async event => {
       manifest, activeAuthority, examination, year, query
     );
     await ensureWorkerDataset(dataset);
-    const matches = await runWorkerSearch(query);
+    const searchResult = await runWorkerSearch(query);
     feedback.textContent = "Source: published examination dataset · " +
       activeAuthority + " · " + examination + " · " + year;
-    renderResults(matches, dataset.columns);
+    renderResults(searchResult.matches, dataset.columns, searchResult.totalMatches);
   } catch (error) {
     feedback.textContent = error instanceof Error
       ? error.message
