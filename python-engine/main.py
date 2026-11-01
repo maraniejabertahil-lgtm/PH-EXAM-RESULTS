@@ -4,6 +4,7 @@
 import argparse
 import csv
 import json
+from datetime import date
 import os
 import sys
 from pathlib import Path
@@ -47,12 +48,22 @@ def process_csv(args) -> int:
     validation = validate_batch(records)
     duplicates = find_duplicates(records)
 
+    actual_release_date = args.actual_release_date or None
+    if actual_release_date:
+        try:
+            date.fromisoformat(actual_release_date)
+        except ValueError:
+            print("ERROR: --actual-release-date must use YYYY-MM-DD.", file=sys.stderr)
+            return 2
+
     report = {
         "schema_version": 1,
         "authority": args.authority,
         "examination": args.exam,
         "year": args.year,
         "source_file": source.name,
+        "source_reference": args.source_reference or None,
+        "actual_release_date": actual_release_date,
         "validation": validation,
         "duplicates": duplicates,
         "records": records,
@@ -73,8 +84,25 @@ def process_csv(args) -> int:
         json.dumps(report, ensure_ascii=False, indent=2) + "\n",
         encoding="utf-8",
     )
+    d1_status = "not_configured"
+    try:
+        client = D1Client.from_environment()
+        client.apply_schema(Path(__file__).parent / "database" / "schema.sql")
+        report["d1_batch_id"] = client.record_import_batch(report, args.source_reference)
+        if actual_release_date:
+            client.record_actual_release_date(
+                args.authority, args.exam, args.year, actual_release_date
+            )
+        d1_status = "connected"
+    except D1Error as exc:
+        report["d1_notice"] = str(exc)
+    destination.write_text(
+        json.dumps(report, ensure_ascii=False, indent=2) + "\\n",
+        encoding="utf-8",
+    )
     print(json.dumps({
         "output": str(destination),
+        "d1_status": d1_status,
         "total_records": validation["total_records"],
         "valid_records": validation["valid_records"],
         "invalid_records": len(validation["invalid_records"]),
@@ -252,6 +280,8 @@ def build_parser():
     csv_parser.add_argument("--exam", required=True)
     csv_parser.add_argument("--year", required=True, type=int)
     csv_parser.add_argument("--output", required=True)
+    csv_parser.add_argument("--source-reference", default="")
+    csv_parser.add_argument("--actual-release-date", default="")
     csv_parser.set_defaults(handler=process_csv)
 
     prediction_parser = commands.add_parser("predict", help="Estimate a release date from D1 history")
