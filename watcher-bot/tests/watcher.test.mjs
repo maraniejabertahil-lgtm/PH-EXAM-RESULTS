@@ -180,3 +180,50 @@ test("failed GitHub dispatch is not marked complete and can retry", async () => 
   assert.equal(second.first_check.results[0].status, "dispatched");
   assert.equal(dispatchAttempts, 2);
 });
+
+
+test("verified third-party sources are skipped while an official source is reachable", async () => {
+  const official = approvedSource();
+  const thirdParty = approvedSource({
+    id: "mirror", source_type: "verified_third_party", authorized: undefined,
+    verified_by_owner: true, url: "https://mirror.example.gov.ph/results"
+  });
+  const { fetchImpl } = githubFetch([official, thirdParty], async (url) => {
+    assert.notEqual(url, thirdParty.url, "third-party source must not be requested");
+    return new Response(null, { status: 200, headers: { etag: '"official"', "content-type": "text/html" } });
+  });
+  const report = await runScheduled({ env: envFor(), fetchImpl });
+  assert.equal(report.first_check.results[0].status, "baseline_created");
+  assert.equal(report.first_check.results[1].status, "skipped_official_available");
+});
+
+test("verified third-party fallback is checked when the configured official source is unavailable", async () => {
+  const official = approvedSource();
+  const thirdParty = approvedSource({
+    id: "mirror", source_type: "verified_third_party", authorized: undefined,
+    verified_by_owner: true, url: "https://mirror.example.gov.ph/results.pdf"
+  });
+  const { fetchImpl, dispatches } = githubFetch([official, thirdParty], async (url) => {
+    if (url === official.url) return new Response(null, { status: 503 });
+    return new Response(null, { status: 200, headers: { "content-type": "application/pdf" } });
+  });
+  const report = await runScheduled({ env: envFor(), fetchImpl });
+  assert.equal(report.first_check.results[0].http_status, 503);
+  assert.equal(report.first_check.results[1].status, "dispatched");
+  assert.equal(dispatches.length, 1);
+});
+
+test("third-party source is not used when no official source is configured", async () => {
+  const mirror = approvedSource({
+    id: "mirror", source_type: "verified_third_party", authorized: undefined,
+    verified_by_owner: true, url: "https://mirror.example.gov.ph/results.pdf"
+  });
+  let requests = 0;
+  const { fetchImpl } = githubFetch([mirror], async () => {
+    requests += 1;
+    return new Response(null, { status: 200 });
+  });
+  const report = await runScheduled({ env: envFor(), fetchImpl });
+  assert.equal(report.first_check.results[0].status, "skipped_no_official_source_configured");
+  assert.equal(requests, 0);
+});
