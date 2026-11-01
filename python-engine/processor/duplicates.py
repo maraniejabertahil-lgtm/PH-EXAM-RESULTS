@@ -29,7 +29,7 @@ def _blocking_keys(name):
 def find_duplicates(
     records: list[dict],
     fuzzy_threshold: float = 0.94,
-    max_candidates_per_record: int = 250,
+    max_candidates_per_record: int = 50,
 ) -> dict:
     """
     Identify exact duplicates and possible fuzzy matches.
@@ -55,7 +55,6 @@ def find_duplicates(
         for block in _blocking_keys(name):
             scoped_blocks[scope][block].append(index)
 
-    compared = set()
     for index, record in enumerate(records):
         name = record.get("search_key", "")
         if not name:
@@ -66,13 +65,14 @@ def find_duplicates(
             candidates.update(scoped_blocks[_scope(record)].get(block, ()))
         candidates.discard(index)
 
-        # Bound worst-case work for common surnames or unusually large blocks.
-        for other_index in sorted(candidates)[:max_candidates_per_record]:
-            pair = (min(index, other_index), max(index, other_index))
-            if pair in compared:
-                continue
-            compared.add(pair)
-
+        # Compare only later indexes, so each pair is visited at most once.
+        # The cap prevents large common-name blocks from creating quadratic work.
+        compared_count = 0
+        for other_index in sorted(candidate for candidate in candidates if candidate > index):
+            if compared_count >= max_candidates_per_record:
+                break
+            compared_count += 1
+            pair = (index, other_index)
             other = records[other_index].get("search_key", "")
             if not other or name == other:
                 continue
