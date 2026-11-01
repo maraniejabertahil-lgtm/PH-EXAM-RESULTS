@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 
-SHARD_PATTERN = re.compile(r"^(?P<year>\d{4})-(?P<shard>A-M|N-Z|OTHER)\.json$")
+SHARD_PATTERN = re.compile(r"^(?P<year>\d{4})-(?P<shard>[A-Z]-[A-Z]|OTHER)\.json$")
 
 
 def build_manifest(data_root: str | Path, output_path: str | Path) -> dict:
