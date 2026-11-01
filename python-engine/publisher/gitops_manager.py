@@ -57,6 +57,7 @@ def create_publication_pull_request(
         report["authority"],
         report["examination"],
         year,
+        replace_existing=replace_existing,
     )
     manifest = build_manifest(
         root / "public" / "data",
