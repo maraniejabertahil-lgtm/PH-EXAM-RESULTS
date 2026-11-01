@@ -26,6 +26,10 @@ on:
         description: "Official source URL or verified source reference"
         required: true
         type: string
+      actual_release_date:
+        description: "Official publication date (YYYY-MM-DD), if known"
+        required: false
+        type: string
       replace_existing:
         description: "Explicitly replace an existing dataset for this examination/year"
         required: true
