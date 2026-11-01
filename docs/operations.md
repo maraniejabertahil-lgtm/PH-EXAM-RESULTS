@@ -2,46 +2,114 @@
 
 ## Current safe operating state
 
-The initial public catalogue is empty. The source registry is empty. No results are presented as live or official until an owner-reviewed dataset is merged.
+The public catalogue is empty. The source registry and examination prediction configuration are empty. No result is presented as live or official until a verified batch is owner-approved and merged.
 
-## Import a CSV
+## GitHub Actions workflows
 
-The current import workflow is manual-dispatch only.
+| Workflow | Purpose |
+|---|---|
+| 1 - Monitor Approved Sources | Checks configured sources every two hours; with D1 configured, it can detect changes, acquire approved CSV/PDF files, process them, and propose a PR |
+| 2 - Process Result Import and Open Approval PR | Manually processes an owner-supplied CSV in `private-imports/` |
+| 3 - Deploy Public Site to Cloudflare Pages | Validates and deploys the approved `public/` directory |
+| 4 - Weekly Maintenance | Runs tests, checks public dataset hashes/sizes, and checks D1 storage when configured |
+| 5 - Set Preparing or Searching Mode | Creates a PR to change public homepage mode using predefined stages |
+| 6 - Update Release Predictions | Updates configured examination predictions every six hours |
+
+## Required GitHub secrets
+
+D1:
+- `CF_API_TOKEN`: Cloudflare API token with D1 Read and Write permissions required by the implemented operations.
+- `CF_ACCOUNT_ID`: Cloudflare account ID.
+- `D1_DATABASE_ID`: D1 database ID.
+
+Cloudflare Pages:
+- `CF_PAGES_API_TOKEN`: token with Pages deployment permission.
+- `CF_ACCOUNT_ID`: Cloudflare account ID.
+- `CF_PAGES_PROJECT_NAME`: exact existing Pages project name.
+
+GitHub Actions uses its automatically supplied `GITHUB_TOKEN` for PR creation and branch pushes. Do not copy it into source files.
+
+These secrets and Cloudflare resources have not been configured or verified by this implementation.
+
+## Configure source monitoring
+
+1. Confirm the official source and that the intended access method is authorized.
+2. Add an entry to `python-engine/config/sources.json`.
+3. Include a unique ID, authority, exam identifier, source type, HTTPS URL, enabled flag, and authorization flag.
+4. Keep `auto_acquire` false until a direct file URL and format have been tested.
+5. For CSV, verify the `name` column and optional `rating`, `region`, and `seq` columns.
+6. For PDF, expect text extraction only and manual review.
+7. Add a third-party source only after owner verification. It is used only when configured official sources for that authority/exam are unavailable.
+8. Enable automatic acquisition only after the source and sample file are verified.
+
+The registry is currently empty. Do not add guessed URLs or scrape a site without permission.
+
+## Manual CSV import
 
 1. Keep the repository private.
-2. Place the authorized CSV file inside `private-imports/`.
-3. CSV must have a `name` column. Optional fields are `rating`, `region`, and `seq`.
-4. Open GitHub Actions and run **2 - Process Result Import and Open Approval PR**.
-5. Supply the CSV path, authority, examination identifier, year, source reference, and actual release date if known.
-6. Inspect the processing report and generated dataset in the resulting PR.
-7. Do not merge until the source and every duplicate/validation finding have been checked.
+2. Place the authorized CSV inside `private-imports/`.
+3. Open GitHub Actions.
+4. Run **2 - Process Result Import and Open Approval PR**.
+5. Supply the file path, authority, examination identifier, year, and source reference.
+6. Enter the actual official release date if known.
+7. Enable replacement only when intentionally replacing a complete existing examination/year dataset.
+8. Review the generated PR, source SHA-256, validation counts, and duplicate report.
+9. Exact duplicates block publication PR creation. Resolve them in the source CSV and reprocess.
+10. Merge only after confirming the official source and the entire batch.
 
-The workflow rejects paths outside `private-imports/`, non-CSV inputs, invalid records, and exact duplicate records. Replacing an existing examination/year requires explicitly selecting the replacement option.
+Only CSV is accepted by the current automated import workflow.
 
 ## PDF handling
 
-Run the Python `extract-pdf` command only for text extraction. Its output is not a passer dataset. Scanned PDFs may need OCR or manual conversion. Review and map extracted lines into a CSV before using the import workflow.
+The current PDF command extracts text from text-based PDFs:
 
-## D1 configuration
+```bash
+cd python-engine
+python main.py extract-pdf --input ../private-imports/source.pdf --output ../artifacts/pdf-extraction.json
+```
 
-Create the D1 database in the Cloudflare account and add these GitHub Actions repository secrets:
+Its output is not a passer dataset. Scanned PDFs and uncertain layouts require manual conversion/review before CSV import.
 
-- `CF_API_TOKEN` — token with the minimum required D1 database permissions.
-- `CF_ACCOUNT_ID` — Cloudflare account ID.
-- `D1_DATABASE_ID` — D1 database ID.
+## Preparing Mode
 
-The Python client applies the checked-in schema through the Cloudflare D1 REST API. D1 must never be exposed to the public browser.
+Run **5 - Set Preparing or Searching Mode** in GitHub Actions.
 
-## Cloudflare Pages deployment
+For Preparing Mode, provide authority, examination identifier, year, public display name, and the actual workflow stage. The percentage is fixed by the stage and cannot be typed freely.
 
-Create the Pages project and add these GitHub Actions repository secrets:
+For normal homepage mode, select Searching.
 
-- `CF_PAGES_API_TOKEN` — token with Pages deployment permission.
-- `CF_ACCOUNT_ID` — Cloudflare account ID.
-- `CF_PAGES_PROJECT_NAME` — exact Pages project name.
+The workflow opens a PR. The public site changes only after merge and successful Pages deployment. The scheduled prediction workflow does not yet automatically activate Preparing Mode.
 
-The deployment workflow validates public files before deploying the `public/` directory.
+## Release predictions
+
+Add only verified examination categories to `python-engine/config/examinations.json`. Predictions require sufficient actual release dates stored in D1. The scheduled workflow updates predictions every six hours; scheduled Actions may be delayed and are not a real-time scheduler.
+
+## Tests and validation
+
+```bash
+python -m pip install -r python-engine/requirements.txt
+cd python-engine
+python -m unittest discover -s tests -v
+cd ..
+python python-engine/maintenance.py
+```
+
+The maintenance script verifies the public manifest, file paths, dataset hashes, record counts, row shape, and 10 MiB shard cap.
+
+## Deployment
+
+The Pages deployment workflow requires an existing Cloudflare Pages project and the listed GitHub secrets.
+
+Cloudflare Pages output directory: `public`. No build command is required.
+
+If credentials are missing, deployment cannot complete. The workflow must fail clearly rather than claim that the website was published.
 
 ## Recovery
 
-If a bad data PR is merged and deployed, use GitHub Revert on the merge commit. The deployment workflow then republishes the restored `main` contents.
+- Invalid CSV batches do not create a publication PR.
+- Exact duplicate candidates block PR creation.
+- Fuzzy candidates are shown for owner review and are never automatically removed.
+- Existing datasets are not replaced unless the owner explicitly enables replacement.
+- Invalid JSON, incorrect hashes, or oversized shards block deployment.
+- If a bad data PR is merged and deployed, use GitHub Revert on the merge commit; the restored main contents can then be redeployed.
+- If D1 or monitoring fails, keep the last verified public dataset.
