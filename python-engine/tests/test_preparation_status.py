@@ -36,6 +36,17 @@ class PreparationStatusTests(unittest.TestCase):
                 stage="75_percent",
             )
 
+    def test_preparing_rejects_unsafe_exam_identifiers(self):
+        with self.assertRaises(ValueError):
+            build_status(
+                mode="preparing",
+                authority="PRC",
+                exam="LET/2026",
+                year=2026,
+                examination_name="PRC – LET Examination",
+                stage="monitoring",
+            )
+
     def test_writes_status_json(self):
         with tempfile.TemporaryDirectory() as folder:
             path = Path(folder) / "site-status.json"
