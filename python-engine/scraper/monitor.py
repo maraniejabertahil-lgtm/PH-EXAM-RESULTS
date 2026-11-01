@@ -102,7 +102,7 @@ def monitor_source(source: dict) -> dict:
                     headers={"User-Agent": USER_AGENT, "Range": "bytes=0-0"},
                     method="GET",
                 )
-                with urlopen(request, timeout=TIMEOUT_SECONDS) as response:
+                with open_same_origin(request, url, timeout=TIMEOUT_SECONDS) as response:
                     final_url = urlsplit(response.geturl())
                     final_host = (final_url.hostname or "").lower()
                     if (
