@@ -81,8 +81,10 @@ class GitOpsIsolationTests(unittest.TestCase):
                 side_effect=[
                     FakeResponse([]),
                     FakeResponse({"number": 101, "html_url": "https://github.com/example/repo/pull/101"}),
+                    FakeResponse(None),  # workflow_dispatch for the first PR
                     FakeResponse([]),
                     FakeResponse({"number": 102, "html_url": "https://github.com/example/repo/pull/102"}),
+                    FakeResponse(None),  # workflow_dispatch for the second PR
                     FakeResponse([{
                         "head": {"ref": "data-import/prc-let-2026-pending"},
                         "html_url": "https://github.com/example/repo/pull/101",
@@ -111,6 +113,8 @@ class GitOpsIsolationTests(unittest.TestCase):
             self.assertIn("public/data/prc/nle/2026-A-M.json", second_files)
             self.assertNotIn("public/data/prc/let/2026-A-M.json", second_files)
             self.assertNotEqual(first["branch"], second["branch"])
+            self.assertTrue(first["quality_checks_dispatched"])
+            self.assertTrue(second["quality_checks_dispatched"])
 
 
 if __name__ == "__main__":
