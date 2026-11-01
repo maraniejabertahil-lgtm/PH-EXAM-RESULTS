@@ -43,6 +43,7 @@ Ordinary visitor searches do not call Python, D1, or a Cloudflare Worker.
 - `.github/workflows/`: monitoring, import, test, deployment, and maintenance workflows.
 - `private-imports/`: owner-supplied source files in this private repository; never deployed.
 - `docs/`: architecture and operating documentation.
+- `tests/search-worker.test.mjs`: 50,000-row Web Worker search performance check.
 
 ## Run Python tests locally
 
@@ -52,6 +53,8 @@ Use Python 3.12:
 python -m pip install -r python-engine/requirements.txt
 cd python-engine
 python -m unittest discover -s tests -v
+cd ..
+node tests/search-worker.test.mjs
 ```
 
 The PDF extractor uses `pdfplumber`. It extracts text only; scanned PDFs and uncertain layouts require manual review. It does not claim perfect automatic passer-name extraction.
