@@ -194,6 +194,9 @@ def monitor_sources(args) -> int:
                     and source.get("auto_acquire") is True
                     and item["status"] in {"baseline_created", "changed"}
                 ):
+                    # Do not advance the source baseline until acquisition and its
+                    # required processing/publication handoff have safely completed.
+                    acquisition_succeeded = False
                     if not any(item.get(key) for key in ("etag", "last_modified", "content_length")):
                         item["status"] = "metadata_insufficient"
                         item["notice"] = "Source provides no ETag, Last-Modified, or Content-Length; automatic change detection is unsafe."
@@ -235,6 +238,7 @@ def monitor_sources(args) -> int:
                                         if process_code == 0 and processed_report.get("duplicates", {}).get("exact_duplicates"):
                                             item["status"] = "exact_duplicates_review_required"
                                             item["manual_review_required"] = True
+                                            acquisition_succeeded = True
                                         elif process_code == 0:
                                             token = os.getenv("GITHUB_TOKEN")
                                             repository = os.getenv("GITHUB_REPOSITORY")
@@ -251,7 +255,11 @@ def monitor_sources(args) -> int:
                                                     item["pull_request_url"] = publication.get("pull_request_url")
                                                     batch_id = processed_report.get("d1_batch_id")
                                                     if batch_id:
-                                                        client.update_import_batch_status(batch_id, "awaiting_approval")
+                                                        try:
+                                                            client.update_import_batch_status(batch_id, "awaiting_approval")
+                                                        except D1Error as exc:
+                                                            item["batch_status_warning"] = str(exc)[:300]
+                                                    acquisition_succeeded = True
                                                 except GitOpsError as exc:
                                                     item["publication_error"] = str(exc)
                                             else:
@@ -259,9 +267,11 @@ def monitor_sources(args) -> int:
                                         else:
                                             item["status"] = "validation_failed"
                                             item["manual_review_required"] = True
+                                            acquisition_succeeded = False
                                     else:
                                         item["status"] = "processing_failed"
                                         item["manual_review_required"] = True
+                                        acquisition_succeeded = False
                                 else:
                                     lines = extract_pdf_lines(destination)
                                     extraction_path = artifact_root / f"{safe_id}-pdf-extraction.json"
@@ -278,6 +288,7 @@ def monitor_sources(args) -> int:
                                     )
                                     item["status"] = "manual_review_required"
                                     item["extracted_line_count"] = len(lines)
+                                    acquisition_succeeded = True
                             except (DownloadError, PDFExtractionError, OSError, ValueError) as exc:
                                 item["status"] = "acquisition_failed"
                                 item["error"] = str(exc)[:300]
