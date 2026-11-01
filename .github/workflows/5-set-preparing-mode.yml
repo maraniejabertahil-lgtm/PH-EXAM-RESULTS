@@ -46,7 +46,7 @@ permissions:
   pull-requests: write
 
 concurrency:
-  group: public-site-status-change
+  group: owner-review-pr-creation
   cancel-in-progress: false
 
 jobs:
