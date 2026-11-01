@@ -227,3 +227,38 @@ test("third-party source is not used when no official source is configured", asy
   assert.equal(report.first_check.results[0].status, "skipped_no_official_source_configured");
   assert.equal(requests, 0);
 });
+
+
+test("Peak Week safety budget counts HTTP and KV subrequests together", async () => {
+  class CountingKV extends MemoryKV {
+    calls = 0;
+    async get(key) { this.calls += 1; return super.get(key); }
+    async put(key, value, options) { this.calls += 1; return super.put(key, value, options); }
+  }
+  const sources = Array.from({ length: 12 }, (_, index) => approvedSource({
+    id: `csc-cse-${index + 1}`,
+    url: `https://csc.example.gov.ph/exam-results/${index + 1}`
+  }));
+  let fetchCalls = 0;
+  const { fetchImpl } = githubFetch(sources, async (_url, init) => {
+    fetchCalls += 1;
+    assert.equal(init.method, "HEAD");
+    return new Response(null, {
+      status: 200,
+      headers: { etag: '"stable"', "content-type": "text/html" }
+    });
+  });
+  const env = envFor(true);
+  const kv = new CountingKV({ PEAK_WEEK: "true" });
+  env.PEAK_WEEK = kv;
+  const report = await runScheduled({
+    env, fetchImpl, sleepImpl: async () => {},
+    scheduledTime: Date.UTC(2026, 10, 2)
+  });
+  assert.equal(report.mode, "peak_week");
+  assert.equal(report.outbound_subrequest_safety_limit, 45);
+  assert.equal(report.outbound_subrequests_used, 45);
+  assert.equal(fetchCalls + kv.calls, report.outbound_subrequests_used);
+  assert.ok(report.outbound_subrequests_used <= 45);
+  assert.ok(report.second_check.results.some((item) => item.status === "check_error"));
+});
