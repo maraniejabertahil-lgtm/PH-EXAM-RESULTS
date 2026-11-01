@@ -21,6 +21,8 @@ jobs:
     steps:
       - name: Check out approved main branch
         uses: actions/checkout@v4
+        with:
+          ref: main
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
