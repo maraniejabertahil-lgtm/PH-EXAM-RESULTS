@@ -252,13 +252,26 @@ async function checkTarget(target, env, fetchImpl, now, allowPageChange) {
   }
   const key = await kvKey("baseline", sourceId, target.url);
   const current = fingerprint(metadata);
-  const previous = await env.PEAK_WEEK.get(key);
+  let previous;
+  try {
+    previous = await env.PEAK_WEEK.get(key);
+  } catch (error) {
+    return { source_id: sourceId, url: target.url, status: "subrequest_budget_reached", error: String(error.message || error).slice(0, 200) };
+  }
   if (previous === null) {
-    await env.PEAK_WEEK.put(key, current, { expirationTtl: BASELINE_TTL_SECONDS });
+    try {
+      await env.PEAK_WEEK.put(key, current, { expirationTtl: BASELINE_TTL_SECONDS });
+    } catch (error) {
+      return { source_id: sourceId, url: target.url, status: "subrequest_budget_reached", error: String(error.message || error).slice(0, 200) };
+    }
     return { source_id: sourceId, url: target.url, status: "baseline_created" };
   }
   if (previous === current) return { source_id: sourceId, url: target.url, status: "unchanged" };
-  await env.PEAK_WEEK.put(key, current, { expirationTtl: BASELINE_TTL_SECONDS });
+  try {
+    await env.PEAK_WEEK.put(key, current, { expirationTtl: BASELINE_TTL_SECONDS });
+  } catch (error) {
+    return { source_id: sourceId, url: target.url, status: "subrequest_budget_reached", error: String(error.message || error).slice(0, 200) };
+  }
   if (!allowPageChange) return { source_id: sourceId, url: target.url, status: "changed_no_page_scan" };
   try {
     const pdfLinks = await findSameOriginPdfLinks(target.url, fetchImpl);
