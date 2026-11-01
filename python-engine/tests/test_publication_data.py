@@ -30,6 +30,19 @@ class PublicDatasetTests(unittest.TestCase):
             self.assertEqual(payload["columns"], ["name", "rating", "region", "seq"])
             self.assertEqual(payload["data"][0][0], "DELA CRUZ, JUAN A")
 
+    def test_manifest_rejects_hash_mismatch_in_dataset_filename(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder) / "data"
+            target = root / "prc" / "let"
+            target.mkdir(parents=True)
+            payload = json.dumps({
+                "columns": ["name", "rating", "region", "seq"],
+                "data": [["SAMPLE PASSER", None, None, None]],
+            }).encode("utf-8")
+            (target / ("2026-A-M-" + ("0" * 64) + ".json")).write_bytes(payload)
+            with self.assertRaises(ValueError):
+                build_manifest(root, root / "manifest.json")
+
     def test_rejects_mixed_exam_records(self):
         record = normalize_record({"name": "JUAN DELA CRUZ"}, "PRC", "NLE", 2026)
         with tempfile.TemporaryDirectory() as folder:
