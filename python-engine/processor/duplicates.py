@@ -1,5 +1,8 @@
+from bisect import bisect_right
 from collections import defaultdict
 from difflib import SequenceMatcher
+from heapq import merge
+from itertools import islice
 
 
 def _scope(record):
@@ -60,27 +63,35 @@ def find_duplicates(
         if not name:
             continue
 
-        candidates = set()
+        scope_blocks = scoped_blocks[_scope(record)]
+        candidate_iterators = []
         for block in _blocking_keys(name):
-            candidates.update(scoped_blocks[_scope(record)].get(block, ()))
-        candidates.discard(index)
+            block_indexes = scope_blocks.get(block, ())
+            start = bisect_right(block_indexes, index)
+            if start < len(block_indexes):
+                candidate_iterators.append(islice(block_indexes, start, None))
 
-        # Compare only later indexes, so each pair is visited at most once.
-        # The cap prevents large common-name blocks from creating quadratic work.
+        # Each block is already sorted by record index. Merge lazily so a
+        # common prefix cannot allocate and sort a huge candidate set per row.
+        # Deduplicate overlapping blocks and stop as soon as the comparison cap
+        # is reached; this keeps both memory and comparison work bounded.
         compared_count = 0
-        for other_index in sorted(candidate for candidate in candidates if candidate > index):
+        previous_candidate = None
+        for other_index in merge(*candidate_iterators):
+            if other_index == previous_candidate:
+                continue
+            previous_candidate = other_index
             if compared_count >= max_candidates_per_record:
                 break
             compared_count += 1
-            pair = (index, other_index)
             other = records[other_index].get("search_key", "")
             if not other or name == other:
                 continue
             ratio = SequenceMatcher(None, name, other).ratio()
             if ratio >= fuzzy_threshold:
                 fuzzy.append({
-                    "first_index": pair[0],
-                    "candidate_index": pair[1],
+                    "first_index": index,
+                    "candidate_index": other_index,
                     "similarity": round(ratio, 4),
                 })
 
