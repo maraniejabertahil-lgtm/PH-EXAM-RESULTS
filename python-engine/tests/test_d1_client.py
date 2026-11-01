@@ -104,7 +104,11 @@ class D1ClientTests(unittest.TestCase):
         connection.executescript(schema_path.read_text(encoding="utf-8"))
 
         def execute_locally(sql, params=None):
-            cursor = connection.execute(sql, params or [])
+            encoded_params = [
+                "1" if value is True else "0" if value is False else str(value)
+                for value in (params or [])
+            ]
+            cursor = connection.execute(sql, encoded_params)
             if cursor.description:
                 columns = [column[0] for column in cursor.description]
                 return [dict(zip(columns, row)) for row in cursor.fetchall()]
