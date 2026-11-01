@@ -82,7 +82,7 @@ jobs:
           python python-engine/main.py "${ARGS[@]}"
       - name: Open owner approval Pull Request
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
           MODE: ${{ inputs.mode }}
           AUTHORITY: ${{ inputs.authority }}
           EXAMINATION: ${{ inputs.examination }}
