@@ -8,10 +8,8 @@ MAX_SHARD_BYTES = 10 * 1024 * 1024
 
 
 def _initial_letter(name: str) -> str | None:
-    for character in (name or "").upper():
-        if "A" <= character <= "Z":
-            return character
-    return None
+    first = (name or "").strip()[:1].upper()
+    return first if "A" <= first <= "Z" else None
 
 
 def _encode(records: list[dict]) -> bytes:
