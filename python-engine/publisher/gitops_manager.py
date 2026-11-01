@@ -142,13 +142,13 @@ def create_publication_pull_request(
                 f"- `{first_name}` ↔ `{other_name}` (similarity: {similarity})"
             )
     fuzzy_review_section = (
-        "\\n".join(fuzzy_review_lines)
+        "\n".join(fuzzy_review_lines)
         if fuzzy_review_lines
         else "No fuzzy duplicate candidates were identified."
     )
     if fuzzy_count > len(fuzzy_review_lines):
         fuzzy_review_section += (
-            f"\\n- Showing first {len(fuzzy_review_lines)} of {fuzzy_count} candidates."
+            f"\n- Showing first {len(fuzzy_review_lines)} of {fuzzy_count} candidates."
         )
     source_line = source_reference or "Not supplied"
     body = f"""## Examination result import review
