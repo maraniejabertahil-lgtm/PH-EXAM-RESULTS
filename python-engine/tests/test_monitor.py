@@ -126,6 +126,15 @@ class SourceMonitorTests(unittest.TestCase):
                 "url": 12345,
             },
             {
+                "id": "official-invalid-port",
+                "authority": "PRC",
+                "exam": "LET",
+                "source_type": "official",
+                "authorized": True,
+                "enabled": True,
+                "url": "https://official.example:invalid/results",
+            },
+            {
                 "id": "official-invalid-exam",
                 "authority": "PRC",
                 "exam": "LET/2026",
