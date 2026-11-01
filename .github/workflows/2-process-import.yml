@@ -107,7 +107,7 @@ jobs:
       - name: Build datasets and open owner approval Pull Request
         working-directory: python-engine
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ github.token }}
           GITHUB_REPOSITORY: ${{ github.repository }}
           SOURCE_REFERENCE: ${{ inputs.source_reference }}
           REPLACE_EXISTING: ${{ inputs.replace_existing }}
