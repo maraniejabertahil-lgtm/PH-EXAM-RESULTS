@@ -45,6 +45,10 @@ permissions:
   contents: write
   pull-requests: write
 
+concurrency:
+  group: public-site-status-change
+  cancel-in-progress: false
+
 jobs:
   propose-status-change:
     runs-on: ubuntu-latest
@@ -85,6 +89,11 @@ jobs:
           EXAM_YEAR: ${{ inputs.year }}
         run: |
           set -euo pipefail
+          OPEN_STATUS_PRS="$(gh pr list --state open --base main --json headRefName --jq '[.[] | select(.headRefName | startswith("site-status/"))] | length')"
+          if [[ "$OPEN_STATUS_PRS" -gt 0 ]]; then
+            echo "An owner-review site-status Pull Request is already open. Review or close it before creating another status change."
+            exit 1
+          fi
           if git diff --quiet -- public/data/site-status.json; then
             echo "The requested site status is already active."
             exit 0
