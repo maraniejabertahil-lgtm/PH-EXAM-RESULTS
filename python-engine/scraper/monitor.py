@@ -1,4 +1,5 @@
 import json
+import re
 from datetime import datetime, timezone
 from pathlib import Path
 from urllib.error import HTTPError, URLError
@@ -23,6 +24,8 @@ def _validate_https_url(url: str) -> tuple[str, str]:
     parsed = urlsplit(url or "")
     if parsed.scheme != "https" or not parsed.hostname:
         raise ValueError("Only valid HTTPS source URLs are allowed.")
+    if parsed.username or parsed.password:
+        raise ValueError("Source URLs must not embed usernames or passwords.")
     return parsed.hostname.lower(), url
 
 
@@ -127,8 +130,10 @@ def load_registry(path: str | Path) -> list[dict]:
         if not isinstance(source, dict):
             raise ValueError(f"Source entry {index} must be an object.")
         source_id = source.get("id")
-        if not isinstance(source_id, str) or not source_id.strip():
-            raise ValueError(f"Source entry {index} requires a unique id.")
+        if not isinstance(source_id, str) or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_-]{0,59}", source_id):
+            raise ValueError(
+                f"Source entry {index} requires a unique ID using letters, numbers, hyphens, or underscores."
+            )
         if source_id in seen_ids:
             raise ValueError(f"Duplicate source id: {source_id}")
         seen_ids.add(source_id)
