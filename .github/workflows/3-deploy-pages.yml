@@ -1,0 +1,64 @@
+name: 3 - Deploy Public Site to Cloudflare Pages
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "public/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cloudflare-pages-production
+  cancel-in-progress: false
+
+jobs:
+  validate-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out approved main branch
+        uses: actions/checkout@v5
+        with:
+          ref: main
+          fetch-depth: 0
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Validate public data before deployment
+        run: python python-engine/maintenance.py
+      - name: Confirm Cloudflare deployment credentials
+        env:
+          CF_PAGES_API_TOKEN: ${{ secrets.CF_PAGES_API_TOKEN }}
+          CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
+          CF_PAGES_PROJECT_NAME: ${{ secrets.CF_PAGES_PROJECT_NAME }}
+        run: |
+          test -n "$CF_PAGES_API_TOKEN" || { echo "Missing CF_PAGES_API_TOKEN secret."; exit 1; }
+          test -n "$CF_ACCOUNT_ID" || { echo "Missing CF_ACCOUNT_ID secret."; exit 1; }
+          test -n "$CF_PAGES_PROJECT_NAME" || { echo "Missing CF_PAGES_PROJECT_NAME secret."; exit 1; }
+      - name: Deploy static public directory
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CF_PAGES_API_TOKEN }}
+          accountId: ${{ secrets.CF_ACCOUNT_ID }}
+          command: pages deploy public --project-name=${{ secrets.CF_PAGES_PROJECT_NAME }} --branch=main
+      - name: Mark merged result batches as published in D1
+        env:
+          CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+          CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
+          D1_DATABASE_ID: ${{ secrets.D1_DATABASE_ID }}
+        run: |
+          if [[ -z "$CF_API_TOKEN" || -z "$CF_ACCOUNT_ID" || -z "$D1_DATABASE_ID" ]]; then
+            echo "D1 is not configured; publication audit update skipped."
+            exit 0
+          fi
+          if [[ ! -d .internal/import-batches ]]; then
+            echo "No merged import-batch metadata exists."
+            exit 0
+          fi
+          while IFS= read -r -d '' file; do
+            python python-engine/main.py mark-published --batch-file "$file"
+          done < <(find .internal/import-batches -maxdepth 1 -type f -name '*.json' -print0)

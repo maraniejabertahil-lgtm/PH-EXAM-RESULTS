@@ -1,0 +1,108 @@
+name: 5 - Set Preparing or Searching Mode
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "Public homepage mode"
+        required: true
+        type: choice
+        options:
+          - preparing
+          - search
+      authority:
+        description: "Required only for Preparing Mode"
+        required: false
+        type: choice
+        options:
+          - PRC
+          - CSC
+      examination:
+        description: "Examination identifier, for example LET"
+        required: false
+        type: string
+      year:
+        description: "Examination year"
+        required: false
+        type: string
+      examination_name:
+        description: "Public display name"
+        required: false
+        type: string
+      stage:
+        description: "Actual preparation workflow stage"
+        required: false
+        type: choice
+        options:
+          - monitoring
+          - source_detected
+          - document_acquired
+          - extracting
+          - validating
+          - awaiting_approval
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: owner-review-pr-creation
+  cancel-in-progress: false
+
+jobs:
+  propose-status-change:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out main
+        uses: actions/checkout@v5
+        with:
+          ref: main
+          fetch-depth: 0
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Generate site status
+        env:
+          CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+          CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
+          D1_DATABASE_ID: ${{ secrets.D1_DATABASE_ID }}
+          MODE: ${{ inputs.mode }}
+          AUTHORITY: ${{ inputs.authority }}
+          EXAMINATION: ${{ inputs.examination }}
+          EXAM_YEAR: ${{ inputs.year }}
+          EXAMINATION_NAME: ${{ inputs.examination_name }}
+          STAGE: ${{ inputs.stage }}
+        run: |
+          set -euo pipefail
+          ARGS=(site-status --mode "$MODE" --output public/data/site-status.json)
+          if [[ "$MODE" == "preparing" ]]; then
+            ARGS+=(--authority "$AUTHORITY" --exam "$EXAMINATION" --year "$EXAM_YEAR" --examination-name "$EXAMINATION_NAME" --stage "$STAGE")
+          fi
+          python python-engine/main.py "${ARGS[@]}"
+      - name: Open owner approval Pull Request
+        env:
+          GH_TOKEN: ${{ github.token }}
+          MODE: ${{ inputs.mode }}
+          AUTHORITY: ${{ inputs.authority }}
+          EXAMINATION: ${{ inputs.examination }}
+          EXAM_YEAR: ${{ inputs.year }}
+        run: |
+          set -euo pipefail
+          OPEN_STATUS_PRS="$(gh pr list --state open --base main --json headRefName --jq '[.[] | select(.headRefName | startswith("site-status/"))] | length')"
+          if [[ "$OPEN_STATUS_PRS" -gt 0 ]]; then
+            echo "An owner-review site-status Pull Request is already open. Review or close it before creating another status change."
+            exit 1
+          fi
+          if git diff --quiet -- public/data/site-status.json; then
+            echo "The requested site status is already active."
+            exit 0
+          fi
+          BRANCH="site-status/${MODE}-${AUTHORITY:-none}-${EXAMINATION:-none}-${EXAM_YEAR:-none}-${{ github.run_id }}"
+          git switch -c "$BRANCH"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add public/data/site-status.json
+          git commit -m "Set public site mode to $MODE"
+          git push origin "$BRANCH"
+          gh pr create --base main --head "$BRANCH"             --title "Set public site mode: $MODE"             --body "Owner approval required. This Pull Request changes only public/data/site-status.json. Review the examination and actual preparation stage before merging."

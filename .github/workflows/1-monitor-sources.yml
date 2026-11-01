@@ -1,0 +1,48 @@
+name: 1 - Manual Source Check (Owner Diagnostic)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  actions: write
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: owner-review-pr-creation
+  cancel-in-progress: false
+
+jobs:
+  monitor:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: python-engine/requirements.txt
+      - name: Install Python dependencies
+        run: python -m pip install -r python-engine/requirements.txt
+      - name: Run Python unit tests
+        working-directory: python-engine
+        run: python -m unittest discover -s tests -v
+      - name: Manually check approved source registry
+        working-directory: python-engine
+        env:
+          CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+          CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
+          D1_DATABASE_ID: ${{ secrets.D1_DATABASE_ID }}
+          GITHUB_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: python main.py monitor --registry config/sources.json --output ../artifacts/monitor-report.json
+      - name: Upload monitoring report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: source-monitor-report
+          path: artifacts/
+          if-no-files-found: ignore
+          retention-days: 7

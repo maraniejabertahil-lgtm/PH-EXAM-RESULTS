@@ -1,0 +1,76 @@
+name: 2B - Extract PDF Text for Manual Review
+
+on:
+  workflow_dispatch:
+    inputs:
+      pdf_path:
+        description: "PDF file path inside private-imports/"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pdf-manual-extraction
+  cancel-in-progress: false
+
+jobs:
+  extract-for-review:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out approved main branch
+        uses: actions/checkout@v5
+        with:
+          ref: main
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: python-engine/requirements.txt
+      - name: Install PDF extraction dependency
+        run: python -m pip install -r python-engine/requirements.txt
+      - name: Run Python unit tests
+        working-directory: python-engine
+        run: python -m unittest discover -s tests -v
+      - name: Validate private PDF path
+        env:
+          PDF_PATH: ${{ inputs.pdf_path }}
+        run: |
+          set -euo pipefail
+          IMPORT_ROOT="$(realpath private-imports)"
+          PDF_REAL="$(realpath "$PDF_PATH")"
+          if [[ "$PDF_REAL" == *$'\n'* || "$PDF_REAL" == *$'\r'* ]]; then
+            echo "File paths must not contain line breaks."
+            exit 1
+          fi
+          case "$PDF_REAL" in
+            "$IMPORT_ROOT"/*) ;;
+            *) echo "Input must be inside private-imports/"; exit 1 ;;
+          esac
+          test -f "$PDF_REAL"
+          SIZE_BYTES="$(stat -c%s "$PDF_REAL")"
+          if (( SIZE_BYTES > 52428800 )); then
+            echo "PDF exceeds the 50 MiB extraction safety limit."
+            exit 1
+          fi
+          case "$PDF_REAL" in
+            *.pdf|*.PDF) ;;
+            *) echo "Input must be a PDF file."; exit 1 ;;
+          esac
+          echo "PDF_REAL=$PDF_REAL" >> "$GITHUB_ENV"
+      - name: Extract text without publishing records
+        run: |
+          mkdir -p artifacts
+          python python-engine/main.py extract-pdf \
+            --input "$PDF_REAL" \
+            --output artifacts/pdf-extraction.json
+      - name: Preserve extraction output for owner review
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: private-pdf-text-extraction
+          path: artifacts/pdf-extraction.json
+          if-no-files-found: ignore
+          retention-days: 7

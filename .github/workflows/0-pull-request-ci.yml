@@ -1,0 +1,58 @@
+name: 0 - Pull Request Quality Checks
+
+on:
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pull-request-ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  python-and-public-site:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out proposed changes
+        uses: actions/checkout@v5
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: python-engine/requirements.txt
+      - name: Install Python dependencies
+        run: python -m pip install -r python-engine/requirements.txt
+      - name: Validate GitHub Actions workflow YAML and token references
+        run: |
+          ruby -e 'require "yaml"; Dir.glob(".github/workflows/*.yml").each { |file| YAML.load_file(file); puts "Valid YAML: #{file}" }'
+          ruby -e 'require "yaml"; files = %w[1-monitor-sources.yml 2-process-import.yml 5-set-preparing-mode.yml]; groups = files.map { |name| YAML.load_file(".github/workflows/#{name}")["concurrency"]["group"] }; abort("Owner-review PR workflows must share one concurrency group.") unless groups.uniq == ["owner-review-pr-creation"]'
+          if grep -R -n --exclude='0-pull-request-ci.yml' 'secrets.GITHUB_TOKEN' .github/workflows; then
+            echo "Use the built-in github.token context instead of a nonexistent default GITHUB_TOKEN secret."
+            exit 1
+          fi
+      - name: Compile Python source
+        run: python -m compileall -q python-engine
+      - name: Run Python unit tests
+        working-directory: python-engine
+        run: python -m unittest discover -s tests -v
+      - name: Validate public manifest, datasets, and site status
+        run: python python-engine/maintenance.py
+      - name: Check browser JavaScript module syntax
+        run: |
+          set -euo pipefail
+          while IFS= read -r file; do
+            node --input-type=module --check < "$file"
+          done < <(find public/assets/js -type f -name '*.js' -print)
+      - name: Test public dataset structure validation
+        run: node tests/loader-validation.test.mjs
+      - name: Test Web Worker search with 50,000 records
+        run: node tests/search-worker.test.mjs
+      - name: Check Cloudflare Watcher JavaScript syntax
+        run: node --check watcher-bot/src/index.js
+      - name: Test Cloudflare Watcher
+        run: node --test watcher-bot/tests/*.test.mjs
