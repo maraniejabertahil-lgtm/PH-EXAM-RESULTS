@@ -14,7 +14,7 @@ vm.runInNewContext(source, { self });
 
 const rows = Array.from(
   { length: 50_000 },
-  (_, index) => [`PASSER ${String(index).padStart(5, "0")}`]
+  (_, index) => [index === 0 ? "ISTANBUL PASSER" : `PASSER ${String(index).padStart(5, "0")}`]
 );
 
 self.onmessage({
@@ -51,6 +51,16 @@ self.onmessage({
 const broadResult = messages.at(-1);
 assert.equal(broadResult.totalMatches, 50_000);
 assert.equal(broadResult.matches.length, 100);
+
+self.onmessage({
+  data: {
+    type: "search",
+    requestId: 3,
+    query: "istanbul",
+  },
+});
+assert.equal(messages.at(-1).totalMatches, 1);
+assert.equal(messages.at(-1).matches[0][0], "ISTANBUL PASSER");
 
 console.log(
   `50,000-row worker search passed; exact search took ${elapsedMs.toFixed(2)} ms.`
