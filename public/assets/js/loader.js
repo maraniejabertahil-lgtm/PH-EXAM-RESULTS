@@ -26,12 +26,17 @@ export async function loadManifest() {
 }
 
 export async function loadSiteStatus() {
-  const response = await fetchWithTimeout("/data/site-status.json", { cache: "no-store" });
-  if (!response.ok) return { mode: "search", preparation: null };
-  const status = await response.json();
-  return status && status.mode === "preparing"
-    ? status
-    : { mode: "search", preparation: null };
+  try {
+    const response = await fetchWithTimeout("/data/site-status.json", { cache: "no-store" });
+    if (!response.ok) return { mode: "search", preparation: null };
+    const status = await response.json();
+    return status && status.schema_version === 1 && status.mode === "preparing"
+      ? status
+      : { mode: "search", preparation: null };
+  } catch {
+    // Status is supplemental; a status-file outage must not disable result search.
+    return { mode: "search", preparation: null };
+  }
 }
 
 export function getExaminations(manifest, authority) {
