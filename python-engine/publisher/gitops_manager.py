@@ -184,12 +184,13 @@ Exact or fuzzy duplicate candidates have not been automatically deleted. Confirm
     except (urllib.error.URLError, TimeoutError, OSError, json.JSONDecodeError) as exc:
         raise GitOpsError(f"Could not create GitHub Pull Request: {exc}") from exc
 
+    publication_commit_sha = _git(root, "rev-parse", "HEAD")
     _git(root, "switch", "main")
 
     return {
         "branch": branch_name,
         "pull_request_number": result.get("number"),
         "pull_request_url": result.get("html_url"),
-        "commit_sha": _git(root, "rev-parse", "HEAD"),
+        "commit_sha": publication_commit_sha,
         "dataset_shards": entries,
     }
