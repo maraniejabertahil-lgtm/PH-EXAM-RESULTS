@@ -32,6 +32,10 @@ GitHub Actions uses its automatically supplied `GITHUB_TOKEN` for PR creation an
 
 These secrets and Cloudflare resources have not been configured or verified by this implementation.
 
+### D1 Free-plan guardrails
+
+Cloudflare's current published Free limits include a 500 MB maximum per database, 5 GB total D1 storage per account, 5 million rows read per day, and 100,000 rows written per day. The weekly maintenance workflow reports the selected database's size against the 500 MB per-database reference. Public visitor searches do not query D1, which keeps public search traffic away from the D1 daily row limits. If a daily read/write limit is reached, D1 queries fail until the daily reset; if the storage ceiling is reached, further writes and schema changes can fail. Keep D1 limited to internal operational metadata.
+
 ## Configure source monitoring
 
 1. Confirm the official source and that the intended access method is authorized.
