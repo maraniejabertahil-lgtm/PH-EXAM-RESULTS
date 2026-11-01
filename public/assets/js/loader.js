@@ -28,15 +28,10 @@ export function getYears(manifest, authority, examination) {
   return Object.keys(years).sort((a, b) => Number(b) - Number(a));
 }
 
-function selectShards(files, query) {
-  const first = Array.from(query.normalize("NFKC").trim().toUpperCase())[0];
-  if (!first || first < "A" || first > "Z") {
-    return files.OTHER ? [files.OTHER] : Object.values(files);
-  }
-  for (const [range, file] of Object.entries(files)) {
-    const match = /^([A-Z])-([A-Z])$/.exec(range);
-    if (match && first >= match[1] && first <= match[2]) return [file];
-  }
+export function selectShards(files) {
+  // Search uses substring matching, so a query can occur anywhere in a name.
+  // Selecting only the shard matching the query's first letter would miss
+  // names such as "ZAMORA, JUAN" when the visitor searches for "JUAN".
   return Object.values(files);
 }
 
