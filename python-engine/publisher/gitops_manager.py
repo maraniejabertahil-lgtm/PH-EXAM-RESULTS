@@ -80,6 +80,7 @@ def create_publication_pull_request(
 **Examination:** {report['examination']}
 **Year:** {year}
 **Source reference:** {source_line}
+**Internal batch ID:** {report.get('d1_batch_id', 'D1 not configured')}
 
 ### Validation report
 - Total records: {validation.get('total_records', 0)}
