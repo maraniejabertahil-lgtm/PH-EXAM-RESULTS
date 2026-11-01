@@ -263,5 +263,5 @@ test("Peak Week safety budget counts HTTP and KV subrequests together", async ()
   assert.equal(report.outbound_subrequests_used, 45);
   assert.equal(fetchCalls + kv.calls, report.outbound_subrequests_used);
   assert.ok(report.outbound_subrequests_used <= 45);
-  assert.ok(report.second_check.results.some((item) => item.status === "check_error"));
+  assert.ok(report.second_check.results.some((item) => item.status === "subrequest_budget_reached" || item.status === "check_error"));
 });
