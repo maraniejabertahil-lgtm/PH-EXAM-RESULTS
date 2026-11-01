@@ -1,0 +1,31 @@
+name: Watcher Quality Checks
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "watcher-bot/**"
+      - ".github/workflows/process-import.yml"
+      - ".github/workflows/watcher-ci.yml"
+      - "python-engine/config/sources.json"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  watcher:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out proposed changes
+        uses: actions/checkout@v5
+      - name: Set up Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+      - name: Check Worker JavaScript syntax
+        run: node --check watcher-bot/src/index.js
+      - name: Run Watcher automated tests
+        working-directory: watcher-bot
+        run: npm test
