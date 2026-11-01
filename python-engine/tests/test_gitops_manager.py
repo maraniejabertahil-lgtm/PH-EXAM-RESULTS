@@ -6,7 +6,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from processor.normalizer import normalize_record
-from publisher.gitops_manager import create_publication_pull_request
+from publisher.gitops_manager import GitOpsError, create_publication_pull_request
 
 
 class FakeResponse:
@@ -79,8 +79,14 @@ class GitOpsIsolationTests(unittest.TestCase):
             with patch(
                 "publisher.gitops_manager.urllib.request.urlopen",
                 side_effect=[
+                    FakeResponse([]),
                     FakeResponse({"number": 101, "html_url": "https://github.com/example/repo/pull/101"}),
+                    FakeResponse([]),
                     FakeResponse({"number": 102, "html_url": "https://github.com/example/repo/pull/102"}),
+                    FakeResponse([{
+                        "head": {"ref": "data-import/prc-let-2026-pending"},
+                        "html_url": "https://github.com/example/repo/pull/101",
+                    }]),
                 ],
             ) as urlopen_mock:
                 first = create_publication_pull_request(
@@ -89,9 +95,13 @@ class GitOpsIsolationTests(unittest.TestCase):
                 second = create_publication_pull_request(
                     root, reports[1], "example/repo", "test-token"
                 )
+                with self.assertRaises(GitOpsError):
+                    create_publication_pull_request(
+                        root, reports[0], "example/repo", "test-token"
+                    )
 
             first_pr_body = json.loads(
-                urlopen_mock.call_args_list[0].args[0].data.decode("utf-8")
+                urlopen_mock.call_args_list[1].args[0].data.decode("utf-8")
             )["body"]
             self.assertIn("ALPHA PASSER", first_pr_body)
             self.assertIn("ALPHA PASER", first_pr_body)
