@@ -104,5 +104,6 @@ When a result publication PR matches the currently active authority, exam, and y
 - No D1 or Cloudflare Pages credentials have been verified.
 - PDF OCR and automatic passer extraction are not implemented.
 - Automatic Preparing Mode activation from predictions is not yet connected.
+- A synthetic 50,000-row Web Worker search test passes in CI (latest measured Node-runner execution: 71.30 ms); this is not a real browser or 30,000–59,000 concurrent-visitor load test.
 - The 30,000–59,000 simultaneous visitor target has not been load-tested.
 - Cloudflare Pages deployment has not been performed or verified.
