@@ -87,6 +87,7 @@ function setAuthority(authority) {
     const active = tab.dataset.authority === authority;
     tab.classList.toggle("is-active", active);
     tab.setAttribute("aria-selected", String(active));
+    tab.tabIndex = active ? 0 : -1;
   });
   refreshExaminations();
   feedback.textContent = "";
@@ -228,8 +229,20 @@ function ensureSearchWorker() {
   return worker;
 }
 
-document.querySelectorAll(".authority-tab").forEach(tab => {
+const authorityTabs = Array.from(document.querySelectorAll(".authority-tab"));
+authorityTabs.forEach((tab, index) => {
   tab.addEventListener("click", () => setAuthority(tab.dataset.authority));
+  tab.addEventListener("keydown", event => {
+    let nextIndex = null;
+    if (event.key === "ArrowRight") nextIndex = (index + 1) % authorityTabs.length;
+    if (event.key === "ArrowLeft") nextIndex = (index - 1 + authorityTabs.length) % authorityTabs.length;
+    if (event.key === "Home") nextIndex = 0;
+    if (event.key === "End") nextIndex = authorityTabs.length - 1;
+    if (nextIndex === null) return;
+    event.preventDefault();
+    authorityTabs[nextIndex].focus();
+    authorityTabs[nextIndex].click();
+  });
 });
 examinationSelect.addEventListener("change", refreshYears);
 
