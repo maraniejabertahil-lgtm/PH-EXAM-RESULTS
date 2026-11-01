@@ -99,9 +99,10 @@ cd python-engine
 python -m unittest discover -s tests -v
 cd ..
 python python-engine/maintenance.py
+node tests/search-worker.test.mjs
 ```
 
-The maintenance script verifies the public manifest, file paths, dataset hashes, record counts, row shape, and 10 MiB shard cap.
+The Node test exercises the browser Web Worker search logic against 50,000 synthetic rows. It is a code-path performance check, not a browser rendering or concurrent-visitor load test. The maintenance script verifies the public manifest, file paths, dataset hashes, record counts, row shape, and 10 MiB shard cap.
 
 ## Deployment
 
