@@ -30,6 +30,7 @@ jobs:
       - name: Validate GitHub Actions workflow YAML and token references
         run: |
           ruby -e 'require "yaml"; Dir.glob(".github/workflows/*.yml").each { |file| YAML.load_file(file); puts "Valid YAML: #{file}" }'
+          ruby -e 'require "yaml"; files = %w[1-monitor-sources.yml 2-process-import.yml 5-set-preparing-mode.yml]; groups = files.map { |name| YAML.load_file(".github/workflows/#{name}")["concurrency"]["group"] }; abort("Owner-review PR workflows must share one concurrency group.") unless groups.uniq == ["owner-review-pr-creation"]'
           if grep -R -n --exclude='0-pull-request-ci.yml' 'secrets.GITHUB_TOKEN' .github/workflows; then
             echo "Use the built-in github.token context instead of a nonexistent default GITHUB_TOKEN secret."
             exit 1
