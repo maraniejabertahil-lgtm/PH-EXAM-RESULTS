@@ -42,15 +42,34 @@ def process_csv(args) -> int:
     try:
         with source.open("r", encoding="utf-8-sig", newline="") as handle:
             reader = csv.DictReader(handle)
-            if not reader.fieldnames or "name" not in {
-                field.strip().lower() for field in reader.fieldnames
-            }:
+            if not reader.fieldnames:
+                print("ERROR: CSV must contain a header row.", file=sys.stderr)
+                return 2
+            normalized_headers = [
+                str(field).strip().lower() if field is not None else ""
+                for field in reader.fieldnames
+            ]
+            if any(not field for field in normalized_headers):
+                print("ERROR: CSV headers must not be empty.", file=sys.stderr)
+                return 2
+            if len(set(normalized_headers)) != len(normalized_headers):
+                print("ERROR: CSV contains duplicate column names after normalization.", file=sys.stderr)
+                return 2
+            if "name" not in normalized_headers:
                 print("ERROR: CSV must contain a 'name' column.", file=sys.stderr)
                 return 2
-            rows = [
-                {str(k).strip().lower(): v for k, v in row.items() if k is not None}
-                for row in reader
-            ]
+            rows = []
+            for row_number, row in enumerate(reader, start=2):
+                if None in row:
+                    print(
+                        f"ERROR: CSV row {row_number} contains more values than the header columns.",
+                        file=sys.stderr,
+                    )
+                    return 2
+                rows.append({
+                    normalized_headers[index]: row.get(original_header)
+                    for index, original_header in enumerate(reader.fieldnames)
+                })
     except (OSError, UnicodeError, csv.Error) as exc:
         print(f"ERROR: Could not read CSV: {exc}", file=sys.stderr)
         return 2
