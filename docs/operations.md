@@ -10,6 +10,7 @@ The public catalogue is empty. The source registry and examination prediction co
 |---|---|
 | 1 - Monitor Approved Sources | Checks configured sources every two hours; with D1 configured, it can detect changes, acquire approved CSV/PDF files, process them, and propose a PR |
 | 2 - Process Result Import and Open Approval PR | Manually processes an owner-supplied CSV in `private-imports/` |
+| 2B - Extract PDF Text for Manual Review | Extracts text from a private PDF and stores a review artifact; does not publish results |
 | 3 - Deploy Public Site to Cloudflare Pages | Validates and deploys the approved `public/` directory |
 | 4 - Weekly Maintenance | Runs tests, checks public dataset hashes/sizes, and checks D1 storage when configured |
 | 5 - Set Preparing or Searching Mode | Creates a PR to change public homepage mode using predefined stages |
@@ -61,7 +62,9 @@ Only CSV is accepted by the current automated import workflow.
 
 ## PDF handling
 
-The current PDF command extracts text from text-based PDFs:
+For an iPad-friendly workflow, place the PDF inside `private-imports/`, then run **2B - Extract PDF Text for Manual Review** from GitHub Actions. Download the resulting artifact and manually verify/map the records. The workflow never publishes PDF content or extracted names.
+
+The equivalent local command extracts text from text-based PDFs:
 
 ```bash
 cd python-engine
