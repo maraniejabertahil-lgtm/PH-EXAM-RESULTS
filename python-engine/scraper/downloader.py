@@ -24,8 +24,10 @@ def download_approved_file(
     if not approved or source.get("enabled") is not True:
         raise DownloadError(reason or "Source is disabled.")
     url = source.get("url", "")
+    if not isinstance(url, str):
+        raise DownloadError("Source URL must be a text URL.")
     original = urlsplit(url)
-    if original.scheme != "https" or not original.hostname:
+    if original.scheme != "https" or not original.hostname or original.username or original.password:
         raise DownloadError("Only valid HTTPS source URLs are allowed.")
 
     request = Request(url, headers={"User-Agent": USER_AGENT})
@@ -37,7 +39,12 @@ def download_approved_file(
     try:
         with urlopen(request, timeout=30) as response:
             final = urlsplit(response.geturl())
-            if final.scheme != "https" or (final.hostname or "").lower() != original.hostname.lower():
+            if (
+                final.scheme != "https"
+                or final.username
+                or final.password
+                or (final.hostname or "").lower() != original.hostname.lower()
+            ):
                 raise DownloadError("Cross-host or non-HTTPS redirect rejected.")
             with target.open("wb") as output:
                 while True:
