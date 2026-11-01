@@ -15,6 +15,7 @@ from processor.duplicates import find_duplicates
 from processor.normalizer import normalize_record
 from processor.validator import validate_batch
 from prediction.release_predictor import predict_next_release
+from preparation.status_builder import write_status
 from publisher.gitops_manager import create_publication_pull_request, GitOpsError
 from scraper.monitor import monitor_registry
 
@@ -274,6 +275,26 @@ def predict_release(args) -> int:
 
 
 
+
+def write_site_status(args) -> int:
+    try:
+        status = write_status(
+            args.output,
+            mode=args.mode,
+            authority=args.authority,
+            exam=args.exam,
+            year=args.year,
+            examination_name=args.examination_name,
+            stage=args.stage,
+        )
+    except ValueError as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        return 2
+    print(json.dumps(status, ensure_ascii=False, indent=2))
+    return 0
+
+
+
 def build_parser():
     parser = argparse.ArgumentParser(description="PH-EXAM-RESULTS Python engine")
     commands = parser.add_subparsers(dest="command", required=True)
@@ -292,6 +313,16 @@ def build_parser():
     csv_parser.add_argument("--source-reference", default="")
     csv_parser.add_argument("--actual-release-date", default="")
     csv_parser.set_defaults(handler=process_csv)
+
+    status_parser = commands.add_parser("site-status", help="Generate approved Preparing/Search mode status JSON")
+    status_parser.add_argument("--mode", required=True, choices=("search", "preparing"))
+    status_parser.add_argument("--output", default="../public/data/site-status.json")
+    status_parser.add_argument("--authority", choices=("PRC", "CSC"))
+    status_parser.add_argument("--exam")
+    status_parser.add_argument("--year", type=int)
+    status_parser.add_argument("--examination-name")
+    status_parser.add_argument("--stage", choices=("monitoring", "source_detected", "document_acquired", "extracting", "validating", "awaiting_approval"))
+    status_parser.set_defaults(handler=write_site_status)
 
     prediction_parser = commands.add_parser("predict", help="Estimate a release date from D1 history")
     prediction_parser.add_argument("--authority", required=True, choices=("PRC", "CSC"))
