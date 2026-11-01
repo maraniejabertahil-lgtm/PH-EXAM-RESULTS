@@ -50,23 +50,8 @@ async function sha256Hex(buffer) {
     .join("");
 }
 
-async function fetchVerifiedDataset(file) {
-  try {
-    const cached = await getCachedDataset(file.path, file.hash);
-    if (cached) return cached;
-  } catch {
-    // Continue without IndexedDB when browser privacy settings disable it.
-  }
-
-  const response = await fetch(file.path, { cache: "default" });
-  if (!response.ok) throw new Error("The selected examination dataset could not be downloaded.");
-  const buffer = await response.arrayBuffer();
-  const actualHash = await sha256Hex(buffer);
-  if (actualHash !== file.hash) {
-    throw new Error("Dataset integrity check failed. Please try again later.");
-  }
-  const payload = JSON.parse(new TextDecoder().decode(buffer));
-  if (
+export function validateDatasetPayload(payload) {
+if (
     !payload ||
     typeof payload !== "object" ||
     !Array.isArray(payload.columns) ||
@@ -90,6 +75,26 @@ async function fetchVerifiedDataset(file) {
       throw new Error("The selected examination dataset contains an invalid record.");
     }
   }
+  return payload;
+}
+
+async function fetchVerifiedDataset(file) {
+  try {
+    const cached = await getCachedDataset(file.path, file.hash);
+    if (cached) return cached;
+  } catch {
+    // Continue without IndexedDB when browser privacy settings disable it.
+  }
+
+  const response = await fetch(file.path, { cache: "default" });
+  if (!response.ok) throw new Error("The selected examination dataset could not be downloaded.");
+  const buffer = await response.arrayBuffer();
+  const actualHash = await sha256Hex(buffer);
+  if (actualHash !== file.hash) {
+    throw new Error("Dataset integrity check failed. Please try again later.");
+  }
+  const payload = JSON.parse(new TextDecoder().decode(buffer));
+  validateDatasetPayload(payload);
 
   try {
     await setCachedDataset(file.path, file.hash, payload);
