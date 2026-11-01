@@ -42,3 +42,17 @@ jobs:
           apiToken: ${{ secrets.CF_PAGES_API_TOKEN }}
           accountId: ${{ secrets.CF_ACCOUNT_ID }}
           command: pages deploy public --project-name=${{ secrets.CF_PAGES_PROJECT_NAME }} --branch=main
+      - name: Mark merged result batches as published in D1
+        env:
+          CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+          CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
+          D1_DATABASE_ID: ${{ secrets.D1_DATABASE_ID }}
+        run: |
+          if [[ -z "$CF_API_TOKEN" || -z "$CF_ACCOUNT_ID" || -z "$D1_DATABASE_ID" ]]; then
+            echo "D1 is not configured; publication audit update skipped."
+            exit 0
+          fi
+          while IFS= read -r file; do
+            [[ -n "$file" ]] || continue
+            python python-engine/main.py mark-published --batch-file "$file"
+          done < <(git diff HEAD^ HEAD --name-only -- .internal/import-batches)
