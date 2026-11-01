@@ -17,7 +17,6 @@ from processor.normalizer import normalize_record
 from processor.validator import validate_batch
 from prediction.release_predictor import predict_next_release
 from preparation.status_builder import write_status
-from preparation.status_builder import write_status
 from publisher.gitops_manager import create_publication_pull_request, GitOpsError
 from scraper.monitor import monitor_registry
 
