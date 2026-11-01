@@ -4,6 +4,7 @@
 import argparse
 import csv
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -12,6 +13,7 @@ from extractor.pdf_parser import PDFExtractionError, extract_pdf_lines
 from processor.duplicates import find_duplicates
 from processor.normalizer import normalize_record
 from processor.validator import validate_batch
+from publisher.gitops_manager import create_publication_pull_request, GitOpsError
 from scraper.monitor import monitor_registry
 
 
@@ -168,6 +170,43 @@ def monitor_sources(args) -> int:
     return 0
 
 
+
+def publish_batch(args) -> int:
+    try:
+        report = json.loads(Path(args.report).read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        print(f"ERROR: Could not read processing report: {exc}", file=sys.stderr)
+        return 2
+
+    validation = report.get("validation", {})
+    if not validation.get("is_valid"):
+        print("ERROR: Invalid batches cannot enter the publication Pull Request.", file=sys.stderr)
+        return 1
+
+    repository = args.repository or os.getenv("GITHUB_REPOSITORY")
+    token = args.token or os.getenv("GITHUB_TOKEN")
+    if not repository or not token:
+        print("ERROR: GITHUB_REPOSITORY and GITHUB_TOKEN are required.", file=sys.stderr)
+        return 2
+
+    try:
+        result = create_publication_pull_request(
+            repo_root=Path(__file__).resolve().parents[1],
+            report=report,
+            repository=repository,
+            token=token,
+            source_reference=args.source_reference,
+            replace_existing=args.replace_existing,
+        )
+    except GitOpsError as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        return 1
+
+    print(json.dumps(result, ensure_ascii=False, indent=2))
+    return 0
+
+
+
 def build_parser():
     parser = argparse.ArgumentParser(description="PH-EXAM-RESULTS Python engine")
     commands = parser.add_subparsers(dest="command", required=True)
@@ -184,6 +223,14 @@ def build_parser():
     csv_parser.add_argument("--year", required=True, type=int)
     csv_parser.add_argument("--output", required=True)
     csv_parser.set_defaults(handler=process_csv)
+
+    publish_parser = commands.add_parser("publish", help="Prepare datasets and open an owner-approval PR")
+    publish_parser.add_argument("--report", required=True)
+    publish_parser.add_argument("--repository")
+    publish_parser.add_argument("--token")
+    publish_parser.add_argument("--source-reference", default="")
+    publish_parser.add_argument("--replace-existing", action="store_true")
+    publish_parser.set_defaults(handler=publish_batch)
 
     pdf_parser = commands.add_parser("extract-pdf", help="Extract text from a text-based PDF")
     pdf_parser.add_argument("--input", required=True)
