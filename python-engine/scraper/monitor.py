@@ -76,7 +76,28 @@ def load_registry(path: str | Path) -> list[dict]:
     registry = json.loads(Path(path).read_text(encoding="utf-8"))
     if not isinstance(registry, dict) or not isinstance(registry.get("sources"), list):
         raise ValueError("Source registry must contain a sources array.")
-    return registry["sources"]
+
+    sources = registry["sources"]
+    seen_ids = set()
+    for index, source in enumerate(sources):
+        if not isinstance(source, dict):
+            raise ValueError(f"Source entry {index} must be an object.")
+        source_id = source.get("id")
+        if not isinstance(source_id, str) or not source_id.strip():
+            raise ValueError(f"Source entry {index} requires a unique id.")
+        if source_id in seen_ids:
+            raise ValueError(f"Duplicate source id: {source_id}")
+        seen_ids.add(source_id)
+        if source.get("authority") not in {"PRC", "CSC"}:
+            raise ValueError(f"Source {source_id} must specify PRC or CSC authority.")
+        if not isinstance(source.get("exam"), str) or not source["exam"].strip():
+            raise ValueError(f"Source {source_id} requires an examination identifier.")
+        if source.get("source_type") not in {"official", "verified_third_party"}:
+            raise ValueError(f"Source {source_id} has an unsupported source_type.")
+        if not isinstance(source.get("enabled"), bool):
+            raise ValueError(f"Source {source_id} requires an enabled boolean.")
+        _validate_https_url(source.get("url", ""))
+    return sources
 
 
 def monitor_registry(path: str | Path) -> dict:
