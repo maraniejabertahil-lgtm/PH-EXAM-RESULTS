@@ -199,90 +199,90 @@ def monitor_sources(args) -> int:
                         item["notice"] = "Source provides no ETag, Last-Modified, or Content-Length; automatic change detection is unsafe."
                     else:
                         file_format = str(source.get("file_format", "")).lower()
-                    if file_format not in {"csv", "pdf"}:
-                        item["status"] = "unsupported_file_format"
-                        acquisition_succeeded = False
-                    elif (
-                        source.get("authority") not in {"PRC", "CSC"}
-                        or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_-]{0,39}", str(source.get("exam", "")))
-                        or not isinstance(source.get("year"), int)
-                    ):
-                        item["status"] = "invalid_source_configuration"
-                        acquisition_succeeded = False
-                    else:
-                        safe_id = re.sub(r"[^A-Za-z0-9_-]", "-", source_id)[:60] or "source"
-                        destination = artifact_root / f"{safe_id}.{file_format}"
-                        try:
-                            acquisition = download_approved_file(source, destination)
-                            item["acquisition"] = acquisition
-                            if file_format == "csv":
-                                report_path = artifact_root / f"{safe_id}-processing-report.json"
-                                process_args = argparse.Namespace(
-                                    input=str(destination),
-                                    authority=source["authority"],
-                                    exam=source["exam"],
-                                    year=source["year"],
-                                    output=str(report_path),
-                                    source_reference=source.get("url", ""),
-                                    actual_release_date=source.get("actual_release_date", ""),
-                                )
-                                process_code = process_csv(process_args)
-                                item["processing_exit_code"] = process_code
-                                if report_path.is_file():
-                                    processed_report = json.loads(report_path.read_text(encoding="utf-8"))
-                                    item["validation"] = processed_report.get("validation")
-                                    item["duplicates"] = processed_report.get("duplicates")
-                                    if process_code == 0 and processed_report.get("duplicates", {}).get("exact_duplicates"):
-                                        item["status"] = "exact_duplicates_review_required"
-                                        item["manual_review_required"] = True
-                                    elif process_code == 0:
-                                        token = os.getenv("GITHUB_TOKEN")
-                                        repository = os.getenv("GITHUB_REPOSITORY")
-                                        if token and repository:
-                                            try:
-                                                publication = create_publication_pull_request(
-                                                    repo_root=repo_root,
-                                                    report=processed_report,
-                                                    repository=repository,
-                                                    token=token,
-                                                    source_reference=source.get("url", ""),
-                                                    replace_existing=source.get("replace_existing") is True,
-                                                )
-                                                item["pull_request_url"] = publication.get("pull_request_url")
-                                                batch_id = processed_report.get("d1_batch_id")
-                                                if batch_id:
-                                                    client.update_import_batch_status(batch_id, "awaiting_approval")
-                                            except GitOpsError as exc:
-                                                item["publication_error"] = str(exc)
+                        if file_format not in {"csv", "pdf"}:
+                            item["status"] = "unsupported_file_format"
+                            acquisition_succeeded = False
+                        elif (
+                            source.get("authority") not in {"PRC", "CSC"}
+                            or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_-]{0,39}", str(source.get("exam", "")))
+                            or not isinstance(source.get("year"), int)
+                        ):
+                            item["status"] = "invalid_source_configuration"
+                            acquisition_succeeded = False
+                        else:
+                            safe_id = re.sub(r"[^A-Za-z0-9_-]", "-", source_id)[:60] or "source"
+                            destination = artifact_root / f"{safe_id}.{file_format}"
+                            try:
+                                acquisition = download_approved_file(source, destination)
+                                item["acquisition"] = acquisition
+                                if file_format == "csv":
+                                    report_path = artifact_root / f"{safe_id}-processing-report.json"
+                                    process_args = argparse.Namespace(
+                                        input=str(destination),
+                                        authority=source["authority"],
+                                        exam=source["exam"],
+                                        year=source["year"],
+                                        output=str(report_path),
+                                        source_reference=source.get("url", ""),
+                                        actual_release_date=source.get("actual_release_date", ""),
+                                    )
+                                    process_code = process_csv(process_args)
+                                    item["processing_exit_code"] = process_code
+                                    if report_path.is_file():
+                                        processed_report = json.loads(report_path.read_text(encoding="utf-8"))
+                                        item["validation"] = processed_report.get("validation")
+                                        item["duplicates"] = processed_report.get("duplicates")
+                                        if process_code == 0 and processed_report.get("duplicates", {}).get("exact_duplicates"):
+                                            item["status"] = "exact_duplicates_review_required"
+                                            item["manual_review_required"] = True
+                                        elif process_code == 0:
+                                            token = os.getenv("GITHUB_TOKEN")
+                                            repository = os.getenv("GITHUB_REPOSITORY")
+                                            if token and repository:
+                                                try:
+                                                    publication = create_publication_pull_request(
+                                                        repo_root=repo_root,
+                                                        report=processed_report,
+                                                        repository=repository,
+                                                        token=token,
+                                                        source_reference=source.get("url", ""),
+                                                        replace_existing=source.get("replace_existing") is True,
+                                                    )
+                                                    item["pull_request_url"] = publication.get("pull_request_url")
+                                                    batch_id = processed_report.get("d1_batch_id")
+                                                    if batch_id:
+                                                        client.update_import_batch_status(batch_id, "awaiting_approval")
+                                                except GitOpsError as exc:
+                                                    item["publication_error"] = str(exc)
+                                            else:
+                                                item["publication_error"] = "GitHub token or repository context is unavailable."
                                         else:
-                                            item["publication_error"] = "GitHub token or repository context is unavailable."
+                                            item["status"] = "validation_failed"
+                                            item["manual_review_required"] = True
                                     else:
-                                        item["status"] = "validation_failed"
+                                        item["status"] = "processing_failed"
                                         item["manual_review_required"] = True
                                 else:
-                                    item["status"] = "processing_failed"
-                                    item["manual_review_required"] = True
-                            else:
-                                lines = extract_pdf_lines(destination)
-                                extraction_path = artifact_root / f"{safe_id}-pdf-extraction.json"
-                                extraction_path.parent.mkdir(parents=True, exist_ok=True)
-                                extraction_path.write_text(
-                                    json.dumps({
-                                        "source_file": destination.name,
-                                        "source_file_sha256": acquisition["sha256"],
-                                        "extracted_line_count": len(lines),
-                                        "manual_review_required": True,
-                                        "lines": lines,
-                                    }, ensure_ascii=False, indent=2) + "\n",
-                                    encoding="utf-8",
-                                )
-                                item["status"] = "manual_review_required"
-                                item["extracted_line_count"] = len(lines)
-                        except (DownloadError, PDFExtractionError, OSError, ValueError) as exc:
-                            item["status"] = "acquisition_failed"
-                            item["error"] = str(exc)[:300]
-                            acquisition_succeeded = False
-
+                                    lines = extract_pdf_lines(destination)
+                                    extraction_path = artifact_root / f"{safe_id}-pdf-extraction.json"
+                                    extraction_path.parent.mkdir(parents=True, exist_ok=True)
+                                    extraction_path.write_text(
+                                        json.dumps({
+                                            "source_file": destination.name,
+                                            "source_file_sha256": acquisition["sha256"],
+                                            "extracted_line_count": len(lines),
+                                            "manual_review_required": True,
+                                            "lines": lines,
+                                        }, ensure_ascii=False, indent=2) + "\n",
+                                        encoding="utf-8",
+                                    )
+                                    item["status"] = "manual_review_required"
+                                    item["extracted_line_count"] = len(lines)
+                            except (DownloadError, PDFExtractionError, OSError, ValueError) as exc:
+                                item["status"] = "acquisition_failed"
+                                item["error"] = str(exc)[:300]
+                                acquisition_succeeded = False
+    
                 if acquisition_succeeded:
                     client.save_source_state(
                         source_id,
