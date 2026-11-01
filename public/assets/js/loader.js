@@ -45,27 +45,36 @@ async function sha256Hex(buffer) {
     .join("");
 }
 
-export function validateDatasetPayload(payload) {
-if (
+const EXPECTED_DATASET_COLUMNS = ["name", "rating", "region", "seq"];
+
+export function validateDatasetPayload(payload, expectedRecordCount) {
+  if (
     !payload ||
     typeof payload !== "object" ||
     !Array.isArray(payload.columns) ||
+    JSON.stringify(payload.columns) !== JSON.stringify(EXPECTED_DATASET_COLUMNS) ||
     !Array.isArray(payload.data) ||
-    payload.columns.length === 0 ||
-    payload.columns.some(column => typeof column !== "string" || !column.trim()) ||
-    new Set(payload.columns).size !== payload.columns.length ||
-    !payload.columns.includes("name")
+    (Number.isInteger(expectedRecordCount) && payload.data.length !== expectedRecordCount)
   ) {
-    throw new Error("The selected examination dataset has an invalid structure.");
+    throw new Error("The selected examination dataset has an invalid structure or record count.");
   }
-  const nameIndex = payload.columns.indexOf("name");
   for (let index = 0; index < payload.data.length; index += 1) {
     const row = payload.data[index];
+    const validRating = row?.[1] === null || (
+      typeof row?.[1] === "number" && Number.isFinite(row[1]) && row[1] >= 0 && row[1] <= 100
+    );
+    const validRegion = row?.[2] === null || typeof row?.[2] === "string";
+    const validSequence = row?.[3] === null || (
+      Number.isInteger(row[3]) && row[3] >= 0
+    );
     if (
       !Array.isArray(row) ||
-      row.length !== payload.columns.length ||
-      typeof row[nameIndex] !== "string" ||
-      !row[nameIndex].trim()
+      row.length !== EXPECTED_DATASET_COLUMNS.length ||
+      typeof row[0] !== "string" ||
+      !row[0].trim() ||
+      !validRating ||
+      !validRegion ||
+      !validSequence
     ) {
       throw new Error("The selected examination dataset contains an invalid record.");
     }
@@ -78,7 +87,7 @@ async function fetchVerifiedDataset(file) {
     const cached = await getCachedDataset(file.path, file.hash);
     if (cached) {
       try {
-        validateDatasetPayload(cached);
+        validateDatasetPayload(cached, file.record_count);
         return cached;
       } catch {
         // A damaged local cache must never bypass validation; fetch a clean copy.
@@ -96,7 +105,7 @@ async function fetchVerifiedDataset(file) {
     throw new Error("Dataset integrity check failed. Please try again later.");
   }
   const payload = JSON.parse(new TextDecoder().decode(buffer));
-  validateDatasetPayload(payload);
+  validateDatasetPayload(payload, file.record_count);
 
   try {
     await setCachedDataset(file.path, file.hash, payload);
