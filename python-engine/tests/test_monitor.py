@@ -50,6 +50,26 @@ class SourceMonitorTests(unittest.TestCase):
         self.assertEqual(result["status"], "reachable")
         self.assertEqual(result["content_length"], "98765")
 
+    def test_range_fallback_does_not_mistake_one_byte_for_full_size(self):
+        source = {
+            "id": "official-range-no-total",
+            "source_type": "official",
+            "authorized": True,
+            "enabled": True,
+            "url": "https://official.example/results",
+        }
+        response = FakeRangeResponse()
+        response.headers.pop("Content-Range")
+        head_error = HTTPError(
+            source["url"], 405, "Method Not Allowed", {}, None
+        )
+        with patch(
+            "scraper.monitor.urlopen",
+            side_effect=[head_error, response],
+        ):
+            result = monitor_source(source)
+        self.assertIsNone(result["content_length"])
+
     def test_empty_registry_is_safe_noop(self):
         with tempfile.TemporaryDirectory() as folder:
             path = Path(folder) / "sources.json"
