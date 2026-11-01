@@ -90,6 +90,15 @@ class D1Client:
         )
 
 
+
+    def get_release_prediction(self, authority: str, exam: str, year: int):
+        rows = self.query(
+            "SELECT predicted_date, actual_date, data_points FROM release_predictions "
+            "WHERE authority = ? AND exam = ? AND year = ?",
+            [authority.upper(), exam, int(year)],
+        )
+        return rows[0] if rows else None
+
     def get_actual_release_dates(self, authority: str, exam: str, limit: int = 6) -> list[str]:
         rows = self.query(
             "SELECT actual_date FROM release_predictions "
