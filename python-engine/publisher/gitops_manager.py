@@ -44,6 +44,31 @@ def _find_open_publication_pr(repository: str, token: str, branch_prefix: str) -
     return None
 
 
+def _dispatch_publication_quality_checks(repository: str, token: str, branch_name: str):
+    """Dispatch CI on a GITHUB_TOKEN-created PR branch (which does not auto-trigger PR CI)."""
+    api_url = (
+        f"https://api.github.com/repos/{repository}/actions/workflows/"
+        "0-pull-request-ci.yml/dispatches"
+    )
+    payload = json.dumps({"ref": branch_name}).encode("utf-8")
+    request = urllib.request.Request(
+        api_url,
+        data=payload,
+        headers={
+            "Accept": "application/vnd.github+json",
+            "Authorization": "Bearer " + token,
+            "X-GitHub-Api-Version": "2022-11-28",
+            "Content-Type": "application/json",
+        },
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=30):
+            return None
+    except (urllib.error.URLError, TimeoutError, OSError) as exc:
+        return f"Could not dispatch Pull Request quality checks: {exc}"
+
+
 def _git(repo_root: Path, *arguments: str):
     result = subprocess.run(
         ["git", *arguments],
@@ -255,6 +280,9 @@ Exact or fuzzy duplicate candidates have not been automatically deleted. Confirm
         raise GitOpsError(f"Could not create GitHub Pull Request: {exc}") from exc
 
     publication_commit_sha = _git(root, "rev-parse", "HEAD")
+    quality_check_warning = _dispatch_publication_quality_checks(
+        repository, token, branch_name
+    )
     _git(root, "switch", "main")
 
     return {
@@ -263,4 +291,6 @@ Exact or fuzzy duplicate candidates have not been automatically deleted. Confirm
         "pull_request_url": result.get("html_url"),
         "commit_sha": publication_commit_sha,
         "dataset_shards": entries,
+        "quality_checks_dispatched": quality_check_warning is None,
+        "quality_check_warning": quality_check_warning,
     }
