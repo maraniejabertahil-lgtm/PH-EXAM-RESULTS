@@ -54,9 +54,17 @@ class GitOpsIsolationTests(unittest.TestCase):
                     "authority": "PRC",
                     "examination": "LET",
                     "year": 2026,
-                    "records": [normalize_record({"name": "ALPHA PASSER"}, "PRC", "LET", 2026)],
-                    "validation": {"total_records": 1, "valid_records": 1, "invalid_records": []},
-                    "duplicates": {"exact_duplicates": [], "fuzzy_candidates": []},
+                    "records": [
+                        normalize_record({"name": "ALPHA PASSER"}, "PRC", "LET", 2026),
+                        normalize_record({"name": "ALPHA PASER"}, "PRC", "LET", 2026),
+                    ],
+                    "validation": {"total_records": 2, "valid_records": 2, "invalid_records": []},
+                    "duplicates": {
+                        "exact_duplicates": [],
+                        "fuzzy_candidates": [
+                            {"first_index": 0, "candidate_index": 1, "similarity": 0.96}
+                        ],
+                    },
                 },
                 {
                     "authority": "PRC",
@@ -74,7 +82,7 @@ class GitOpsIsolationTests(unittest.TestCase):
                     FakeResponse({"number": 101, "html_url": "https://github.com/example/repo/pull/101"}),
                     FakeResponse({"number": 102, "html_url": "https://github.com/example/repo/pull/102"}),
                 ],
-            ):
+            ) as urlopen_mock:
                 first = create_publication_pull_request(
                     root, reports[0], "example/repo", "test-token"
                 )
@@ -82,6 +90,12 @@ class GitOpsIsolationTests(unittest.TestCase):
                     root, reports[1], "example/repo", "test-token"
                 )
 
+            first_pr_body = json.loads(
+                urlopen_mock.call_args_list[0].args[0].data.decode("utf-8")
+            )["body"]
+            self.assertIn("ALPHA PASSER", first_pr_body)
+            self.assertIn("ALPHA PASER", first_pr_body)
+            self.assertIn("similarity: 0.96", first_pr_body)
             self.assertEqual(self.git(root, "branch", "--show-current"), "main")
             second_files = self.git(root, "ls-tree", "-r", "--name-only", second["commit_sha"])
             self.assertIn("public/data/prc/nle/2026-A-M.json", second_files)
