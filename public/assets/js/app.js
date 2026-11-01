@@ -88,6 +88,7 @@ function setAuthority(authority) {
     tab.classList.toggle("is-active", active);
     tab.setAttribute("aria-selected", String(active));
     tab.tabIndex = active ? 0 : -1;
+    if (active) searchForm.setAttribute("aria-labelledby", tab.id);
   });
   refreshExaminations();
   feedback.textContent = "";
