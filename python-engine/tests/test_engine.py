@@ -79,8 +79,8 @@ class DatasetTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary) / "data"
             records = [
-                self.make_record(f"A{index:06d} " + ("X" * 120))
-                for index in range(95000)
+                self.make_record(f"{chr(65 + index % 26)}{index:06d} " + ("X" * 450))
+                for index in range(30000)
             ]
             entries = build_public_datasets(records, root, "PRC", "LET", 2026)
             self.assertGreater(len(entries), 1)
