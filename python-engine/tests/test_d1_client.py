@@ -121,6 +121,9 @@ class D1ClientTests(unittest.TestCase):
             with self.subTest(expected_status=expected_status):
                 with patch.object(client, "query") as query:
                     client.record_import_batch(report)
+                sql, bound_params = query.call_args.args
+                self.assertIn("?, NULL, ?)", sql)
+                self.assertNotIn(None, bound_params)
                 self.assertEqual(query.call_args.args[1][9], expected_status)
 
 
