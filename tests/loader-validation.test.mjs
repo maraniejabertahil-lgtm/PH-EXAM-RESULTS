@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 const loaderSource = readFileSync("public/assets/js/loader.js", "utf8")
   .replace('import { getCachedDataset, setCachedDataset } from "./storage.js";', "");
 const loaderUrl = "data:text/javascript;base64," + Buffer.from(loaderSource).toString("base64");
-const { fetchWithTimeout, selectShards, validateDatasetPayload } = await import(loaderUrl);
+const { fetchWithTimeout, loadSiteStatus, selectShards, validateDatasetPayload } = await import(loaderUrl);
 
 const valid = {
   columns: ["name", "rating", "region", "seq"],
@@ -67,6 +67,20 @@ try {
     fetchWithTimeout("/slow-resource", {}, 1000),
     /took too long/
   );
+  assert.deepEqual(
+    await loadSiteStatus(),
+    { mode: "search", preparation: null }
+  );
+
+  globalThis.fetch = async () => ({
+    ok: true,
+    json: async () => ({
+      schema_version: 1,
+      mode: "preparing",
+      preparation: { percentage: 50 }
+    })
+  });
+  assert.equal((await loadSiteStatus()).mode, "preparing");
 } finally {
   globalThis.fetch = originalFetch;
 }
