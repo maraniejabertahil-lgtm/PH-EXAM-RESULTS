@@ -415,6 +415,21 @@ def predict_release(args) -> int:
 
 
 
+def validate_preparing_prediction(prediction: dict | None, today: date | None = None) -> int:
+    if not prediction or not prediction.get("predicted_date"):
+        raise ValueError("No historical release prediction exists for this examination/year.")
+    if prediction.get("actual_date"):
+        raise ValueError("An actual release date is already recorded; Preparing Mode is no longer appropriate.")
+    predicted_date = date.fromisoformat(str(prediction["predicted_date"])[:10])
+    reference_date = today or date.today()
+    days_until = (predicted_date - reference_date).days
+    if not -5 <= days_until <= 5:
+        raise ValueError(
+            "Preparing Mode can be activated only within five days before or after the predicted release date."
+        )
+    return days_until
+
+
 def write_site_status(args) -> int:
     try:
         if args.mode == "preparing":
@@ -436,12 +451,7 @@ def write_site_status(args) -> int:
                     )
             client = D1Client.from_environment()
             prediction = client.get_release_prediction(args.authority, args.exam, args.year)
-            if not prediction or not prediction.get("predicted_date"):
-                raise ValueError("No historical release prediction exists for this examination/year.")
-            predicted_date = date.fromisoformat(str(prediction["predicted_date"])[:10])
-            days_until = (predicted_date - date.today()).days
-            if days_until > 5:
-                raise ValueError("Preparing Mode can be activated only within five days of the predicted release date.")
+            validate_preparing_prediction(prediction)
         status = write_status(
             args.output,
             mode=args.mode,
