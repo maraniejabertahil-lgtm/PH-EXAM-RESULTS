@@ -136,12 +136,18 @@ function ensureWorkerDataset(dataset) {
   return new Promise((resolve, reject) => {
     const timer = setTimeout(() => failSearchWorker(searchWorker, new Error("The search engine did not respond. Please try your search again.")), WORKER_RESPONSE_TIMEOUT_MS);
     pendingWorkerLoads.set(dataset.datasetKey, { resolve, reject, timer });
-    ensureSearchWorker().postMessage({
-      type: "load",
-      datasetKey: dataset.datasetKey,
-      columns: dataset.columns,
-      rows: dataset.rows
-    });
+    try {
+      ensureSearchWorker().postMessage({
+        type: "load",
+        datasetKey: dataset.datasetKey,
+        columns: dataset.columns,
+        rows: dataset.rows
+      });
+    } catch (error) {
+      clearTimeout(timer);
+      pendingWorkerLoads.delete(dataset.datasetKey);
+      reject(error);
+    }
   });
 }
 
@@ -150,7 +156,13 @@ function runWorkerSearch(query) {
   return new Promise((resolve, reject) => {
     const timer = setTimeout(() => failSearchWorker(searchWorker, new Error("The search engine did not respond. Please try your search again.")), WORKER_RESPONSE_TIMEOUT_MS);
     pendingSearches.set(requestId, { resolve, reject, timer });
-    ensureSearchWorker().postMessage({ type: "search", requestId, query });
+    try {
+      ensureSearchWorker().postMessage({ type: "search", requestId, query });
+    } catch (error) {
+      clearTimeout(timer);
+      pendingSearches.delete(requestId);
+      reject(error);
+    }
   });
 }
 
@@ -195,8 +207,8 @@ function handleWorkerMessage(event) {
 }
 
 function failSearchWorker(worker, error) {
-  if (!worker || searchWorker !== worker) return;
-  worker.terminate();
+  if (worker && searchWorker !== worker) return;
+  if (worker) worker.terminate();
   searchWorker = null;
   rejectPendingWorkerRequests(error);
 }
