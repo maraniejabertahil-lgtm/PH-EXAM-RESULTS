@@ -84,7 +84,7 @@ A valid processing report is not publication approval.
 
 If replacing an existing examination/year dataset, explicitly enable `replace_existing`. Existing records are not silently overwritten.
 
-The manual import workflow accepts CSV only. Exact duplicate candidates block publication PR creation; fuzzy duplicate candidates remain visible for review. PDF text extraction is available separately and requires manual review and conversion before records enter the CSV import workflow.
+The manual import workflow accepts CSV only. Exact duplicate candidates block publication PR creation; fuzzy duplicate candidates remain visible for review. For PDFs, place the source inside `private-imports/` and run **2B - Extract PDF Text for Manual Review** in GitHub Actions. Download its private extraction artifact, manually verify and map the records, then convert them into a reviewed CSV before using the CSV import workflow.
 
 ## Source monitoring
 
@@ -110,6 +110,7 @@ The scheduled prediction workflow uses `python-engine/config/examinations.json`,
 
 - **1 - Monitor Approved Sources:** scheduled source monitoring and approved automatic acquisition.
 - **2 - Process Result Import and Open Approval PR:** manual CSV import.
+- **2B - Extract PDF Text for Manual Review:** owner-triggered text extraction from a private PDF; it never publishes records.
 - **3 - Deploy Public Site to Cloudflare Pages:** production static deployment after approved changes reach main.
 - **4 - Weekly Maintenance:** tests, public dataset integrity, and D1 storage checks.
 - **5 - Set Preparing or Searching Mode:** owner-controlled homepage status PR.
