@@ -93,7 +93,7 @@ def process_csv(args) -> int:
     except D1Error as exc:
         report["d1_notice"] = str(exc)
     destination.write_text(
-        json.dumps(report, ensure_ascii=False, indent=2) + "\\n",
+        json.dumps(report, ensure_ascii=False, indent=2) + "\n",
         encoding="utf-8",
     )
     print(json.dumps({
@@ -206,6 +206,13 @@ def publish_batch(args) -> int:
     validation = report.get("validation", {})
     if not validation.get("is_valid"):
         print("ERROR: Invalid batches cannot enter the publication Pull Request.", file=sys.stderr)
+        return 1
+    duplicates = report.get("duplicates", {})
+    if duplicates.get("exact_duplicates"):
+        print(
+            "ERROR: Exact duplicate records must be resolved before a publication PR can be created.",
+            file=sys.stderr,
+        )
         return 1
 
     repository = args.repository or os.getenv("GITHUB_REPOSITORY")
