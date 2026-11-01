@@ -505,10 +505,10 @@ def d1_size(args) -> int:
     except D1Error as exc:
         print(f"ERROR: Could not read D1 storage usage: {exc}", file=sys.stderr)
         return 2
-    stats["estimated_storage_mib"] = round(
-        stats["estimated_storage_bytes"] / (1024 * 1024), 2
+    stats["estimated_storage_mb"] = round(
+        stats["estimated_storage_bytes"] / 1_000_000, 2
     )
-    stats["free_tier_reference_mib"] = 500
+    stats["free_tier_reference_mb"] = 500
     print(json.dumps(stats, indent=2))
     return 0
 
