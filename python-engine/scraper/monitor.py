@@ -4,7 +4,9 @@ from datetime import datetime, timezone
 from pathlib import Path
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlsplit
-from urllib.request import Request, urlopen
+from urllib.request import Request
+
+from scraper.safe_http import UnsafeRedirectError, open_same_origin
 
 
 USER_AGENT = "PH-EXAM-RESULTS-SourceMonitor/1.0"
@@ -61,7 +63,7 @@ def monitor_source(source: dict) -> dict:
         original_host, url = _validate_https_url(source.get("url", ""))
         original_port = urlsplit(url).port or 443
         request = Request(url, headers={"User-Agent": USER_AGENT}, method="HEAD")
-        with urlopen(request, timeout=TIMEOUT_SECONDS) as response:
+        with open_same_origin(request, url, timeout=TIMEOUT_SECONDS) as response:
             final_url = urlsplit(response.geturl())
             final_host = (final_url.hostname or "").lower()
             if (
@@ -85,6 +87,13 @@ def monitor_source(source: dict) -> dict:
                 "content_length": response.headers.get("Content-Length"),
                 "checked_at": checked_at,
             }
+    except UnsafeRedirectError as exc:
+        return {
+            "source_id": source_id,
+            "status": "redirect_rejected",
+            "error": str(exc)[:300],
+            "checked_at": checked_at,
+        }
     except HTTPError as exc:
         if exc.code in (405, 501):
             try:
@@ -114,6 +123,13 @@ def monitor_source(source: dict) -> dict:
                         "content_length": _response_content_length(response),
                         "checked_at": checked_at,
                     }
+            except UnsafeRedirectError as get_error:
+                return {
+                    "source_id": source_id,
+                    "status": "redirect_rejected",
+                    "error": str(get_error)[:300],
+                    "checked_at": checked_at,
+                }
             except HTTPError as get_error:
                 exc = get_error
             except (URLError, TimeoutError, OSError) as get_error:
