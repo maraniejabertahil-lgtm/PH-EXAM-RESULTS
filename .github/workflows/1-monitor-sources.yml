@@ -11,7 +11,7 @@ permissions:
   pull-requests: write
 
 concurrency:
-  group: source-monitor
+  group: owner-review-pr-creation
   cancel-in-progress: false
 
 jobs:
