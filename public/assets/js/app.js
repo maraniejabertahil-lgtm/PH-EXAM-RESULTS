@@ -17,6 +17,7 @@ const preparationNote = document.getElementById("preparation-note");
 const searchForm = document.getElementById("search-form");
 const examinationSelect = document.getElementById("examination");
 const yearSelect = document.getElementById("exam-year");
+const passerNameInput = document.getElementById("passer-name");
 const feedback = document.getElementById("search-feedback");
 const resultsContainer = document.getElementById("search-results");
 const menuButton = document.getElementById("menu-button");
@@ -258,7 +259,8 @@ searchForm.addEventListener("submit", async event => {
   feedback.textContent = "";
   resultsContainer.replaceChildren();
 
-  const query = document.getElementById("passer-name").value.trim();
+  const query = passerNameInput.value.trim();
+  const authority = activeAuthority;
   const examination = examinationSelect.value;
   const year = yearSelect.value;
   if (!manifest || !query || !examination || !year) {
@@ -267,6 +269,14 @@ searchForm.addEventListener("submit", async event => {
   }
 
   const submitButton = searchForm.querySelector(".submit-button");
+  const searchControls = [
+    ...document.querySelectorAll(".authority-tab"),
+    examinationSelect,
+    yearSelect,
+    passerNameInput
+  ];
+  const previousDisabledStates = searchControls.map(control => control.disabled);
+  searchControls.forEach(control => { control.disabled = true; });
   submitButton.disabled = true;
   submitButton.setAttribute("aria-busy", "true");
   feedback.textContent = "Loading the published examination dataset…";
@@ -286,7 +296,7 @@ searchForm.addEventListener("submit", async event => {
     let dataset;
     try {
       dataset = await loadSearchDataset(
-        manifest, activeAuthority, examination, year, query
+        manifest, authority, examination, year, query
       );
     } catch (firstError) {
       // A page left open across a publication may still hold the previous
@@ -304,7 +314,7 @@ searchForm.addEventListener("submit", async event => {
     await ensureWorkerDataset(dataset);
     const searchResult = await runWorkerSearch(query);
     feedback.textContent = "Source: published examination dataset · " +
-      activeAuthority + " · " + examination + " · " + year;
+      authority + " · " + examination + " · " + year;
     renderResults(searchResult.matches, dataset.columns, searchResult.totalMatches);
   } catch (error) {
     feedback.textContent = error instanceof Error
@@ -313,6 +323,9 @@ searchForm.addEventListener("submit", async event => {
   } finally {
     submitButton.disabled = false;
     submitButton.removeAttribute("aria-busy");
+    searchControls.forEach((control, index) => {
+      control.disabled = previousDisabledStates[index];
+    });
   }
 });
 
