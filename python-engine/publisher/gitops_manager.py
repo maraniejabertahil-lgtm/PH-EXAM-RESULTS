@@ -96,7 +96,7 @@ def create_publication_pull_request(
                 "authority": report.get("authority"),
                 "exam": report.get("examination"),
                 "year": year,
-            }, ensure_ascii=False, indent=2) + "\\n",
+            }, ensure_ascii=False, indent=2) + "\n",
             encoding="utf-8",
         )
 
