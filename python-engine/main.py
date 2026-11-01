@@ -194,7 +194,11 @@ def monitor_sources(args) -> int:
                     and source.get("auto_acquire") is True
                     and item["status"] in {"baseline_created", "changed"}
                 ):
-                    file_format = str(source.get("file_format", "")).lower()
+                    if not any(item.get(key) for key in ("etag", "last_modified", "content_length")):
+                        item["status"] = "metadata_insufficient"
+                        item["notice"] = "Source provides no ETag, Last-Modified, or Content-Length; automatic change detection is unsafe."
+                    else:
+                        file_format = str(source.get("file_format", "")).lower()
                     if file_format not in {"csv", "pdf"}:
                         item["status"] = "unsupported_file_format"
                         acquisition_succeeded = False
