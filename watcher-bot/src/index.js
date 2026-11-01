@@ -280,7 +280,7 @@ async function checkTarget(target, env, fetchImpl, now, allowPageChange) {
   }
 }
 
-async function runScan(sources, env, fetchImpl, now, peakWeek) {
+function buildTargets(sources, now, peakWeek) {
   const targets = [];
   for (const source of sources) {
     if (!isApprovedSource(source)) continue;
@@ -288,14 +288,77 @@ async function runScan(sources, env, fetchImpl, now, peakWeek) {
     catch (error) { console.warn(`Skipping invalid source ${String(source.id || "unknown")}: ${error.message}`); }
   }
   if (peakWeek) targets.push(...expandPreemptiveTemplates(sources, now.getTime()));
-  const selected = targets.slice(0, MAX_TARGETS_PER_SCAN);
+  return targets;
+}
+
+function officialSourceAvailable(results) {
+  const availableStatuses = new Set([
+    "baseline_created", "unchanged", "changed", "changed_no_page_scan",
+    "page_scan_error", "not_pdf", "dispatched", "already_dispatched"
+  ]);
+  return results.some((item) => availableStatuses.has(item.status));
+}
+
+async function runScan(sources, env, fetchImpl, now, peakWeek) {
+  const scopes = new Map();
+  for (const source of sources) {
+    if (!source || !["PRC", "CSC"].includes(source.authority) || typeof source.exam !== "string") continue;
+    const key = `${source.authority}:${source.exam}`;
+    if (!scopes.has(key)) scopes.set(key, []);
+    scopes.get(key).push(source);
+  }
+
   const results = [];
-  for (const target of selected) results.push(await checkTarget(target, env, fetchImpl, now, !target.preemptive));
-  return {
-    checked_targets: selected.length,
-    skipped_targets: Math.max(0, targets.length - selected.length),
-    results
-  };
+  let checkedTargets = 0;
+  let skippedTargets = 0;
+  for (const scopeSources of scopes.values()) {
+    const official = scopeSources.filter((item) => item.source_type === "official");
+    const thirdParty = scopeSources.filter((item) => item.source_type === "verified_third_party");
+    if (official.length === 0) {
+      for (const item of thirdParty) results.push({
+        source_id: String(item.id || "unknown"),
+        status: "skipped_no_official_source_configured"
+      });
+      continue;
+    }
+
+    const officialTargets = buildTargets(official, now, peakWeek);
+    const officialBudget = Math.max(0, MAX_TARGETS_PER_SCAN - checkedTargets);
+    const selectedOfficial = officialTargets.slice(0, officialBudget);
+    const officialStart = results.length;
+    for (const target of selectedOfficial) {
+      results.push(await checkTarget(target, env, fetchImpl, now, !target.preemptive));
+    }
+    checkedTargets += selectedOfficial.length;
+    skippedTargets += Math.max(0, officialTargets.length - selectedOfficial.length);
+
+    // Do not fall back while any configured official target remains unchecked.
+    const officialFullyChecked = selectedOfficial.length === officialTargets.length;
+    if (!officialFullyChecked) {
+      for (const item of thirdParty) results.push({
+        source_id: String(item.id || "unknown"),
+        status: "skipped_official_checks_incomplete"
+      });
+      continue;
+    }
+    if (officialSourceAvailable(results.slice(officialStart))) {
+      for (const item of thirdParty) results.push({
+        source_id: String(item.id || "unknown"),
+        status: "skipped_official_available"
+      });
+      continue;
+    }
+
+    const thirdTargets = buildTargets(thirdParty, now, peakWeek);
+    const thirdBudget = Math.max(0, MAX_TARGETS_PER_SCAN - checkedTargets);
+    const selectedThird = thirdTargets.slice(0, thirdBudget);
+    for (const target of selectedThird) {
+      results.push(await checkTarget(target, env, fetchImpl, now, !target.preemptive));
+    }
+    checkedTargets += selectedThird.length;
+    skippedTargets += Math.max(0, thirdTargets.length - selectedThird.length);
+  }
+  return { checked_targets: checkedTargets, skipped_targets: skippedTargets, results };
 }
 
 export async function runScheduled({
@@ -317,11 +380,11 @@ export async function runScheduled({
   const peakWeek = parseBoolean(await env.PEAK_WEEK.get("PEAK_WEEK"));
   const sources = await readSourceRegistry(env, budgetFetch);
   const activeSources = sources.filter(isApprovedSource);
-  const first = await runScan(activeSources, env, budgetFetch, new Date(scheduledTime), peakWeek);
+  const first = await runScan(sources, env, budgetFetch, new Date(scheduledTime), peakWeek);
   let second = null;
   if (peakWeek) {
     await sleepImpl(30_000);
-    second = await runScan(activeSources, env, budgetFetch, new Date(scheduledTime + 30_000), true);
+    second = await runScan(sources, env, budgetFetch, new Date(scheduledTime + 30_000), true);
   }
   const report = {
     checked_at: isoNow(new Date(scheduledTime)),
