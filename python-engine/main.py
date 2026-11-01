@@ -183,6 +183,7 @@ def monitor_sources(args) -> int:
                 elif (
                     item.get("etag") != previous.get("etag")
                     or item.get("last_modified") != previous.get("last_modified")
+                    or item.get("content_length") != previous.get("content_length")
                 ):
                     item["status"] = "changed"
                     report["changes_detected"] = True
@@ -283,6 +284,7 @@ def monitor_sources(args) -> int:
                         source_id,
                         item.get("etag"),
                         item.get("last_modified"),
+                        item.get("content_length"),
                         item["checked_at"],
                     )
 
