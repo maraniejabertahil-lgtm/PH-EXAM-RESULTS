@@ -106,3 +106,12 @@ jobs:
           ARGS=(publish --report ../artifacts/import-report.json --source-reference "$SOURCE_REFERENCE")
           if [[ "$REPLACE_EXISTING" == "true" ]]; then ARGS+=(--replace-existing); fi
           python main.py "${ARGS[@]}"
+
+      - name: Preserve private processing report for owner review
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: private-import-processing-report
+          path: artifacts/import-report.json
+          if-no-files-found: ignore
+          retention-days: 7
