@@ -1,17 +1,16 @@
 import { getCachedDataset, setCachedDataset } from "./storage.js";
 
 export async function fetchWithTimeout(resource, options = {}, timeoutMs = 45000) {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  // The signal remains active while the response body is being read, not just
+  // until fetch() receives the response headers.
+  const signal = AbortSignal.timeout(timeoutMs);
   try {
-    return await fetch(resource, { ...options, signal: controller.signal });
+    return await fetch(resource, { ...options, signal });
   } catch (error) {
-    if (error?.name === "AbortError") {
+    if (error?.name === "AbortError" || error?.name === "TimeoutError") {
       throw new Error("The request took too long. Check your connection and try again.");
     }
     throw error;
-  } finally {
-    clearTimeout(timer);
   }
 }
 
