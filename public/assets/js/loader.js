@@ -66,8 +66,29 @@ async function fetchVerifiedDataset(file) {
     throw new Error("Dataset integrity check failed. Please try again later.");
   }
   const payload = JSON.parse(new TextDecoder().decode(buffer));
-  if (!Array.isArray(payload.columns) || !Array.isArray(payload.data)) {
+  if (
+    !payload ||
+    typeof payload !== "object" ||
+    !Array.isArray(payload.columns) ||
+    !Array.isArray(payload.data) ||
+    payload.columns.length === 0 ||
+    payload.columns.some(column => typeof column !== "string" || !column.trim()) ||
+    new Set(payload.columns).size !== payload.columns.length ||
+    !payload.columns.includes("name")
+  ) {
     throw new Error("The selected examination dataset has an invalid structure.");
+  }
+  const nameIndex = payload.columns.indexOf("name");
+  for (let index = 0; index < payload.data.length; index += 1) {
+    const row = payload.data[index];
+    if (
+      !Array.isArray(row) ||
+      row.length !== payload.columns.length ||
+      typeof row[nameIndex] !== "string" ||
+      !row[nameIndex].trim()
+    ) {
+      throw new Error("The selected examination dataset contains an invalid record.");
+    }
   }
 
   try {
