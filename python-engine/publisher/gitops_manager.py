@@ -64,6 +64,27 @@ def create_publication_pull_request(
         root / "public" / "data" / "manifest.json",
     )
 
+    status_path = root / "public" / "data" / "site-status.json"
+    status_reset = False
+    if status_path.is_file():
+        current_status = json.loads(status_path.read_text(encoding="utf-8"))
+        active = current_status.get("preparation") or {}
+        if (
+            current_status.get("mode") == "preparing"
+            and active.get("authority") == report.get("authority")
+            and active.get("exam") == report.get("examination")
+            and active.get("year") == year
+        ):
+            status_path.write_text(
+                json.dumps(
+                    {"schema_version": 1, "mode": "search", "preparation": None},
+                    ensure_ascii=False,
+                    indent=2,
+                ) + "\n",
+                encoding="utf-8",
+            )
+            status_reset = True
+
     _git(root, "config", "user.name", "github-actions[bot]")
     _git(root, "config", "user.email", "41898282+github-actions[bot]@users.noreply.github.com")
     _git(root, "add", "--", "public/data")
@@ -96,6 +117,9 @@ def create_publication_pull_request(
 This Pull Request is the publication approval gate. Review the official source and all validation/duplicate findings before merging. No data in this branch is public until this Pull Request is merged and the production deployment completes.
 
 Exact or fuzzy duplicate candidates have not been automatically deleted. Confirm whether they are legitimate separate people or extraction duplicates.
+
+### Preparing Mode
+- Matching active Preparing Mode reset in this PR: {status_reset}
 
 ### Replacement notice
 {"This PR replaces an existing dataset for the same examination and year." if existing else "This is a new examination/year dataset."}
