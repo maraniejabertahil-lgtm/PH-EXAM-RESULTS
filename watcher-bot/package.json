@@ -1,0 +1,8 @@
+{
+  "name": "ph-exam-results-watcher",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test tests/*.test.mjs"
+  }
+}
