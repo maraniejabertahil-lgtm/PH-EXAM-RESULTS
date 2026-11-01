@@ -55,7 +55,10 @@ jobs:
             echo "D1 is not configured; publication audit update skipped."
             exit 0
           fi
-          while IFS= read -r file; do
-            [[ -n "$file" ]] || continue
+          if [[ ! -d .internal/import-batches ]]; then
+            echo "No merged import-batch metadata exists."
+            exit 0
+          fi
+          while IFS= read -r -d '' file; do
             python python-engine/main.py mark-published --batch-file "$file"
-          done < <(git diff HEAD^ HEAD --name-only -- .internal/import-batches)
+          done < <(find .internal/import-batches -maxdepth 1 -type f -name '*.json' -print0)
