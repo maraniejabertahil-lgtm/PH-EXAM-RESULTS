@@ -91,6 +91,15 @@ class SourceMonitorTests(unittest.TestCase):
                 "url": "https://user:password@official.example/results",
             },
             {
+                "id": "official-non-text-url",
+                "authority": "PRC",
+                "exam": "LET",
+                "source_type": "official",
+                "authorized": True,
+                "enabled": True,
+                "url": 12345,
+            },
+            {
                 "id": "official-invalid-exam",
                 "authority": "PRC",
                 "exam": "LET/2026",
