@@ -8,6 +8,7 @@ This folder implements Phase 1 of the approved Master Technical Blueprint. It is
 - Standard Mode checks each approved source once per invocation.
 - Peak Week Mode is enabled by setting the `PEAK_WEEK` KV key to the text value `true`; the Worker performs two scans 30 seconds apart.
 - Reads the authorized source registry from `python-engine/config/sources.json` on the configured GitHub ref.
+- Checks official sources first for each authority/examination. Verified third-party sources are checked only when configured official sources for that same scope are unavailable; third-party sources are not used when no official source is configured.
 - Checks source URLs using HTTPS `HEAD` requests. A `GET` with a one-byte range is used only when a server rejects `HEAD` with HTTP 405 or 501.
 - When a monitored page's HTTP metadata changes, scans the page for same-origin PDF links and checks those links.
 - During Peak Week, expands owner-configured `preemptive_url_templates` for the current and following UTC month. Supported placeholders: `{EXAM}`, `{YYYY}`, `{YY}`, `{MM}`, and `{YYYYMM}`.
