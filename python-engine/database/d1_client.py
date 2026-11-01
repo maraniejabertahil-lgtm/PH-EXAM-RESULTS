@@ -36,7 +36,16 @@ class D1Client:
         return cls(account_id, database_id, token)
 
     def query(self, sql: str, params: list | None = None) -> list:
-        payload = json.dumps({"sql": sql, "params": params or []}).encode("utf-8")
+        raw_params = params or []
+        if any(value is None for value in raw_params):
+            raise D1Error(
+                "D1 REST parameters must be non-null strings; represent optional SQL values with SQL NULL."
+            )
+        encoded_params = [
+            "1" if value is True else "0" if value is False else str(value)
+            for value in raw_params
+        ]
+        payload = json.dumps({"sql": sql, "params": encoded_params}).encode("utf-8")
         request = urllib.request.Request(
             self.endpoint,
             data=payload,
@@ -87,13 +96,21 @@ class D1Client:
         return rows[0] if rows else None
 
     def save_source_state(self, source_id: str, etag: str | None, last_modified: str | None, content_length: str | None, checked_at: str):
+        optional_values = [etag, last_modified, content_length]
+        optional_placeholders = [
+            "?" if value is not None else "NULL"
+            for value in optional_values
+        ]
+        params = [source_id]
+        params.extend(value for value in optional_values if value is not None)
+        params.append(checked_at)
         self.query(
             "INSERT INTO source_states (source_id, etag, last_modified, content_length, checked_at) "
-            "VALUES (?, ?, ?, ?, ?) "
+            f"VALUES (?, {optional_placeholders[0]}, {optional_placeholders[1]}, {optional_placeholders[2]}, ?) "
             "ON CONFLICT(source_id) DO UPDATE SET "
             "etag = excluded.etag, last_modified = excluded.last_modified, "
             "content_length = excluded.content_length, checked_at = excluded.checked_at",
-            [source_id, etag, last_modified, content_length, checked_at],
+            params,
         )
 
 
@@ -140,13 +157,8 @@ class D1Client:
         timestamp = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
         validation = report.get("validation", {})
         duplicates = report.get("duplicates", {})
-        self.query(
-            "INSERT INTO import_batches "
-            "(batch_id, authority, exam, year, total_records, valid_records, "
-            "invalid_records, exact_duplicates, fuzzy_candidates, status, "
-            "created_at, source_reference, report_path) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-            [
+        source_reference_sql = "?" if source_reference else "NULL"
+        params = [
                 batch_id,
                 report.get("authority"),
                 report.get("examination"),
@@ -166,9 +178,17 @@ class D1Client:
                     else "validation_passed"
                 ),
                 timestamp,
-                source_reference or None,
                 report.get("source_file"),
-            ],
+            ]
+        if source_reference:
+            params.insert(11, source_reference)
+        self.query(
+            "INSERT INTO import_batches "
+            "(batch_id, authority, exam, year, total_records, valid_records, "
+            "invalid_records, exact_duplicates, fuzzy_candidates, status, "
+            "created_at, source_reference, report_path) "
+            f"VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, {source_reference_sql}, ?)",
+            params,
         )
         return batch_id
 
@@ -222,9 +242,16 @@ class D1Client:
         }
 
     def record_monitoring_log(self, source_id: str, status: str, timestamp: str, error: str | None = None, etag: str | None = None, last_modified: str | None = None):
+        optional_values = [error, etag, last_modified]
+        optional_placeholders = [
+            "?" if value is not None else "NULL"
+            for value in optional_values
+        ]
+        params = [str(uuid4()), source_id, status, timestamp]
+        params.extend(value for value in optional_values if value is not None)
         self.query(
             "INSERT INTO monitoring_logs "
             "(id, source_id, status, run_timestamp, error_details, etag, last_modified) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?)",
-            [str(uuid4()), source_id, status, timestamp, error, etag, last_modified],
+            f"VALUES (?, ?, ?, ?, {optional_placeholders[0]}, {optional_placeholders[1]}, {optional_placeholders[2]})",
+            params,
         )
