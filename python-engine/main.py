@@ -22,6 +22,16 @@ from publisher.gitops_manager import create_publication_pull_request, GitOpsErro
 from scraper.monitor import monitor_registry
 
 
+
+def file_sha256(path: str | Path) -> str:
+    digest = hashlib.sha256()
+    with Path(path).open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+
 def process_csv(args) -> int:
     source = Path(args.input)
     if not source.is_file() or source.suffix.lower() != ".csv":
@@ -123,6 +133,7 @@ def extract_pdf(args) -> int:
 
     payload = {
         "source_file": Path(args.input).name,
+        "source_file_sha256": file_sha256(args.input),
         "extracted_line_count": len(lines),
         "manual_review_required": True,
         "notice": (
