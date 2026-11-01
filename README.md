@@ -10,7 +10,7 @@ This repository contains the initial implementation of the approved architecture
 - Public search uses static JSON datasets, a browser Web Worker, and IndexedDB caching.
 - Python processes CSV records, extracts text from text-based PDFs, normalizes names, validates records, and flags duplicate candidates.
 - Python generates compact array-of-arrays JSON datasets and a SHA-256 manifest.
-- GitHub Actions provides source monitoring, manual CSV import, owner-approval Pull Requests, tests, maintenance, and Cloudflare Pages deployment workflows.
+- GitHub Actions provides two-hour source monitoring/acquisition, manual CSV import, release-prediction updates, Preparing/Search status PRs, tests, maintenance, and Cloudflare Pages deployment workflows.
 - Cloudflare D1 REST integration and initial metadata schema are included.
 - The official source registry is intentionally empty.
 - No official examination records are included.
@@ -37,6 +37,7 @@ Ordinary visitor searches do not call Python, D1, or a Cloudflare Worker.
 - `public/data/`: public manifest, site status, and approved result datasets.
 - `python-engine/`: Python processing and automation package.
 - `python-engine/config/sources.json`: authorized source registry; initially empty.
+- `python-engine/config/examinations.json`: prediction targets; initially empty.
 - `python-engine/database/schema.sql`: internal D1 schema.
 - `python-engine/tests/`: Python unit tests.
 - `.github/workflows/`: monitoring, import, test, deployment, and maintenance workflows.
@@ -83,7 +84,7 @@ A valid processing report is not publication approval.
 
 If replacing an existing examination/year dataset, explicitly enable `replace_existing`. Existing records are not silently overwritten.
 
-The current automated import workflow accepts CSV only. PDF text extraction is available separately and requires manual review and conversion before the records enter the CSV import workflow.
+The manual import workflow accepts CSV only. Exact duplicate candidates block publication PR creation; fuzzy duplicate candidates remain visible for review. PDF text extraction is available separately and requires manual review and conversion before records enter the CSV import workflow.
 
 ## Source monitoring
 
@@ -93,7 +94,26 @@ The initial source registry is empty:
 
 `python-engine/config/sources.json`
 
-Do not add a source until its access method is authorized. Third-party sources require explicit owner verification. Monitoring currently checks HTTP metadata; a detected change is not proof that official results have been released.
+A configured source must have a unique ID, authority, exam identifier, source type, HTTPS URL, and enabled flag. Official sources require explicit authorization. Verified third-party sources are checked only when configured official sources for the same examination are unavailable.
+
+When D1 is configured, Python compares ETag, Last-Modified, and content length. A source with no reliable change metadata is not automatically acquired. Set `auto_acquire: true` only after verifying a direct CSV/PDF file URL and its format. CSV files can be processed into an owner-approval PR; PDF text extraction remains a manual-review step.
+
+A detected source change is not proof that official results have been released.
+
+## Preparing Mode
+
+Run **5 - Set Preparing or Searching Mode** in GitHub Actions. Preparing Mode requires an existing D1 release prediction within five days of its predicted date. The owner selects the actual workflow stage from a fixed list; the percentage is mapped to that stage and cannot be typed freely. A status-change PR must be merged before the public homepage changes.
+
+The scheduled prediction workflow uses `python-engine/config/examinations.json`, which starts empty. Historical actual release dates must first be recorded in D1. Automatic prediction-based homepage activation is not yet connected; the owner can activate Preparing Mode manually through the workflow.
+
+## GitHub Actions workflows
+
+- **1 - Monitor Approved Sources:** scheduled source monitoring and approved automatic acquisition.
+- **2 - Process Result Import and Open Approval PR:** manual CSV import.
+- **3 - Deploy Public Site to Cloudflare Pages:** production static deployment after approved changes reach main.
+- **4 - Weekly Maintenance:** tests, public dataset integrity, and D1 storage checks.
+- **5 - Set Preparing or Searching Mode:** owner-controlled homepage status PR.
+- **6 - Update Release Predictions:** scheduled prediction updates for configured examinations.
 
 ## D1 configuration
 
@@ -142,7 +162,7 @@ Free-tier limits and GitHub account allowances can change. Verify current limits
 - No real result dataset has been imported or published.
 - PDF extraction is not a universal layout parser; OCR is not implemented.
 - Release prediction requires sufficient actual release history in D1.
-- Preparing Mode is driven by the public site-status file; automated status generation still requires configured historical data and operational state.
+- Preparing Mode is controlled through an owner-approved status PR and requires a D1 prediction within the five-day activation window; automatic prediction-based activation is not yet connected.
 - The 30,000–59,000 concurrent visitor target has not been load-tested.
 - Cloudflare Pages deployment and D1 connectivity have not been verified.
 
