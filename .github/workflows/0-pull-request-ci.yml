@@ -52,3 +52,7 @@ jobs:
         run: node tests/loader-validation.test.mjs
       - name: Test Web Worker search with 50,000 records
         run: node tests/search-worker.test.mjs
+      - name: Check Cloudflare Watcher JavaScript syntax
+        run: node --check watcher-bot/src/index.js
+      - name: Test Cloudflare Watcher
+        run: node --test watcher-bot/tests/*.test.mjs
