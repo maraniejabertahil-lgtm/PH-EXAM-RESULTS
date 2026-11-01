@@ -117,6 +117,8 @@ class GitOpsIsolationTests(unittest.TestCase):
                 first = create_publication_pull_request(
                     root, reports[0], "example/repo", "test-token"
                 )
+                leftover = root / "public" / "data" / "failed-build-leftover.json"
+                leftover.write_text('{"incomplete": true}', encoding="utf-8")
                 second = create_publication_pull_request(
                     root, reports[1], "example/repo", "test-token"
                 )
@@ -131,6 +133,7 @@ class GitOpsIsolationTests(unittest.TestCase):
             self.assertIn("ALPHA PASSER", first_pr_body)
             self.assertIn("ALPHA PASER", first_pr_body)
             self.assertIn("similarity: 0.96", first_pr_body)
+            self.assertFalse(leftover.exists())
             self.assertEqual(self.git(root, "branch", "--show-current"), "main")
             second_files = self.git(root, "ls-tree", "-r", "--name-only", second["commit_sha"])
             self.assertIn("public/data/prc/nle/2026-A-M-", second_files)
