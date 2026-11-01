@@ -220,6 +220,17 @@ searchForm.addEventListener("submit", async event => {
   feedback.textContent = "Loading the published examination dataset…";
 
   try {
+    // Revalidate the tiny static manifest on each search so a page left open
+    // across a publication sees the latest immutable shard URLs.
+    try {
+      const latestManifest = await loadManifest();
+      if (latestManifest.last_updated !== manifest.last_updated) {
+        manifest = latestManifest;
+      }
+    } catch {
+      // Keep the last known-good manifest if the static catalogue is temporarily unavailable.
+    }
+
     let dataset;
     try {
       dataset = await loadSearchDataset(
