@@ -34,6 +34,12 @@ def create_publication_pull_request(
     replace_existing: bool = False,
 ) -> dict:
     root = Path(repo_root).resolve()
+    # Monitoring can prepare more than one import in a single Actions run.
+    # Always start each publication from a clean copy of approved main so a
+    # later PR cannot accidentally include an earlier source's unmerged files.
+    _git(root, "fetch", "origin", "main")
+    _git(root, "switch", "main")
+    _git(root, "reset", "--hard", "origin/main")
     if report.get("authority") not in {"PRC", "CSC"}:
         raise GitOpsError("Authority must be PRC or CSC.")
     if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_-]{0,39}", str(report.get("examination", ""))):
@@ -177,6 +183,8 @@ Exact or fuzzy duplicate candidates have not been automatically deleted. Confirm
             result = json.loads(response.read().decode("utf-8"))
     except (urllib.error.URLError, TimeoutError, OSError, json.JSONDecodeError) as exc:
         raise GitOpsError(f"Could not create GitHub Pull Request: {exc}") from exc
+
+    _git(root, "switch", "main")
 
     return {
         "branch": branch_name,
