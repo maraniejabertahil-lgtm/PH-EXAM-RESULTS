@@ -81,14 +81,48 @@ def load_registry(path: str | Path) -> list[dict]:
 
 def monitor_registry(path: str | Path) -> dict:
     sources = load_registry(path)
-    results = [monitor_source(source) for source in sources]
+    scopes = {}
+    for source in sources:
+        scope = (source.get("authority"), source.get("exam"))
+        scopes.setdefault(scope, []).append(source)
+
+    results = []
+    for scope_sources in scopes.values():
+        official = [item for item in scope_sources if item.get("source_type") == "official"]
+        third_party = [
+            item for item in scope_sources
+            if item.get("source_type") == "verified_third_party"
+        ]
+        official_results = [monitor_source(item) for item in official]
+        results.extend(official_results)
+
+        official_available = any(
+            item.get("status") in {"reachable", "baseline_created", "changed"}
+            for item in official_results
+        )
+        if official_available:
+            results.extend({
+                "source_id": str(item.get("id", "unknown")),
+                "status": "skipped_official_available",
+                "checked_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+            } for item in third_party)
+        elif official:
+            results.extend(monitor_source(item) for item in third_party)
+        else:
+            results.extend({
+                "source_id": str(item.get("id", "unknown")),
+                "status": "skipped_no_official_source_configured",
+                "checked_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+            } for item in third_party)
+
     return {
         "checked_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
         "source_count": len(sources),
         "results": results,
         "changes_detected": False,
         "notice": (
-            "This monitor checks source reachability and HTTP metadata only. "
-            "A changed source requires authorized acquisition and review."
+            "Official sources are checked first. Verified third-party sources are "
+            "checked only when configured official sources for the same authority "
+            "and examination are unavailable. Monitoring checks HTTP metadata only."
         ),
     }
