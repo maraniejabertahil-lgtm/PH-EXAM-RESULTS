@@ -31,12 +31,16 @@ def build_public_datasets(
     authority: str,
     examination: str,
     year: int,
+    replace_existing: bool = False,
 ) -> list[dict]:
     """Write compact array-of-arrays JSON shards and return manifest entries."""
     authority_key = authority.lower()
     exam_key = examination.lower().replace(" ", "-")
     base = Path(output_root) / authority_key / exam_key
     buckets = {shard: [] for shard in SHARDS}
+    if replace_existing:
+        for shard in SHARDS:
+            (base / f"{int(year)}-{shard}.json").unlink(missing_ok=True)
 
     for record in records:
         if record.get("authority") != authority.upper():
@@ -69,9 +73,7 @@ def build_public_datasets(
         destination.write_bytes(encoded)
         entries.append({
             "shard": shard,
-            "path": "/" + destination.as_posix().replace(
-                Path(output_root).as_posix().rstrip("/") + "/", ""
-            ),
+            "path": "/data/" + destination.relative_to(Path(output_root)).as_posix(),
             "hash": hashlib.sha256(encoded).hexdigest(),
             "record_count": len(shard_records),
             "size_bytes": len(encoded),
