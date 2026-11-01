@@ -314,7 +314,11 @@ def monitor_sources(args) -> int:
         d1_status = "connected"
     except D1Error as exc:
         report["d1_notice"] = str(exc)
-        d1_status = "error"
+        d1_configured = all(
+            os.getenv(name)
+            for name in ("CF_API_TOKEN", "CF_ACCOUNT_ID", "D1_DATABASE_ID")
+        )
+        d1_status = "error" if d1_configured else "not_configured"
 
     report["d1_status"] = d1_status
     destination = Path(args.output).expanduser().resolve()
@@ -330,7 +334,7 @@ def monitor_sources(args) -> int:
         "output": str(destination),
         "results": report["results"],
     }, indent=2))
-    return 0
+    return 1 if d1_status == "error" else 0
 
 def publish_batch(args) -> int:
     try:
