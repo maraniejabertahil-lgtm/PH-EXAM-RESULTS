@@ -177,18 +177,6 @@ class D1Client:
 
 
     def get_storage_stats(self) -> dict:
-        page_rows = self.query("PRAGMA page_count")
-        size_rows = self.query("PRAGMA page_size")
-        page_count = int(page_rows[0].get("page_count", 0)) if page_rows else 0
-        page_size = int(size_rows[0].get("page_size", 0)) if size_rows else 0
-        return {
-            "page_count": page_count,
-            "page_size_bytes": page_size,
-            "estimated_storage_bytes": page_count * page_size,
-        }
-
-
-    def get_storage_stats(self) -> dict:
         url = (
             "https://api.cloudflare.com/client/v4/accounts/"
             + self.account_id
