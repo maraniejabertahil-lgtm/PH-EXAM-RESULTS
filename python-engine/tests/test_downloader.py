@@ -28,7 +28,7 @@ class DownloaderSafetyTests(unittest.TestCase):
         }
         with tempfile.TemporaryDirectory() as folder:
             target = Path(folder) / "file.csv"
-            with patch("scraper.downloader.urlopen", return_value=FakeRedirectResponse()):
+            with patch("scraper.downloader.open_same_origin", return_value=FakeRedirectResponse()):
                 with self.assertRaises(DownloadError):
                     download_approved_file(source, target)
             self.assertFalse(target.exists())
