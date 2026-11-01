@@ -27,6 +27,17 @@ jobs:
         run: python -m unittest discover -s tests -v
       - name: Validate public datasets
         run: python python-engine/maintenance.py
+      - name: Check D1 storage against free-tier reference
+        env:
+          CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+          CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
+          D1_DATABASE_ID: ${{ secrets.D1_DATABASE_ID }}
+        run: |
+          if [[ -z "$CF_API_TOKEN" || -z "$CF_ACCOUNT_ID" || -z "$D1_DATABASE_ID" ]]; then
+            echo "D1 is not configured; storage check skipped."
+            exit 0
+          fi
+          python python-engine/main.py d1-size
 
       - name: Check D1 storage usage when configured
         working-directory: python-engine
