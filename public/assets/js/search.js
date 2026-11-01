@@ -5,7 +5,7 @@ const MAX_RETURNED_RESULTS = 100;
 function normalize(value) {
   return String(value ?? "")
     .normalize("NFKC")
-    .toLocaleLowerCase()
+    .toLowerCase()
     .replace(/\s+/g, " ")
     .trim();
 }
