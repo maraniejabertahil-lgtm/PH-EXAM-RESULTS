@@ -89,6 +89,35 @@ class D1Client:
             [source_id, etag, last_modified, checked_at],
         )
 
+
+    def get_actual_release_dates(self, authority: str, exam: str, limit: int = 6) -> list[str]:
+        rows = self.query(
+            "SELECT actual_date FROM release_predictions "
+            "WHERE authority = ? AND exam = ? AND actual_date IS NOT NULL "
+            "ORDER BY actual_date DESC LIMIT ?",
+            [authority.upper(), exam, int(limit)],
+        )
+        return [str(row["actual_date"]) for row in rows if row.get("actual_date")]
+
+    def save_release_prediction(
+        self,
+        authority: str,
+        exam: str,
+        year: int,
+        predicted_date: str,
+        data_points: int,
+    ):
+        timestamp = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+        self.query(
+            "INSERT INTO release_predictions "
+            "(authority, exam, year, predicted_date, actual_date, data_points, updated_at) "
+            "VALUES (?, ?, ?, ?, NULL, ?, ?) "
+            "ON CONFLICT(authority, exam, year) DO UPDATE SET "
+            "predicted_date = excluded.predicted_date, "
+            "data_points = excluded.data_points, updated_at = excluded.updated_at",
+            [authority.upper(), exam, int(year), predicted_date, int(data_points), timestamp],
+        )
+
     def record_monitoring_log(self, source_id: str, status: str, timestamp: str, error: str | None = None, etag: str | None = None, last_modified: str | None = None):
         self.query(
             "INSERT INTO monitoring_logs "
