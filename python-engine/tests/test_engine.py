@@ -62,7 +62,7 @@ class DatasetTests(unittest.TestCase):
             entries = build_public_datasets(records, data_root, "PRC", "LET", 2026)
             manifest = build_manifest(data_root, data_root / "manifest.json")
             self.assertEqual(sum(entry["record_count"] for entry in entries), 2)
-            year = manifest["authorities"]["PRC"]["examinations"]["let"]["years"]["2026"]
+            year = manifest["authorities"]["PRC"]["examinations"]["LET"]["years"]["2026"]
             for entry in year["files"].values():
                 self.assertTrue(entry["path"].startswith("/data/prc/let/"))
                 self.assertEqual(len(entry["hash"]), 64)
