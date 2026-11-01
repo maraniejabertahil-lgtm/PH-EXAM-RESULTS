@@ -21,6 +21,8 @@ def _is_approved_source(source: dict) -> tuple[bool, str]:
 
 
 def _validate_https_url(url: str) -> tuple[str, str]:
+    if not isinstance(url, str):
+        raise ValueError("Source URL must be a text URL.")
     parsed = urlsplit(url or "")
     if parsed.scheme != "https" or not parsed.hostname:
         raise ValueError("Only valid HTTPS source URLs are allowed.")
@@ -55,8 +57,9 @@ def monitor_source(source: dict) -> dict:
         original_host, url = _validate_https_url(source.get("url", ""))
         request = Request(url, headers={"User-Agent": USER_AGENT}, method="HEAD")
         with urlopen(request, timeout=TIMEOUT_SECONDS) as response:
-            final_host = (urlsplit(response.geturl()).hostname or "").lower()
-            if urlsplit(response.geturl()).scheme != "https" or final_host != original_host:
+            final_url = urlsplit(response.geturl())
+            final_host = (final_url.hostname or "").lower()
+            if final_url.scheme != "https" or final_url.username or final_url.password or final_host != original_host:
                 return {
                     "source_id": source_id,
                     "status": "redirect_rejected",
@@ -82,7 +85,7 @@ def monitor_source(source: dict) -> dict:
                 with urlopen(request, timeout=TIMEOUT_SECONDS) as response:
                     final_url = urlsplit(response.geturl())
                     final_host = (final_url.hostname or "").lower()
-                    if final_url.scheme != "https" or final_host != original_host:
+                    if final_url.scheme != "https" or final_url.username or final_url.password or final_host != original_host:
                         return {"source_id": source_id, "status": "redirect_rejected", "checked_at": checked_at}
                     response.read(1)
                     return {
