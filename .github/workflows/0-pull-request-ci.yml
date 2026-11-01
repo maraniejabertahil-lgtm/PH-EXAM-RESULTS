@@ -27,6 +27,9 @@ jobs:
           cache-dependency-path: python-engine/requirements.txt
       - name: Install Python dependencies
         run: python -m pip install -r python-engine/requirements.txt
+      - name: Validate GitHub Actions workflow YAML
+        run: |
+          ruby -e 'require "yaml"; Dir.glob(".github/workflows/*.yml").each { |file| YAML.load_file(file); puts "Valid YAML: #{file}" }'
       - name: Compile Python source
         run: python -m compileall -q python-engine
       - name: Run Python unit tests
