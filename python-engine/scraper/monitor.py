@@ -28,10 +28,14 @@ def _validate_https_url(url: str) -> tuple[str, str]:
 
 def _response_content_length(response) -> str | None:
     content_range = response.headers.get("Content-Range", "")
-    if "/" in content_range:
-        total = content_range.rsplit("/", 1)[-1].strip()
-        if total.isdigit():
-            return total
+    if getattr(response, "status", None) == 206:
+        if "/" in content_range:
+            total = content_range.rsplit("/", 1)[-1].strip()
+            if total.isdigit():
+                return total
+        # Content-Length on a 206 response describes only the returned range,
+        # not the complete source document.
+        return None
     return response.headers.get("Content-Length")
 
 
