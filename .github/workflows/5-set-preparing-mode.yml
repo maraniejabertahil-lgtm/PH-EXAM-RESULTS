@@ -60,6 +60,9 @@ jobs:
           python-version: "3.12"
       - name: Generate site status
         env:
+          CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+          CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
+          D1_DATABASE_ID: ${{ secrets.D1_DATABASE_ID }}
           MODE: ${{ inputs.mode }}
           AUTHORITY: ${{ inputs.authority }}
           EXAMINATION: ${{ inputs.examination }}
