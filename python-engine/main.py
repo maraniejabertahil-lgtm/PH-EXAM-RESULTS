@@ -317,7 +317,7 @@ def monitor_sources(args) -> int:
         d1_status = "error"
 
     report["d1_status"] = d1_status
-    destination = repo_root / "artifacts" / "monitor-report.json"
+    destination = Path(args.output).expanduser().resolve()
     destination.parent.mkdir(parents=True, exist_ok=True)
     destination.write_text(
         json.dumps(report, ensure_ascii=False, indent=2) + "\n",
