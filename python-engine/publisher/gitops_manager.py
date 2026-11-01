@@ -18,6 +18,32 @@ def _safe_inline_code(value, limit: int = 120) -> str:
     return "`" + cleaned[:limit] + "`"
 
 
+def _find_open_publication_pr(repository: str, token: str, branch_prefix: str) -> dict | None:
+    """Prevent multiple pending imports for the same authority/exam/year."""
+    api_url = f"https://api.github.com/repos/{repository}/pulls?state=open&base=main&per_page=100"
+    request = urllib.request.Request(
+        api_url,
+        headers={
+            "Accept": "application/vnd.github+json",
+            "Authorization": "Bearer " + token,
+            "X-GitHub-Api-Version": "2022-11-28",
+        },
+        method="GET",
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=30) as response:
+            pull_requests = json.loads(response.read().decode("utf-8"))
+    except (urllib.error.URLError, TimeoutError, OSError, json.JSONDecodeError) as exc:
+        raise GitOpsError(f"Could not check for an existing publication Pull Request: {exc}") from exc
+    if not isinstance(pull_requests, list):
+        raise GitOpsError("GitHub returned an invalid open Pull Request list.")
+    for pull_request in pull_requests:
+        head = pull_request.get("head") or {}
+        if str(head.get("ref", "")).startswith(branch_prefix):
+            return pull_request
+    return None
+
+
 def _git(repo_root: Path, *arguments: str):
     result = subprocess.run(
         ["git", *arguments],
@@ -53,6 +79,15 @@ def create_publication_pull_request(
     authority = report["authority"].lower()
     exam = report["examination"].lower()
     year = int(report["year"])
+    branch_prefix = f"data-import/{authority}-{exam}-{year}-"
+    pending_pr = _find_open_publication_pr(repository, token, branch_prefix)
+    if pending_pr:
+        raise GitOpsError(
+            "An owner-review publication Pull Request is already open for "
+            f"{report['authority']} {report['examination']} {year}: "
+            f"{pending_pr.get('html_url', 'URL unavailable')}. "
+            "Review or close it before creating another import for this examination/year."
+        )
     target_dir = root / "public" / "data" / authority / exam
     existing = list(target_dir.glob(f"{year}-*.json")) if target_dir.exists() else []
     if existing and not replace_existing:
