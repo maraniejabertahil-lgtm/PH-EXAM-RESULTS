@@ -3,11 +3,53 @@ import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
+from urllib.error import HTTPError
 
 from scraper.monitor import monitor_registry, monitor_source
 
 
+class FakeRangeResponse:
+    status = 206
+
+    def __init__(self):
+        self.headers = {
+            "Content-Length": "1",
+            "Content-Range": "bytes 0-0/98765",
+        }
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        return False
+
+    def geturl(self):
+        return "https://official.example/results"
+
+    def read(self, size=-1):
+        return b"x"
+
+
 class SourceMonitorTests(unittest.TestCase):
+    def test_range_fallback_uses_total_content_range_size(self):
+        source = {
+            "id": "official-range",
+            "source_type": "official",
+            "authorized": True,
+            "enabled": True,
+            "url": "https://official.example/results",
+        }
+        head_error = HTTPError(
+            source["url"], 405, "Method Not Allowed", {}, None
+        )
+        with patch(
+            "scraper.monitor.urlopen",
+            side_effect=[head_error, FakeRangeResponse()],
+        ):
+            result = monitor_source(source)
+        self.assertEqual(result["status"], "reachable")
+        self.assertEqual(result["content_length"], "98765")
+
     def test_empty_registry_is_safe_noop(self):
         with tempfile.TemporaryDirectory() as folder:
             path = Path(folder) / "sources.json"
