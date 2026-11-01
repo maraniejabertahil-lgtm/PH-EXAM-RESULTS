@@ -1,0 +1,229 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import { runScheduled, expandPreemptiveTemplates } from "../src/index.js";
+
+const repository = "owner/repository";
+class MemoryKV {
+  constructor(initial = {}) { this.values = new Map(Object.entries(initial)); }
+  async get(key) { return this.values.has(key) ? this.values.get(key) : null; }
+  async put(key, value) { this.values.set(key, value); }
+}
+function registryResponse(sources) {
+  const content = btoa(JSON.stringify({ schema_version: 1, sources }));
+  return new Response(JSON.stringify({ encoding: "base64", content }), { status: 200 });
+}
+function envFor(peak = false) {
+  return {
+    GITHUB_REPOSITORY: repository,
+    GITHUB_TOKEN: "test-token",
+    GITHUB_SOURCE_REF: "main",
+    PEAK_WEEK: new MemoryKV(peak ? { PEAK_WEEK: "true" } : {})
+  };
+}
+function approvedSource(overrides = {}) {
+  return {
+    id: "csc-cse", authority: "CSC", exam: "CSE", source_type: "official",
+    authorized: true, enabled: true, url: "https://csc.example.gov.ph/exam-results",
+    preemptive_url_templates: [], ...overrides
+  };
+}
+function githubFetch(sources, handler) {
+  const dispatches = [];
+  const fetchImpl = async (input, init = {}) => {
+    const url = String(input);
+    if (url.includes("api.github.com/repos/owner/repository/contents/")) return registryResponse(sources);
+    if (url === "https://api.github.com/repos/owner/repository/dispatches") {
+      dispatches.push(JSON.parse(init.body));
+      return new Response(null, { status: 204 });
+    }
+    return handler(url, init);
+  };
+  return { fetchImpl, dispatches };
+}
+
+test("standard mode checks configured source once and creates a baseline", async () => {
+  const source = approvedSource();
+  const { fetchImpl } = githubFetch([source], async (_url, init) => {
+    assert.equal(init.method, "HEAD");
+    return new Response(null, { status: 200, headers: { etag: '"v1"', "content-type": "text/html" } });
+  });
+  const report = await runScheduled({ env: envFor(), fetchImpl, scheduledTime: Date.UTC(2026, 10, 2) });
+  assert.equal(report.mode, "standard");
+  assert.equal(report.first_check.checked_targets, 1);
+  assert.equal(report.second_check, null);
+  assert.equal(report.first_check.results[0].status, "baseline_created");
+});
+
+test("preemptive PDF returning HTTP 200 dispatches once and is deduplicated", async () => {
+  const source = approvedSource({ preemptive_url_templates: ["https://csc.example.gov.ph/CSE_{MM}{YYYY}_passers.pdf"] });
+  const { fetchImpl, dispatches } = githubFetch([source], async (url) => {
+    if (url.endsWith("CSE_112026_passers.pdf")) {
+      return new Response(null, { status: 200, headers: { "content-type": "application/pdf" } });
+    }
+    return new Response(null, { status: 404 });
+  });
+  const env = envFor(true);
+  const report = await runScheduled({ env, fetchImpl, sleepImpl: async () => {}, scheduledTime: Date.UTC(2026, 10, 2) });
+  assert.equal(report.mode, "peak_week");
+  assert.equal(report.second_check.checked_targets, 3);
+  assert.equal(dispatches.length, 1);
+  assert.ok(dispatches.every((item) => item.event_type === "source-detected"));
+});
+
+test("peak week waits 30 seconds and runs two scans", async () => {
+  const source = approvedSource({ preemptive_url_templates: ["https://csc.example.gov.ph/CSE_{MM}{YYYY}_passers.pdf"] });
+  const { fetchImpl } = githubFetch([source], async () => new Response(null, { status: 404 }));
+  const waits = [];
+  const report = await runScheduled({
+    env: envFor(true), fetchImpl, sleepImpl: async (ms) => waits.push(ms),
+    scheduledTime: Date.UTC(2026, 10, 2)
+  });
+  assert.deepEqual(waits, [30_000]);
+  assert.equal(report.first_check.checked_targets, 3);
+  assert.equal(report.second_check.checked_targets, 3);
+});
+
+test("unapproved and disabled sources are never checked", async () => {
+  const sources = [approvedSource({ authorized: false }), approvedSource({ id: "disabled", enabled: false })];
+  let externalCalls = 0;
+  const { fetchImpl } = githubFetch(sources, async () => {
+    externalCalls += 1;
+    return new Response(null, { status: 200 });
+  });
+  const report = await runScheduled({ env: envFor(), fetchImpl });
+  assert.equal(report.approved_enabled_sources, 0);
+  assert.equal(report.first_check.checked_targets, 0);
+  assert.equal(externalCalls, 0);
+});
+
+test("preemptive templates only expand to the approved source origin", () => {
+  const source = approvedSource({
+    preemptive_url_templates: [
+      "https://csc.example.gov.ph/CSE_{MM}{YYYY}_passers.pdf",
+      "https://other.example.net/{YYYYMM}.pdf"
+    ]
+  });
+  const targets = expandPreemptiveTemplates([source], Date.UTC(2026, 7, 1));
+  assert.deepEqual(targets.map((item) => item.url), [
+    "https://csc.example.gov.ph/CSE_082026_passers.pdf",
+    "https://csc.example.gov.ph/CSE_092026_passers.pdf"
+  ]);
+});
+
+test("cross-origin redirects are rejected", async () => {
+  const source = approvedSource();
+  const { fetchImpl } = githubFetch([source], async () => new Response(null, {
+    status: 302, headers: { location: "https://malicious.example/file.pdf" }
+  }));
+  const report = await runScheduled({ env: envFor(), fetchImpl });
+  assert.equal(report.first_check.results[0].status, "check_error");
+  assert.match(report.first_check.results[0].error, /Cross-origin/);
+});
+
+test("page metadata changes discover and dispatch same-origin PDF links", async () => {
+  const source = approvedSource();
+  const env = envFor();
+  const { createHash } = await import("node:crypto");
+  const hex = createHash("sha256").update(`${source.id}\n${source.url}`).digest("hex");
+  await env.PEAK_WEEK.put(
+    `baseline:${hex}`,
+    JSON.stringify({ status: 200, contentType: "text/html", etag: '"v1"', lastModified: "", contentLength: "" })
+  );
+  const { fetchImpl, dispatches } = githubFetch([source], async (url, init) => {
+    if (url === source.url && init.method === "HEAD") {
+      return new Response(null, { status: 200, headers: { etag: '"v2"', "content-type": "text/html" } });
+    }
+    if (url === source.url && init.method === "GET") {
+      return new Response('<a href="/downloads/CSE-list.pdf">Download</a><a href="https://external.example/x.pdf">external</a>', {
+        status: 200, headers: { "content-type": "text/html" }
+      });
+    }
+    if (url === "https://csc.example.gov.ph/downloads/CSE-list.pdf") {
+      return new Response(null, { status: 200, headers: { "content-type": "application/pdf" } });
+    }
+    return new Response(null, { status: 404 });
+  });
+  const report = await runScheduled({ env, fetchImpl, scheduledTime: Date.UTC(2026, 10, 2) });
+  assert.equal(report.first_check.results[0].status, "changed");
+  assert.equal(dispatches.length, 1);
+  assert.equal(dispatches[0].client_payload.detected_url, "https://csc.example.gov.ph/downloads/CSE-list.pdf");
+});
+
+test("a PDF URL returning an HTML page is not dispatched", async () => {
+  const source = approvedSource({ url: "https://csc.example.gov.ph/fake.pdf" });
+  const { fetchImpl, dispatches } = githubFetch([source], async () => new Response(null, {
+    status: 200, headers: { "content-type": "text/html" }
+  }));
+  const report = await runScheduled({ env: envFor(), fetchImpl });
+  assert.equal(report.first_check.results[0].status, "not_pdf");
+  assert.equal(dispatches.length, 0);
+});
+
+test("failed GitHub dispatch is not marked complete and can retry", async () => {
+  const source = approvedSource({ url: "https://csc.example.gov.ph/current-list.pdf" });
+  let dispatchAttempts = 0;
+  const fetchImpl = async (input) => {
+    const url = String(input);
+    if (url.includes("/contents/")) return registryResponse([source]);
+    if (url.endsWith("/dispatches")) {
+      dispatchAttempts += 1;
+      return dispatchAttempts === 1
+        ? new Response("temporary failure", { status: 500 })
+        : new Response(null, { status: 204 });
+    }
+    return new Response(null, { status: 200, headers: { "content-type": "application/pdf" } });
+  };
+  const env = envFor();
+  const first = await runScheduled({ env, fetchImpl });
+  const second = await runScheduled({ env, fetchImpl });
+  assert.equal(first.first_check.results[0].status, "dispatch_error");
+  assert.equal(second.first_check.results[0].status, "dispatched");
+  assert.equal(dispatchAttempts, 2);
+});
+
+
+test("verified third-party sources are skipped while an official source is reachable", async () => {
+  const official = approvedSource();
+  const thirdParty = approvedSource({
+    id: "mirror", source_type: "verified_third_party", authorized: undefined,
+    verified_by_owner: true, url: "https://mirror.example.gov.ph/results"
+  });
+  const { fetchImpl } = githubFetch([official, thirdParty], async (url) => {
+    assert.notEqual(url, thirdParty.url, "third-party source must not be requested");
+    return new Response(null, { status: 200, headers: { etag: '"official"', "content-type": "text/html" } });
+  });
+  const report = await runScheduled({ env: envFor(), fetchImpl });
+  assert.equal(report.first_check.results[0].status, "baseline_created");
+  assert.equal(report.first_check.results[1].status, "skipped_official_available");
+});
+
+test("verified third-party fallback is checked when the configured official source is unavailable", async () => {
+  const official = approvedSource();
+  const thirdParty = approvedSource({
+    id: "mirror", source_type: "verified_third_party", authorized: undefined,
+    verified_by_owner: true, url: "https://mirror.example.gov.ph/results.pdf"
+  });
+  const { fetchImpl, dispatches } = githubFetch([official, thirdParty], async (url) => {
+    if (url === official.url) return new Response(null, { status: 503 });
+    return new Response(null, { status: 200, headers: { "content-type": "application/pdf" } });
+  });
+  const report = await runScheduled({ env: envFor(), fetchImpl });
+  assert.equal(report.first_check.results[0].http_status, 503);
+  assert.equal(report.first_check.results[1].status, "dispatched");
+  assert.equal(dispatches.length, 1);
+});
+
+test("third-party source is not used when no official source is configured", async () => {
+  const mirror = approvedSource({
+    id: "mirror", source_type: "verified_third_party", authorized: undefined,
+    verified_by_owner: true, url: "https://mirror.example.gov.ph/results.pdf"
+  });
+  let requests = 0;
+  const { fetchImpl } = githubFetch([mirror], async () => {
+    requests += 1;
+    return new Response(null, { status: 200 });
+  });
+  const report = await runScheduled({ env: envFor(), fetchImpl });
+  assert.equal(report.first_check.results[0].status, "skipped_no_official_source_configured");
+  assert.equal(requests, 0);
+});
