@@ -1,7 +1,9 @@
 import hashlib
 from pathlib import Path
 from urllib.parse import urlsplit
-from urllib.request import Request, urlopen
+from urllib.request import Request
+
+from scraper.safe_http import open_same_origin
 
 from scraper.monitor import _is_approved_source
 
@@ -38,7 +40,7 @@ def download_approved_file(
     total = 0
 
     try:
-        with urlopen(request, timeout=30) as response:
+        with open_same_origin(request, url, timeout=30) as response:
             final = urlsplit(response.geturl())
             if (
                 final.scheme != "https"
