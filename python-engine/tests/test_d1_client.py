@@ -60,6 +60,34 @@ class D1ClientTests(unittest.TestCase):
         )
         self.assertEqual(stats["estimated_storage_bytes"], 1234)
 
+    def test_import_batch_status_reflects_duplicate_review_requirements(self):
+        cases = [
+            ({"exact_duplicates": [{"first_index": 0, "duplicate_index": 1}], "fuzzy_candidates": []},
+             "exact_duplicates_review_required"),
+            ({"exact_duplicates": [], "fuzzy_candidates": [{"first_index": 0, "candidate_index": 1}]},
+             "fuzzy_review_required"),
+            ({"exact_duplicates": [], "fuzzy_candidates": []}, "validation_passed"),
+        ]
+        for duplicates, expected_status in cases:
+            client = D1Client("account", "database", "secret")
+            report = {
+                "authority": "PRC",
+                "examination": "LET",
+                "year": 2026,
+                "source_file": "results.csv",
+                "validation": {
+                    "is_valid": True,
+                    "total_records": 2,
+                    "valid_records": 2,
+                    "invalid_records": [],
+                },
+                "duplicates": duplicates,
+            }
+            with self.subTest(expected_status=expected_status):
+                with patch.object(client, "query") as query:
+                    client.record_import_batch(report)
+                self.assertEqual(query.call_args.args[1][9], expected_status)
+
 
 if __name__ == "__main__":
     unittest.main()
