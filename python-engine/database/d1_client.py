@@ -156,7 +156,15 @@ class D1Client:
                 len(validation.get("invalid_records", [])),
                 len(duplicates.get("exact_duplicates", [])),
                 len(duplicates.get("fuzzy_candidates", [])),
-                "validation_passed" if validation.get("is_valid") else "validation_failed",
+                (
+                    "validation_failed"
+                    if not validation.get("is_valid")
+                    else "exact_duplicates_review_required"
+                    if duplicates.get("exact_duplicates")
+                    else "fuzzy_review_required"
+                    if duplicates.get("fuzzy_candidates")
+                    else "validation_passed"
+                ),
                 timestamp,
                 source_reference or None,
                 report.get("source_file"),
