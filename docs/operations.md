@@ -44,7 +44,7 @@ These are official starting points identified for owner review only. They are no
 - CSC Examination Portal: https://exam.csc.gov.ph/list_passers.php. The portal exposes official passer-search categories and exam-year links, but its list-of-passers interface is interactive. A monitor-only page check is not equivalent to extracting a complete result dataset.
 - CSC examination advisories: https://csc.gov.ph/examination-advisories/. These official notices can identify result-release announcements, but the actual passer list still needs to be retrieved from the official CSC portal or a specifically linked official document.
 
-Do not enable `auto_acquire` for these index pages. The source registry remains empty until the owner approves each precise source and its supported acquisition method.
+Do not enable `auto_acquire` for these index pages. The source registry remains empty until the owner approves each precise source and its supported acquisition method. The downloader follows only same-host, same-port HTTPS redirects and rejects cross-origin redirects before following them. Some PRC Google Drive attachments may redirect to a different Google host; those must remain manual-download/manual-review inputs unless a compliant direct-download route is verified.
 
 ## Configure source monitoring
 
