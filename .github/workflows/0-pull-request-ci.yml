@@ -43,3 +43,5 @@ jobs:
           while IFS= read -r file; do
             node --input-type=module --check < "$file"
           done < <(find public/assets/js -type f -name '*.js' -print)
+      - name: Test Web Worker search with 50,000 records
+        run: node tests/search-worker.test.mjs
