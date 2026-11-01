@@ -53,7 +53,7 @@ class SourceMonitorTests(unittest.TestCase):
             "enabled": True,
             "url": "https://official.example/results",
         }
-        with patch("scraper.monitor.urlopen", return_value=FakeRedirectResponse()):
+        with patch("scraper.monitor.open_same_origin", return_value=FakeRedirectResponse()):
             result = monitor_source(source)
         self.assertEqual(result["status"], "redirect_rejected")
 
@@ -69,7 +69,7 @@ class SourceMonitorTests(unittest.TestCase):
             source["url"], 405, "Method Not Allowed", {}, None
         )
         with patch(
-            "scraper.monitor.urlopen",
+            "scraper.monitor.open_same_origin",
             side_effect=[head_error, FakeRangeResponse()],
         ):
             result = monitor_source(source)
@@ -90,7 +90,7 @@ class SourceMonitorTests(unittest.TestCase):
             source["url"], 405, "Method Not Allowed", {}, None
         )
         with patch(
-            "scraper.monitor.urlopen",
+            "scraper.monitor.open_same_origin",
             side_effect=[head_error, response],
         ):
             result = monitor_source(source)
