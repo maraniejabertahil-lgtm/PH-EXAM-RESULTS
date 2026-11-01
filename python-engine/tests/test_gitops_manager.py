@@ -6,7 +6,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from processor.normalizer import normalize_record
-from publisher.gitops_manager import GitOpsError, create_publication_pull_request
+from publisher.gitops_manager import GitOpsError, _safe_inline_code, create_publication_pull_request
 
 
 class FakeResponse:
@@ -24,6 +24,10 @@ class FakeResponse:
 
 
 class GitOpsIsolationTests(unittest.TestCase):
+    def test_untrusted_markdown_values_are_safely_escaped(self):
+        rendered = _safe_inline_code("result.csv\n\n### Injected heading `")
+        self.assertEqual(rendered, "`result.csv   ### Injected heading '`")
+
     def git(self, root, *args):
         return subprocess.run(
             ["git", *args], cwd=root, check=True, text=True,
