@@ -80,10 +80,6 @@ def process_csv(args) -> int:
 
     destination = Path(args.output)
     destination.parent.mkdir(parents=True, exist_ok=True)
-    destination.write_text(
-        json.dumps(report, ensure_ascii=False, indent=2) + "\n",
-        encoding="utf-8",
-    )
     d1_status = "not_configured"
     try:
         client = D1Client.from_environment()
