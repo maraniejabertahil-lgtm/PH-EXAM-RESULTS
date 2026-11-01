@@ -1,5 +1,6 @@
 let activeColumns = null;
 let activeRows = null;
+const MAX_RETURNED_RESULTS = 100;
 
 function normalize(value) {
   return String(value ?? "")
@@ -33,10 +34,14 @@ self.onmessage = event => {
 
   const needle = normalize(query);
   const matches = [];
+  let totalMatches = 0;
   if (needle) {
     for (const row of activeRows) {
-      if (normalize(row[nameIndex]).includes(needle)) matches.push(row);
+      if (normalize(row[nameIndex]).includes(needle)) {
+        totalMatches += 1;
+        if (matches.length < MAX_RETURNED_RESULTS) matches.push(row);
+      }
     }
   }
-  self.postMessage({ type: "results", requestId, matches });
+  self.postMessage({ type: "results", requestId, matches, totalMatches });
 };
