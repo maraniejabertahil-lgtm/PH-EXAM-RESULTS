@@ -15,17 +15,19 @@ No public visitor search is sent to Python, D1, a Worker, or a backend server.
 
 ## Processing and publication path
 
-1. GitHub Actions runs the approved source monitor every two hours.
+1. The Cloudflare Watcher runs from a one-minute Cron Trigger and reads the approved source registry from GitHub.
 2. The source registry is checked official-first by authority and examination.
 3. Verified third-party sources are checked only when configured official sources for the same scope are unavailable.
-4. When D1 is configured, Python compares ETag and Last-Modified metadata.
-5. Only an explicitly approved source with `auto_acquire: true` can be downloaded.
-6. CSV files are normalized, validated, and checked for exact/fuzzy duplicate candidates.
-7. Text-based PDFs are text-extracted for manual review; scanned/uncertain layouts are not automatically converted into passer records.
-8. Valid CSV batches can generate a private Git branch and owner-approval Pull Request.
-9. Exact duplicate records block automatic publication PR creation. Fuzzy candidates remain visible for review.
-10. Only a merged PR can reach the production Pages deployment workflow.
-11. When D1 is configured, batch status is updated to awaiting approval and then published after deployment.
+4. Standard Mode checks once. Peak Week checks twice, 30 seconds apart, and expands owner-configured preemptive URL templates.
+5. The Watcher detects successful PDF URLs and sends a GitHub `repository_dispatch` event. The Phase 1 receiver validates the event against the approved source registry.
+6. Phase 2 connects the event to Python acquisition and extraction. When D1 is configured, Python compares ETag and Last-Modified metadata.
+7. Only an explicitly approved source with `auto_acquire: true` can be downloaded.
+8. CSV files are normalized, validated, and checked for exact/fuzzy duplicate candidates.
+9. Text-based PDFs are text-extracted for manual review; scanned/uncertain layouts are not automatically converted into passer records.
+10. Valid CSV batches can generate a private Git branch and owner-approval Pull Request.
+11. Exact duplicate records block automatic publication PR creation. Fuzzy candidates remain visible for review.
+12. Only a merged PR can reach the production Pages deployment workflow.
+13. When D1 is configured, batch status is updated to awaiting approval and then published after deployment.
 
 The manual import workflow is also available for CSV files stored in the private `private-imports/` directory.
 
@@ -56,7 +58,16 @@ Third-party entries require `source_type: "verified_third_party"` and `verified_
 
 For automatic acquisition, set `auto_acquire: true`, `file_format` to `csv` or `pdf`, and provide the authority, exam identifier, and integer year. A CSV must contain a `name` column. A PDF is only extracted to text and requires manual mapping/review.
 
-No real source URL is preconfigured.
+No real source URL or preemptive URL template is preconfigured. The optional `preemptive_url_templates` field is used by the Cloudflare Watcher only after the owner approves the exact source origin and URL pattern.
+
+## Cloudflare Watcher
+
+- `watcher-bot/src/index.js`: scheduled source checks, Peak Week 30-second second scan, preemptive PDF URL expansion, PDF detection, GitHub repository dispatch, and KV deduplication.
+- `watcher-bot/wrangler.toml`: one-minute Cron Trigger and `PEAK_WEEK` KV binding.
+- `watcher-bot/tests/`: mocked Standard Mode, Peak Week, PDF detection, authorization, redirect, and webhook tests.
+- `.github/workflows/process-import.yml`: receives `source-detected` events and manual-drop pushes. In Phase 1 it validates and records the event only; Phase 2 connects Python processing.
+
+The Worker requires a Cloudflare KV namespace binding named `PEAK_WEEK` and a Cloudflare Worker secret `GITHUB_TOKEN`. The fine-grained GitHub token needs repository Contents read/write permission. The source registry remains empty until owner-approved sources are configured.
 
 ## D1
 
@@ -101,9 +112,10 @@ When a result publication PR matches the currently active authority, exam, and y
 
 - Source registry and examination prediction configuration are empty.
 - No real result records are included.
-- No D1 or Cloudflare Pages credentials have been verified.
+- No Cloudflare Worker deployment, KV namespace, GitHub dispatch secret, D1, or Cloudflare Pages credentials have been verified.
 - PDF OCR and automatic passer extraction are not implemented.
 - Automatic Preparing Mode activation from predictions is not yet connected.
 - A synthetic 50,000-row Web Worker search test passes in CI (latest measured Node-runner execution: 71.30 ms); this is not a real browser or 30,000–59,000 concurrent-visitor load test.
 - The 30,000–59,000 simultaneous visitor target has not been load-tested.
 - Cloudflare Pages deployment has not been performed or verified.
+- The Cloudflare Watcher has only been tested locally with mocked source and GitHub responses; live Cron, KV, source URLs, and repository-dispatch delivery remain unverified.
