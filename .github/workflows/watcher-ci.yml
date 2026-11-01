@@ -1,6 +1,14 @@
 name: Watcher Quality Checks
 
 on:
+  push:
+    branches:
+      - main
+    paths:
+      - "watcher-bot/**"
+      - ".github/workflows/process-import.yml"
+      - ".github/workflows/watcher-ci.yml"
+      - "python-engine/config/sources.json"
   pull_request:
     branches:
       - main
