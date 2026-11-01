@@ -86,7 +86,7 @@ jobs:
             echo "The requested site status is already active."
             exit 0
           fi
-          BRANCH="site-status/${MODE}-${AUTHORITY:-none}-${EXAMINATION:-none}-${EXAM_YEAR:-none}"
+          BRANCH="site-status/${MODE}-${AUTHORITY:-none}-${EXAMINATION:-none}-${EXAM_YEAR:-none}-${{ github.run_id }}"
           git switch -c "$BRANCH"
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
