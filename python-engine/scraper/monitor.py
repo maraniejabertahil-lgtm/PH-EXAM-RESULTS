@@ -56,6 +56,37 @@ def monitor_source(source: dict) -> dict:
                 "checked_at": checked_at,
             }
     except HTTPError as exc:
+        if exc.code in (405, 501):
+            try:
+                request = Request(
+                    url,
+                    headers={"User-Agent": USER_AGENT, "Range": "bytes=0-0"},
+                    method="GET",
+                )
+                with urlopen(request, timeout=TIMEOUT_SECONDS) as response:
+                    final_url = urlsplit(response.geturl())
+                    final_host = (final_url.hostname or "").lower()
+                    if final_url.scheme != "https" or final_host != original_host:
+                        return {"source_id": source_id, "status": "redirect_rejected", "checked_at": checked_at}
+                    response.read(1)
+                    return {
+                        "source_id": source_id,
+                        "status": "reachable",
+                        "http_status": response.status,
+                        "etag": response.headers.get("ETag"),
+                        "last_modified": response.headers.get("Last-Modified"),
+                        "content_length": response.headers.get("Content-Length"),
+                        "checked_at": checked_at,
+                    }
+            except HTTPError as get_error:
+                exc = get_error
+            except (URLError, TimeoutError, OSError) as get_error:
+                return {
+                    "source_id": source_id,
+                    "status": "unreachable",
+                    "error": str(get_error)[:300],
+                    "checked_at": checked_at,
+                }
         status = "blocked" if exc.code in (401, 403, 429) else "http_error"
         return {
             "source_id": source_id,
