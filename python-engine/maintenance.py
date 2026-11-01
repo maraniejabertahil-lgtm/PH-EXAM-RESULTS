@@ -119,7 +119,10 @@ def validate_public_directory(public_root: str | Path) -> list[str]:
         if status.get("mode") not in {"search", "preparing"}:
             errors.append("site-status mode must be search or preparing.")
         if status.get("mode") == "preparing":
-            preparation = status.get("preparation") or {}
+            preparation = status.get("preparation")
+            if not isinstance(preparation, dict):
+                errors.append("Preparing mode requires a preparation object.")
+                preparation = {}
             if not isinstance(preparation.get("percentage"), (int, float)):
                 errors.append("Preparing mode requires a numeric progress percentage.")
             if not str(preparation.get("examination_name", "")).strip():
