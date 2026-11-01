@@ -41,8 +41,8 @@ jobs:
           detected = urlsplit(payload["detected_url"])
           if detected.scheme != "https" or not detected.hostname or detected.username or detected.password:
               raise SystemExit("Rejected: detected URL must be HTTPS and contain no credentials.")
-          if not detected.path.lower().endswith(".pdf"):
-              raise SystemExit("Rejected: detected URL is not a PDF path.")
+          if not (detected.path.lower().endswith(".pdf") or payload.get("content_type", "").lower() == "application/pdf"):
+              raise SystemExit("Rejected: detected URL is not identified as a PDF.")
 
           registry = json.loads(Path("python-engine/config/sources.json").read_text(encoding="utf-8"))
           sources = {item.get("id"): item for item in registry.get("sources", [])}
