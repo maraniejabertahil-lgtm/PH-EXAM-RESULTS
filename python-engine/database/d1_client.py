@@ -71,6 +71,13 @@ class D1Client:
         for statement in statements:
             self.query(statement)
 
+        # CREATE TABLE IF NOT EXISTS does not add columns to an existing D1
+        # database. Apply this additive migration before source-state queries.
+        columns = self.query("PRAGMA table_info(source_states)")
+        column_names = {str(column.get("name")) for column in columns}
+        if columns and "content_length" not in column_names:
+            self.query("ALTER TABLE source_states ADD COLUMN content_length TEXT")
+
     def get_source_state(self, source_id: str):
         rows = self.query(
             "SELECT source_id, etag, last_modified, content_length, checked_at "
