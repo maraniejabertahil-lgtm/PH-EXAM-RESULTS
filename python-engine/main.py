@@ -335,6 +335,20 @@ def predict_all(args) -> int:
 
 
 
+
+def mark_published(args) -> int:
+    try:
+        batch = json.loads(Path(args.batch_file).read_text(encoding="utf-8"))
+        client = D1Client.from_environment()
+        client.update_import_batch_status(batch["batch_id"], "published")
+    except (OSError, json.JSONDecodeError, KeyError, D1Error) as exc:
+        print(f"ERROR: Could not mark import batch as published: {exc}", file=sys.stderr)
+        return 2
+    print(json.dumps({"batch_id": batch["batch_id"], "status": "published"}))
+    return 0
+
+
+
 def build_parser():
     parser = argparse.ArgumentParser(description="PH-EXAM-RESULTS Python engine")
     commands = parser.add_subparsers(dest="command", required=True)
@@ -357,6 +371,10 @@ def build_parser():
     predict_all_parser = commands.add_parser("predict-all", help="Update predictions for configured examinations")
     predict_all_parser.add_argument("--config", default="config/examinations.json")
     predict_all_parser.set_defaults(handler=predict_all)
+
+    published_parser = commands.add_parser("mark-published", help="Mark an imported batch published after deployment")
+    published_parser.add_argument("--batch-file", required=True)
+    published_parser.set_defaults(handler=mark_published)
 
     status_parser = commands.add_parser("site-status", help="Generate approved Preparing/Search mode status JSON")
     status_parser.add_argument("--mode", required=True, choices=("search", "preparing"))
