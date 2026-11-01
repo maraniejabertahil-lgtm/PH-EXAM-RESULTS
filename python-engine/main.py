@@ -7,13 +7,12 @@ import json
 import sys
 from pathlib import Path
 
-from scraper.monitor import monitor_registry
 from database.d1_client import D1Client, D1Error
-
 from extractor.pdf_parser import PDFExtractionError, extract_pdf_lines
 from processor.duplicates import find_duplicates
 from processor.normalizer import normalize_record
 from processor.validator import validate_batch
+from scraper.monitor import monitor_registry
 
 
 def process_csv(args) -> int:
@@ -57,8 +56,8 @@ def process_csv(args) -> int:
         "publication_eligible": (
             validation["is_valid"]
             and not duplicates["exact_duplicates"]
-            and not duplicates["fuzzy_candidates"]
         ),
+        "manual_review_required": bool(duplicates["fuzzy_candidates"]),
         "notice": (
             "Processing output is not approved for publication. "
             "A human review and GitHub Pull Request approval are still required."
@@ -79,6 +78,7 @@ def process_csv(args) -> int:
         "exact_duplicates": len(duplicates["exact_duplicates"]),
         "fuzzy_candidates": len(duplicates["fuzzy_candidates"]),
         "publication_eligible": report["publication_eligible"],
+        "manual_review_required": report["manual_review_required"],
     }, indent=2))
     return 0 if validation["is_valid"] else 1
 
@@ -110,8 +110,6 @@ def extract_pdf(args) -> int:
     return 0
 
 
-
-
 def monitor_sources(args) -> int:
     try:
         report = monitor_registry(args.registry)
@@ -137,7 +135,10 @@ def monitor_sources(args) -> int:
                     item["status"] = "changed"
                     report["changes_detected"] = True
                 client.save_source_state(
-                    source_id, item.get("etag"), item.get("last_modified"), item["checked_at"]
+                    source_id,
+                    item.get("etag"),
+                    item.get("last_modified"),
+                    item["checked_at"],
                 )
             client.record_monitoring_log(
                 source_id,
@@ -171,7 +172,12 @@ def build_parser():
     parser = argparse.ArgumentParser(description="PH-EXAM-RESULTS Python engine")
     commands = parser.add_subparsers(dest="command", required=True)
 
-    monitor_parser = commands.add_parser("monitor", help="Check approved source endpoints")\n    monitor_parser.add_argument("--registry", default="config/sources.json")\n    monitor_parser.add_argument("--output", default="artifacts/monitor-report.json")\n    monitor_parser.set_defaults(handler=monitor_sources)\n\n    csv_parser = commands.add_parser("process", help="Normalize and validate a CSV batch")
+    monitor_parser = commands.add_parser("monitor", help="Check approved source endpoints")
+    monitor_parser.add_argument("--registry", default="config/sources.json")
+    monitor_parser.add_argument("--output", default="artifacts/monitor-report.json")
+    monitor_parser.set_defaults(handler=monitor_sources)
+
+    csv_parser = commands.add_parser("process", help="Normalize and validate a CSV batch")
     csv_parser.add_argument("--input", required=True)
     csv_parser.add_argument("--authority", required=True, choices=("PRC", "CSC"))
     csv_parser.add_argument("--exam", required=True)
