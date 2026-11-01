@@ -351,79 +351,6 @@ def mark_published(args) -> int:
 
 
 
-def predict_all(args) -> int:
-    try:
-        config = json.loads(Path(args.config).read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as exc:
-        print(f"ERROR: Could not read examination prediction config: {exc}", file=sys.stderr)
-        return 2
-
-    examinations = config.get("examinations")
-    if not isinstance(examinations, list):
-        print("ERROR: Prediction config must contain an examinations array.", file=sys.stderr)
-        return 2
-
-    try:
-        client = D1Client.from_environment()
-        client.apply_schema(Path(__file__).parent / "database" / "schema.sql")
-    except D1Error as exc:
-        print(f"ERROR: D1 is required for prediction updates: {exc}", file=sys.stderr)
-        return 2
-
-    results = []
-    for item in examinations:
-        authority = item.get("authority")
-        exam = item.get("exam")
-        year = item.get("year")
-        if authority not in {"PRC", "CSC"} or not exam or not isinstance(year, int):
-            results.append({"config": item, "error": "Invalid examination configuration."})
-            continue
-        try:
-            dates = client.get_actual_release_dates(authority, exam, limit=6)
-            prediction = predict_next_release(dates)
-            if prediction["predicted_date"]:
-                client.save_release_prediction(
-                    authority, exam, year,
-                    prediction["predicted_date"], prediction["data_points"]
-                )
-            results.append({
-                "authority": authority,
-                "exam": exam,
-                "year": year,
-                **prediction,
-            })
-        except D1Error as exc:
-            results.append({
-                "authority": authority,
-                "exam": exam,
-                "year": year,
-                "error": str(exc),
-            })
-
-    print(json.dumps({"prediction_count": len(results), "results": results}, indent=2))
-    return 1 if any("error" in item for item in results) else 0
-
-
-def set_site_status(args) -> int:
-    try:
-        year = int(args.year) if args.year else None
-        status = write_status(
-            args.output,
-            mode=args.mode,
-            authority=args.authority,
-            exam=args.exam,
-            year=year,
-            examination_name=args.examination_name,
-            stage=args.stage,
-        )
-    except (ValueError, OSError) as exc:
-        print(f"ERROR: Could not create site status: {exc}", file=sys.stderr)
-        return 2
-    print(json.dumps(status, ensure_ascii=False, indent=2))
-    return 0
-
-
-
 def build_parser():
     parser = argparse.ArgumentParser(description="PH-EXAM-RESULTS Python engine")
     commands = parser.add_subparsers(dest="command", required=True)
@@ -460,20 +387,6 @@ def build_parser():
     status_parser.add_argument("--examination-name")
     status_parser.add_argument("--stage", choices=("monitoring", "source_detected", "document_acquired", "extracting", "validating", "awaiting_approval"))
     status_parser.set_defaults(handler=write_site_status)
-
-    all_prediction_parser = commands.add_parser("predict-all", help="Update predictions for configured examinations")
-    all_prediction_parser.add_argument("--config", default="config/examinations.json")
-    all_prediction_parser.set_defaults(handler=predict_all)
-
-    status_parser = commands.add_parser("site-status", help="Prepare a public search/preparation status file")
-    status_parser.add_argument("--mode", required=True, choices=("search", "preparing"))
-    status_parser.add_argument("--authority", choices=("PRC", "CSC"))
-    status_parser.add_argument("--exam")
-    status_parser.add_argument("--year")
-    status_parser.add_argument("--examination-name")
-    status_parser.add_argument("--stage")
-    status_parser.add_argument("--output", default="../public/data/site-status.json")
-    status_parser.set_defaults(handler=set_site_status)
 
     prediction_parser = commands.add_parser("predict", help="Estimate a release date from D1 history")
     prediction_parser.add_argument("--authority", required=True, choices=("PRC", "CSC"))
