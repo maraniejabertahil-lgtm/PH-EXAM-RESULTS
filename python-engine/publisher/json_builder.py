@@ -1,5 +1,6 @@
 import hashlib
 import json
+import re
 from pathlib import Path
 
 
@@ -58,8 +59,12 @@ def build_public_datasets(
     replace_existing: bool = False,
 ) -> list[dict]:
     """Write compact array-of-arrays JSON shards, capped at 10 MiB each."""
+    if authority.upper() not in {"PRC", "CSC"}:
+        raise ValueError("Authority must be PRC or CSC")
+    if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_-]{0,39}", examination):
+        raise ValueError("Examination must be a safe 1-40 character identifier")
     authority_key = authority.lower()
-    exam_key = examination.lower().replace(" ", "-")
+    exam_key = examination.lower()
     base = Path(output_root) / authority_key / exam_key
     if replace_existing:
         for old_file in base.glob(f"{int(year)}-*.json") if base.exists() else []:
