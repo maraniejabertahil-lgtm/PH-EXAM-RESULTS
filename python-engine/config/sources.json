@@ -12,6 +12,7 @@
       "url": "https://www.csc.gov.ph/regional-offices/region-v/examination/results-10072026",
       "file_format": "pdf",
       "auto_acquire": true,
+      "direct_drive_fallback": true,
       "scan_page_on_baseline": true,
       "drive_file_ids": [
         "1jQmBLSU2azhFvCgU6l8m6ljXGDmIRa1l",

@@ -302,6 +302,35 @@ async function verifyPdfCandidate(url, fetchImpl, driveFileId = null) {
   return signature.includes("%PDF-");
 }
 
+async function scanApprovedDriveFiles(source, env, fetchImpl, now) {
+  const configuredIds = Array.isArray(source.drive_file_ids) ? source.drive_file_ids : [];
+  const approvedIds = [...new Set(configuredIds.filter((id) =>
+    typeof id === "string" && /^[A-Za-z0-9_-]{10,200}$/.test(id)
+  ))].slice(0, 10);
+  const results = [];
+  for (const id of approvedIds) {
+    const url = `https://drive.google.com/uc?export=download&id=${encodeURIComponent(id)}`;
+    try {
+      const verified = await verifyPdfCandidate(url, fetchImpl, id);
+      if (!verified) {
+        results.push({ drive_file_id: id, status: "pdf_verification_failed_manual_review_required" });
+        continue;
+      }
+      const dispatched = await dispatchDetectedPdf(env, source, url, {
+        status: 206, contentType: "application/pdf", preemptive: false,
+        driveFileId: id, driveFallback: true
+      }, fetchImpl, now);
+      results.push({ drive_file_id: id, status: dispatched.status });
+    } catch (error) {
+      results.push({
+        drive_file_id: id, status: "pdf_verification_error_manual_review_required",
+        error: String(error.message || error).slice(0, 160)
+      });
+    }
+  }
+  return results;
+}
+
 async function scanApprovedDocuments(source, pageUrl, env, fetchImpl, now) {
   const sameOriginLinks = await findSameOriginPdfLinks(pageUrl, fetchImpl);
   const driveLinks = await findApprovedGoogleDriveLinks(pageUrl, source, fetchImpl);
@@ -343,7 +372,7 @@ async function scanApprovedDocuments(source, pageUrl, env, fetchImpl, now) {
 }
 
 async function dispatchDetectedPdf(env, source, pdfUrl, metadata, fetchImpl, now) {
-  const eventType = env.GITHUB_EVENT_TYPE || "source-detected";
+  const eventType = metadata.driveFallback ? "staging-source-detected" : (env.GITHUB_EVENT_TYPE || "source-detected");
   if (!["source-detected", "staging-source-detected"].includes(eventType)) {
     throw new Error("GITHUB_EVENT_TYPE must be source-detected or staging-source-detected.");
   }
@@ -363,7 +392,7 @@ async function dispatchDetectedPdf(env, source, pdfUrl, metadata, fetchImpl, now
       client_payload: {
         source_id: String(source.id), authority: source.authority, exam: source.exam,
         source_type: source.source_type, detected_url: pdfUrl, detected_at: isoNow(now),
-        detection_method: metadata.preemptive ? "preemptive_head" : "source_page_change",
+        detection_method: metadata.driveFallback ? "approved_drive_fallback" : (metadata.preemptive ? "preemptive_head" : "source_page_change"),
         http_status: metadata.status, content_type: metadata.contentType
       }
     }),
@@ -386,6 +415,15 @@ async function checkTarget(target, env, fetchImpl, now, allowPageChange) {
     return { source_id: sourceId, url: target.url, status: "check_error", error: String(error.message || error).slice(0, 240) };
   }
   if (metadata.status < 200 || metadata.status >= 300) {
+    if (source.direct_drive_fallback === true && Array.isArray(source.drive_file_ids) && source.drive_file_ids.length > 0) {
+      const driveFallbackResults = await scanApprovedDriveFiles(source, env, fetchImpl, now);
+      const recovered = driveFallbackResults.some((item) => ["dispatched", "already_dispatched"].includes(item.status));
+      return {
+        source_id: sourceId, url: target.url,
+        status: recovered ? "http_error_drive_fallback_recovered" : "http_error_drive_fallback_failed",
+        http_status: metadata.status, drive_fallback_results: driveFallbackResults
+      };
+    }
     return { source_id: sourceId, url: target.url, status: "http_error", http_status: metadata.status };
   }
   if (target.preemptive || isPdfPath(target.url) || metadata.contentType === "application/pdf") {
@@ -456,7 +494,8 @@ function buildTargets(sources, now, peakWeek) {
 function officialSourceAvailable(results) {
   const availableStatuses = new Set([
     "baseline_created", "unchanged", "changed", "changed_no_page_scan",
-    "page_scan_error", "not_pdf", "dispatched", "already_dispatched"
+    "page_scan_error", "not_pdf", "dispatched", "already_dispatched",
+    "http_error_drive_fallback_recovered"
   ]);
   return results.some((item) => availableStatuses.has(item.status));
 }
