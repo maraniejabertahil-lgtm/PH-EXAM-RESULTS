@@ -54,6 +54,30 @@ class DetectedSourceProcessorTests(unittest.TestCase):
         self.assertEqual(report["status"], "awaiting_owner_acquisition_approval")
         self.assertFalse((self.root / "report.pdf").exists())
 
+    def test_accepts_only_an_exact_approved_google_drive_file_id(self):
+        self.source["drive_file_ids"] = ["1jQmBLSU2azhFvCgU6l8m6ljXGDmIRa1l"]
+        self.registry.write_text(json.dumps({"schema_version": 1, "sources": [self.source]}))
+        self.payload["detected_url"] = (
+            "https://drive.google.com/uc?export=download&id=1jQmBLSU2azhFvCgU6l8m6ljXGDmIRa1l"
+        )
+        def fake_download(source, destination):
+            Path(destination).write_bytes(b"%PDF-1.7 test")
+            return {"sha256": "b" * 64, "size_bytes": 12}
+        with patch("scraper.event_processor.download_approved_file", side_effect=fake_download):
+            with patch("scraper.event_processor.extract_pdf_lines", return_value=["CSC result"]):
+                report = process_detected_pdf(self.payload, self.registry, self.root / "drive-review.json")
+        self.assertEqual(report["status"], "text_extracted_manual_review_required")
+        self.assertEqual(report["lines"], ["CSC result"])
+
+    def test_rejects_unapproved_google_drive_file_id(self):
+        self.source["drive_file_ids"] = ["approved-file-id-123456"]
+        self.registry.write_text(json.dumps({"schema_version": 1, "sources": [self.source]}))
+        self.payload["detected_url"] = (
+            "https://drive.google.com/uc?export=download&id=another-file-id-123456"
+        )
+        with self.assertRaisesRegex(DetectedSourceError, "exact owner-approved file ID"):
+            process_detected_pdf(self.payload, self.registry, self.root / "rejected.json")
+
     def test_extracts_only_after_approved_download(self):
         def fake_download(source, destination):
             Path(destination).write_bytes(b"%PDF-1.7 test")
