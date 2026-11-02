@@ -130,6 +130,7 @@ jobs:
               "authority": source["authority"],
               "exam": source["exam"],
               "detected_url": payload["detected_url"],
+              "source_page_url": payload.get("source_page_url"),
               "detection_method": payload.get("detection_method", "not supplied"),
               "validation_only": True,
               "pdf_acquired": False,
