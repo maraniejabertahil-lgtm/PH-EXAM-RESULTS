@@ -80,7 +80,7 @@ The Watcher uses a maximum of 45 outbound subrequests per scheduled invocation t
 8. Add a third-party source only after owner verification. It is used only when configured official sources for that authority/exam are unavailable.
 9. Enable automatic acquisition only after the source and sample file are verified.
 
-The registry is currently empty. Do not add guessed URLs or scrape a site without permission.
+The source registry contains one owner-approved CSC Region V entry for the 09 August 2026 CSE-PPT result page. Its Google Drive acquisition is restricted to the two exact file IDs linked from that official page. The Watcher scans the page on its first baseline and dispatches only those exact IDs. The Python bridge accepts only the constructed `drive.google.com/uc?export=download&id=...` URL for an ID in that source entry. Redirects are limited to HTTPS Google download host families, the download is capped at 50 MiB, and the resulting PDF must pass the PDF signature check. The artifact is private and retained for seven days for manual review only. This branch configuration is not active in production until the reviewed code is merged and the Worker is deployed.
 
 
 ## Phase 2 Watcher-to-Python PDF review bridge
@@ -92,8 +92,9 @@ The implementation branch now contains `python-engine/scraper/event_processor.py
 - The bridge downloads only when `auto_acquire: true`; otherwise it records that owner acquisition approval is still required and does not download.
 - Downloaded content is checked for a PDF signature, size-limited by the existing downloader, SHA-256 hashed, and text-extracted.
 - The output is a short-lived GitHub Actions review artifact. It is not a passer dataset, is not OCR, and is never published automatically.
-- The CSC August 2026 passer PDFs linked from the official Region V page are hosted on Google Drive, outside the CSC page's origin. The current same-origin bridge intentionally rejects those links. A Google Drive-specific allowlisted download route must be implemented and tested before those PDFs can be acquired automatically.
-- This receiver is not active until its workflow exists on the default branch. The source registry also remains empty until the owner approves the exact CSC source and acquisition route.
+- The owner-approved CSC Region V source entry authorizes only the two exact Google Drive file IDs linked from the official page. The Watcher discovers those IDs from the official page and dispatches a constructed Drive download URL; it does not accept arbitrary Drive links.
+- The Python bridge checks the exact approved file ID and download route, allows redirects only to HTTPS Google download host families, checks the PDF signature, enforces the 50 MiB cap, and extracts text only for a private manual-review artifact. It does not OCR, parse passer records, or publish.
+- The source registry and receiver changes are on the implementation branch. Repository-dispatch processing cannot be live until the receiver workflow is on the default branch, and the Worker must separately be deployed with the approved source registry reference.
 
 ## Manual CSV import
 
