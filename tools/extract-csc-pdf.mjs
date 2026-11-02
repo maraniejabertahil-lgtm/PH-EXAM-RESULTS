@@ -121,12 +121,14 @@ async function main() {
 
   await mkdir(outputDir, { recursive: true });
   const bytes = await downloadApprovedPdf(fileId);
+  const pdfByteLength = bytes.byteLength;
+  const pdfSha256 = createHash("sha256").update(bytes).digest("hex");
   const pdfPath = path.join(outputDir, `${sourceId}-${fileId}.pdf`);
   await writeFile(pdfPath, bytes);
 
   const pdfjs = await import("pdfjs-dist/legacy/build/pdf.mjs");
   const document = await pdfjs.getDocument({
-    data: bytes,
+    data: new Uint8Array(bytes),
     useSystemFonts: true,
     isEvalSupported: false
   }).promise;
@@ -156,8 +158,8 @@ async function main() {
     authority: source.authority,
     exam: source.exam,
     drive_file_id: fileId,
-    pdf_bytes: bytes.byteLength,
-    pdf_sha256: createHash("sha256").update(bytes).digest("hex"),
+    pdf_bytes: pdfByteLength,
+    pdf_sha256: pdfSha256,
     page_count: document.numPages,
     extracted_characters: totalCharacters,
     pdf_file: pdfPath,
