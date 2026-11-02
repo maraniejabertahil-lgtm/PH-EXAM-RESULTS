@@ -97,3 +97,62 @@ No production Watcher source registry, production Worker code, production KV val
 
 The Watcher runtime, event receiver validation, bounded PDF verification, deduplication, test suite, and deployment pipeline have useful verified evidence. However, the current production source registry has no enabled sources, there is no genuine fresh official PDF detection-to-receiver test, PRC robots policy remains unverified, CSC presents a security-verification barrier, and manual-drop processing is not implemented. Synthetic test fixtures and cached proxy content do not satisfy live-source acceptance.
 
+
+
+## 12. Superseding follow-up addendum — 2026-11-03
+
+This addendum supersedes earlier statements in Sections 9–10 that said no PRC source was enabled. It preserves the earlier audit history and records the verified follow-up changes.
+
+### Merged implementation and governance changes
+
+- [PR #22](https://github.com/maraniejabertahil-lgtm/PH-EXAM-RESULTS/pull/22) added opt-in, provenance-gated discovery of Google Drive documents linked from an owner-approved official page.
+- [PR #23](https://github.com/maraniejabertahil-lgtm/PH-EXAM-RESULTS/pull/23) added a bounded normal-GET fallback when an official page rejects HEAD and Range GET.
+- [PR #24](https://github.com/maraniejabertahil-lgtm/PH-EXAM-RESULTS/pull/24) added exact plain-text Google Drive URL recognition.
+- [PR #25](https://github.com/maraniejabertahil-lgtm/PH-EXAM-RESULTS/pull/25) added opt-in, bounded discovery of up to three same-origin PRC result article pages.
+- [PR #26](https://github.com/maraniejabertahil-lgtm/PH-EXAM-RESULTS/pull/26) added owner-configured attachment-label filtering, allowing the PRC source to select only the “List of Successful Examinees” document.
+- [PR #27](https://github.com/maraniejabertahil-lgtm/PH-EXAM-RESULTS/pull/27) paused CSC automated polling after direct requests returned HTTP 403 and marked that source as requiring manual handling. This pause was preserved; it was not reversed by subsequent work.
+- [PR #30](https://github.com/maraniejabertahil-lgtm/PH-EXAM-RESULTS/pull/30) registered the official PRC homepage as a safe baseline-only source and added source-registry tests.
+- [PR #31](https://github.com/maraniejabertahil-lgtm/PH-EXAM-RESULTS/pull/31) corrected listing-page versus article-page provenance and added receiver-side validation for same-origin PRC article URLs.
+- [PR #32](https://github.com/maraniejabertahil-lgtm/PH-EXAM-RESULTS/pull/32) enabled the robots-compliant PRC article-discovery configuration with a strict successful-examinees attachment filter.
+
+All listed PRs passed their required Watcher tests and preview/deployment checks before merge. Production Worker deployments after code changes completed successfully.
+
+### Current production source registry
+
+The registry now contains two source records:
+
+1. **PRC homepage — enabled**
+   - URL: `https://www.prc.gov.ph/`
+   - Official source; `file_format: pdf`
+   - `discover_official_result_articles: true`
+   - `allow_linked_drive_documents: true`
+   - Attachment label filter: `list of successful examinees`
+   - Follows at most three same-origin result article pages under `/article/` or numeric `/node/{id}` paths.
+   - `scan_page_on_baseline: false`, `direct_drive_fallback: false`, `auto_acquire: false`, and no static Drive IDs. Initial setup therefore does not dispatch historical PDFs.
+   - The PRC robots.txt was retrieved with HTTP 200. Its disallowed paths are administrative, authentication, search, and system paths; it does not disallow the public `/article/` or numeric `/node/{id}` result pages.
+   - The production Worker can retrieve the PRC homepage and has an established baseline. The latest observed check reported `unchanged`; no historical document was dispatched by baseline setup.
+
+2. **CSC Region V — disabled**
+   - URL: `https://csc.gov.ph/regional-offices/region-v/examination`
+   - Remains disabled with `manual_drop_required: true` and the HTTP 403 security-verification reason.
+   - The exact two owner-approved Drive IDs remain in the registry.
+   - Both the Cloudflare Worker and GitHub runner received HTTP 403 from the CSC page, including the `www` and canonical host variants. Existing previously dispatched IDs remained deduplicated.
+   - Do not re-enable CSC polling until official access is available or an approved alternative is verified.
+
+### Runtime evidence and safety
+
+- The production Worker reported two configured sources and one enabled source. The PRC homepage check used 6 outbound subrequests against the 45-request safety limit and produced no runtime exceptions.
+- `PEAK_WEEK=true` was observed in production KV diagnostics; this work did not change that value.
+- The Worker automatically created/uses its normal PRC homepage baseline state. No production KV values were manually edited and no secrets were changed.
+- Phase 1 remains validation-only: no PDF acquisition, extraction, or publication was performed.
+- The latest production Worker deployment after the provenance fix and PRC source configuration was recorded as version `23439037-467a-4db6-8d6d-5eee8ff65425`.
+
+### Remaining acceptance gaps
+
+- No newly published PRC result article has yet caused a genuine live PDF detection-to-GitHub-receiver event. The PRC crawler is enabled and waiting for a homepage change that exposes a result article.
+- The crawler only follows up to three matching same-origin article links when the homepage fingerprint changes. It does not independently poll already-listed article pages for later edits when the homepage itself remains unchanged.
+- CSC automated discovery remains paused. The `manual-drop/` push trigger is currently only an acknowledgement placeholder; its workflow explicitly performs no result processing. A functioning owner-triggered manual validation/import route is still outstanding.
+- Coverage is not complete across PRC examination categories or all 16 CSC regions.
+- No preemptive URL template has been proven against a genuine official PDF appearing before its announcement page changes.
+
+**Updated decision: PHASE 1 REMAINS NOT ACCEPTED.** The PRC source path is now configured and safely gated, but acceptance still requires a genuine live detection-to-receiver event, duplicate-prevention evidence for that event, complete approved source coverage, and an operational CSC fallback path.
