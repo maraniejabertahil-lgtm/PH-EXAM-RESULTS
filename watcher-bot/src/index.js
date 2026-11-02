@@ -268,7 +268,8 @@ async function findApprovedGoogleDriveLinks(pageUrl, source, fetchImpl) {
       if (fileMatch && (allowed.has(fileMatch[1]) || discoverOfficialPageDriveLinks)) {
         found.set(fileMatch[1], {
           discovered: !allowed.has(fileMatch[1]),
-          sourcePageUrl: pageUrl
+          sourcePageUrl: source.url,
+          sourceArticleUrl: pageUrl !== source.url ? pageUrl : null
         });
       }
     } catch { /* Ignore malformed or non-Drive links. */ }
