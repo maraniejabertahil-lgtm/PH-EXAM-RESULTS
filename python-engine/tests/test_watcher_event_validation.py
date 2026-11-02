@@ -65,6 +65,13 @@ class WatcherEventValidationTests(unittest.TestCase):
         )}
         self.assertFalse(self.accepted(payload))
 
+
+    def test_rejects_malformed_port(self):
+        payload = {**self.payload, "detected_url": self.payload["detected_url"].replace(
+            "drive.google.com/", "drive.google.com:bad/"
+        )}
+        self.assertFalse(self.accepted(payload))
+
     def test_rejects_malformed_file_id(self):
         payload = {**self.payload, "detected_url": "https://drive.google.com/uc?export=download&id=short"}
         self.assertFalse(self.accepted(payload))
