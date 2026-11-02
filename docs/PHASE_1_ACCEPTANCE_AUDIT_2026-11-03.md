@@ -63,6 +63,6 @@ Do not add guessed production URL templates. Add a template only after its patte
 
 ## 6. Safety and deployment statement
 
-No production Watcher source registry, production Worker code, production KV value, or production secret was changed during this audit. The only merge was the read-only diagnostics workflow in PR #18. No Phase 1 acceptance is granted by this report.
+No production Watcher source registry, production Worker code, production KV value, or production secret was changed during this audit. No production runtime code or source-registry change was merged. The only operational workflow merged was the read-only diagnostics workflow in PR #18. No Phase 1 acceptance is granted by this report.
 
 **Phase 1 remains operational but incomplete. Phase 2 must not be declared unblocked by the existence of staging extraction code alone.**
