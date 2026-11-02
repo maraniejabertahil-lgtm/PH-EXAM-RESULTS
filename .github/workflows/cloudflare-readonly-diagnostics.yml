@@ -127,6 +127,31 @@ jobs:
               grep -Ei 'examination results|successful examinees|list of passers' /tmp/prc-page.html | head -3 || true
             fi
           done
+      - name: Inspect no-cache Reader JSON metadata and links
+        run: |
+          set -euo pipefail
+          url="https://r.jina.ai/https://csc.gov.ph/regional-offices/region-v/examination"
+          code="$(curl -L -sS -H 'X-No-Cache: true' -H 'Accept: application/json' -o /tmp/csc-reader.json -w '%{http_code}' "$url")"
+          echo "Reader JSON response: HTTP $code"
+          if [ "$code" = "200" ]; then
+            python - <<'PY'
+          import json
+          with open("/tmp/csc-reader.json", encoding="utf-8") as handle:
+              payload = json.load(handle)
+          data = payload.get("data", {}) if isinstance(payload, dict) else {}
+          print("Reader URL:", data.get("url"))
+          print("Reader title:", data.get("title"))
+          content = data.get("content", "")
+          print("Reader content bytes:", len(content))
+          print("Reader content preview:", content[:2500])
+          links = data.get("links", [])
+          if isinstance(links, list):
+              for item in links:
+                  value = item.get("url", "") if isinstance(item, dict) else str(item)
+                  if any(host in value.lower() for host in ("drive.google.com", "bit.ly", "tinyurl.com")):
+                      print("Reader candidate link:", value)
+          PY
+          fi
       - name: Run Peak Week simulation tests
         working-directory: watcher-bot
         run: npm test
