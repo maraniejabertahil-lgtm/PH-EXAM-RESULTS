@@ -77,5 +77,58 @@ class WatcherEventValidationTests(unittest.TestCase):
         self.assertFalse(self.accepted(payload))
 
 
+    def test_accepts_same_origin_official_result_article_provenance(self):
+        source = {
+            **self.source,
+            "discover_official_result_articles": True,
+        }
+        payload = {
+            **self.payload,
+            "source_page_url": source["url"],
+            "source_article_url": "https://www.prc.gov.ph/node/9450",
+        }
+        self.assertTrue(self.accepted(payload, source))
+
+    def test_rejects_missing_article_provenance_when_article_discovery_is_enabled(self):
+        source = {**self.source, "discover_official_result_articles": True}
+        payload = {**self.payload, "source_page_url": source["url"]}
+        self.assertFalse(self.accepted(payload, source))
+
+    def test_rejects_cross_origin_article_provenance(self):
+        source = {**self.source, "discover_official_result_articles": True}
+        payload = {
+            **self.payload,
+            "source_page_url": source["url"],
+            "source_article_url": "https://evil.example/node/9450",
+        }
+        self.assertFalse(self.accepted(payload, source))
+
+    def test_rejects_article_url_outside_official_result_path(self):
+        source = {**self.source, "discover_official_result_articles": True}
+        payload = {
+            **self.payload,
+            "source_page_url": source["url"],
+            "source_article_url": "https://www.prc.gov.ph/downloads/passers.pdf",
+        }
+        self.assertFalse(self.accepted(payload, source))
+
+    def test_rejects_article_url_with_query_or_fragment(self):
+        source = {**self.source, "discover_official_result_articles": True}
+        payload = {
+            **self.payload,
+            "source_page_url": source["url"],
+            "source_article_url": "https://www.prc.gov.ph/node/9450?next=evil",
+        }
+        self.assertFalse(self.accepted(payload, source))
+
+    def test_rejects_article_provenance_when_source_did_not_enable_article_discovery(self):
+        payload = {
+            **self.payload,
+            "source_page_url": self.source["url"],
+            "source_article_url": "https://www.prc.gov.ph/node/9450",
+        }
+        self.assertFalse(self.accepted(payload, self.source))
+
+
 if __name__ == "__main__":
     unittest.main()
