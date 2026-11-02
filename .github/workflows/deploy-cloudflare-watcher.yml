@@ -1,0 +1,89 @@
+name: Deploy Cloudflare Watcher
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "watcher-bot/**"
+      - ".github/workflows/deploy-cloudflare-watcher.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "watcher-bot/**"
+      - ".github/workflows/deploy-cloudflare-watcher.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cloudflare-watcher-production
+  cancel-in-progress: false
+
+jobs:
+  quality-checks:
+    name: Test Watcher before deployment
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+      - name: Set up Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+      - name: Check Worker JavaScript syntax
+        run: node --check watcher-bot/src/index.js
+      - name: Run Watcher automated tests
+        working-directory: watcher-bot
+        run: npm test
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Run approved PDF retrieval tests
+        working-directory: python-engine
+        run: PYTHONPATH=retrieval python -m unittest discover -s tests -v
+
+  deploy-production:
+    name: Deploy production Cloudflare Worker
+    needs: quality-checks
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+      - name: Verify required GitHub Actions secrets exist
+        env:
+          CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+          CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
+        run: |
+          set -euo pipefail
+          if [ -z "$CF_API_TOKEN" ]; then
+            echo "::error::Missing repository Actions secret CF_API_TOKEN."
+            exit 1
+          fi
+          if [ -z "$CF_ACCOUNT_ID" ]; then
+            echo "::error::Missing repository Actions secret CF_ACCOUNT_ID."
+            exit 1
+          fi
+          echo "Required deployment credentials are configured."
+      - name: Deploy existing production Worker with Wrangler
+        uses: cloudflare/wrangler-action@v4
+        with:
+          apiToken: ${{ secrets.CF_API_TOKEN }}
+          accountId: ${{ secrets.CF_ACCOUNT_ID }}
+          wranglerVersion: "4"
+          workingDirectory: "watcher-bot"
+          command: deploy
+      - name: Record deployment verification
+        run: |
+          {
+            echo "## Cloudflare Watcher deployment"
+            echo ""
+            echo "- Wrangler deployment command completed successfully."
+            echo "- Configuration source: `watcher-bot/wrangler.toml`."
+            echo "- Existing production KV namespace and Cron configuration were read from the Wrangler configuration."
+            echo "- No Worker secrets were supplied or replaced by this workflow."
+          } >> "$GITHUB_STEP_SUMMARY"
