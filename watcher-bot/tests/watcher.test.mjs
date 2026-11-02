@@ -757,3 +757,75 @@ test("new Drive IDs linked from official pages remain blocked unless owner enabl
   assert.equal(driveRequests, 0);
   assert.equal(dispatches.length, 0);
 });
+
+
+test("PRC listing pagination snapshots historical articles and dispatches only newly posted result PDFs", async () => {
+  const source = approvedSource({
+    id: "PRC-EXAM-RESULTS-HOMEPAGE",
+    authority: "PRC",
+    exam: "LICENSURE-EXAM-RESULTS",
+    url: "https://www.prc.gov.ph/articles/exam-results",
+    scan_page_on_baseline: false,
+    allow_linked_drive_documents: true,
+    drive_link_text_patterns: ["list of successful examinees"],
+    discover_official_result_articles: true,
+    track_new_articles_only: true,
+    discovery_pagination: { query_parameter: "page", max_pages: 2, max_articles_per_page: 3 },
+    drive_file_ids: []
+  });
+  const oldArticle = "https://www.prc.gov.ph/article/older-result";
+  const olderArticle = "https://www.prc.gov.ph/node/9001";
+  const newArticle = "https://www.prc.gov.ph/article/new-result";
+  const newDriveId = "1PRCNewOfficialSuccessfulExaminees2026";
+  let listingVersion = 1;
+  const env = envFor();
+  const { fetchImpl, dispatches } = githubFetch([source], async (url, init = {}) => {
+    if (url === source.url && init.method === "HEAD") {
+      return new Response(null, { status: 200, headers: { etag: '"v' + listingVersion + '"', "content-type": "text/html" } });
+    }
+    if (url === source.url && init.method === "GET") {
+      const links = listingVersion === 1
+        ? '<a href="/article/older-result">October 2026 Physicians Licensure Examination Results Released</a>'
+        : '<a href="/article/new-result">November 2026 Physicians Licensure Examination Results Released</a><a href="/article/older-result">October 2026 Physicians Licensure Examination Results Released</a>';
+      return new Response(links, { status: 200, headers: { "content-type": "text/html" } });
+    }
+    if (url === source.url + "?page=1" && init.method === "GET") {
+      return new Response('<a href="/node/9001">September 2026 Nurses Licensure Examination Results Released</a>', {
+        status: 200, headers: { "content-type": "text/html" }
+      });
+    }
+    if (url === oldArticle || url === olderArticle) {
+      return new Response("<html>Historical PRC result with no current attachment scan expected</html>", {
+        status: 200, headers: { "content-type": "text/html" }
+      });
+    }
+    if (url === newArticle && init.method === "GET") {
+      return new Response('<a href="https://drive.google.com/file/d/' + newDriveId + '/view">List of Successful Examinees</a>', {
+        status: 200, headers: { "content-type": "text/html" }
+      });
+    }
+    if (url === "https://drive.google.com/uc?export=download&id=" + newDriveId) {
+      return new Response(null, { status: 302, headers: {
+        location: "https://drive.usercontent.google.com/download?id=" + newDriveId + "&export=download"
+      }});
+    }
+    if (url === "https://drive.usercontent.google.com/download?id=" + newDriveId + "&export=download") {
+      return new Response("%PDF-1.7\\nPRC official successful examinees", { status: 206 });
+    }
+    throw new Error("Unexpected PRC test request: " + url + " " + init.method);
+  });
+
+  const baseline = await runScheduled({ env, fetchImpl, scheduledTime: Date.UTC(2026, 10, 2) });
+  assert.equal(baseline.first_check.results[0].status, "baseline_created");
+  assert.equal(baseline.first_check.results[0].discovered_article_count, 2);
+  assert.equal(dispatches.length, 0, "historical articles must be snapshotted, not imported");
+
+  listingVersion = 2;
+  const changed = await runScheduled({ env, fetchImpl, scheduledTime: Date.UTC(2026, 10, 2, 0, 1) });
+  assert.equal(changed.first_check.results[0].status, "changed");
+  assert.equal(dispatches.length, 1);
+  assert.equal(dispatches[0].client_payload.authority, "PRC");
+  assert.equal(dispatches[0].client_payload.source_article_url, newArticle);
+  assert.equal(dispatches[0].client_payload.detected_url,
+    "https://drive.google.com/uc?export=download&id=" + newDriveId);
+});
