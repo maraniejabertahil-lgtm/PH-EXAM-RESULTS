@@ -83,6 +83,16 @@ jobs:
               grep -Eo 'https://drive\\.google\\.com/file/d/[A-Za-z0-9_-]+' /tmp/csc-page.html | sort -u | head -10 || true
             fi
           done
+      - name: Test optional public Reader proxy for CSC page
+        run: |
+          set -euo pipefail
+          url="https://r.jina.ai/https://csc.gov.ph/regional-offices/region-v/examination"
+          code="$(curl -L -sS -o /tmp/csc-reader.txt -w '%{http_code}' "$url")"
+          echo "Reader proxy response: HTTP $code"
+          if [ "$code" = "200" ]; then
+            grep -Eo 'https://drive\\.google\\.com/file/d/[A-Za-z0-9_-]+' /tmp/csc-reader.txt | sort -u | head -10 || true
+            grep -Ei 'RESULTS ARE OUT|List of Passers|Civil Service Examination' /tmp/csc-reader.txt | head -5 || true
+          fi
       - name: Run Peak Week simulation tests
         working-directory: watcher-bot
         run: npm test
