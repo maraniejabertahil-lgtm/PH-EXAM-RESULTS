@@ -555,15 +555,6 @@ async function scanApprovedDocuments(source, pageUrl, env, fetchImpl, now, allow
         }
       }
 
-      const retryableStatuses = new Set([
-        "pdf_verification_failed_manual_review_required",
-        "pdf_verification_error_manual_review_required",
-        "check_error",
-        "dispatch_error",
-        "article_scan_error_manual_review_required",
-        "article_has_no_matching_pdf_yet",
-        "subrequest_budget_reached"
-      ]);
       for (const articleUrl of articlesToScan) {
         let articleResults = [];
         try {
@@ -580,10 +571,6 @@ async function scanApprovedDocuments(source, pageUrl, env, fetchImpl, now, allow
         const terminalSuccess = articleResults.length > 0 &&
           articleResults.every((item) => ["dispatched", "already_dispatched"].includes(item.status));
         if (trackNewArticlesOnly && terminalSuccess) processedArticleUrls.push(articleUrl);
-        if (articleResults.some((item) => retryableStatuses.has(item.status)) ||
-            (trackNewArticlesOnly && !terminalSuccess)) {
-          // The article remains outside the snapshot so the next scheduled run retries it.
-        }
         results.push(...articleResults.map((item) => ({ ...item, article_url: articleUrl })));
       }
 
