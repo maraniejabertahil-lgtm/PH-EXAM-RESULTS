@@ -1,7 +1,7 @@
 import hashlib
 from pathlib import Path
 from urllib.parse import urlsplit
-from urllib.request import Request
+from urllib.request import HTTPRedirectHandler, Request, build_opener
 
 from scraper.safe_http import open_same_origin
 
@@ -10,6 +10,29 @@ from scraper.monitor import _is_approved_source
 
 USER_AGENT = "PH-EXAM-RESULTS-Acquirer/1.0"
 DEFAULT_MAX_BYTES = 50 * 1024 * 1024
+
+
+class GoogleDriveRedirectHandler(HTTPRedirectHandler):
+    """Allow only HTTPS redirects to Google's restricted download host families."""
+
+    @staticmethod
+    def _allowed(url: str) -> bool:
+        parsed = urlsplit(url)
+        host = (parsed.hostname or "").lower()
+        return (
+            parsed.scheme == "https"
+            and not parsed.username and not parsed.password
+            and (
+                host in {"drive.google.com", "drive.usercontent.google.com", "storage.googleapis.com"}
+                or host.endswith(".googleusercontent.com")
+                or host.endswith(".googleapis.com")
+            )
+        )
+
+    def redirect_request(self, request, file_pointer, code, message, headers, new_url):
+        if not self._allowed(new_url):
+            raise DownloadError("Google Drive redirect left the restricted Google download host allowlist.")
+        return super().redirect_request(request, file_pointer, code, message, headers, new_url)
 
 
 class DownloadError(Exception):
@@ -32,7 +55,20 @@ def download_approved_file(
     if original.scheme != "https" or not original.hostname or original.username or original.password:
         raise DownloadError("Only valid HTTPS source URLs are allowed.")
 
-    request = Request(url, headers={"User-Agent": USER_AGENT})
+    drive_mode = bool(source.get("drive_file_ids"))
+    if drive_mode:
+        from urllib.parse import parse_qs
+        query = parse_qs(original.query)
+        file_id = query.get("id", [""])[0]
+        if (
+            original.scheme != "https"
+            or (original.hostname or "").lower() != "drive.google.com"
+            or original.path != "/uc"
+            or query.get("export") != ["download"]
+            or file_id not in source.get("drive_file_ids", [])
+        ):
+            raise DownloadError("Google Drive URL is not the exact approved file ID and download route.")
+    request = Request(url, headers={"User-Agent": USER_AGENT, "Accept": "application/pdf,*/*"})
     original_port = original.port or 443
     target = Path(destination)
     target.parent.mkdir(parents=True, exist_ok=True)
@@ -40,9 +76,14 @@ def download_approved_file(
     total = 0
 
     try:
-        with open_same_origin(request, url, timeout=30) as response:
+        opener = build_opener(GoogleDriveRedirectHandler()) if drive_mode else None
+        response_context = opener.open(request, timeout=30) if drive_mode else open_same_origin(request, url, timeout=30)
+        with response_context as response:
             final = urlsplit(response.geturl())
-            if (
+            if drive_mode:
+                if not GoogleDriveRedirectHandler._allowed(response.geturl()):
+                    raise DownloadError("Final Google Drive download host is not allowlisted.")
+            elif (
                 final.scheme != "https"
                 or final.username
                 or final.password
