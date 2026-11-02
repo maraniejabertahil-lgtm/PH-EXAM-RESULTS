@@ -21,8 +21,8 @@ No public visitor search is sent to Python, D1, a Worker, or a backend server.
 4. Standard Mode checks once. Peak Week checks twice, 30 seconds apart, and expands owner-configured preemptive URL templates.
 5. The Watcher detects approved PDF URLs and sends a GitHub `repository_dispatch` event. The receiver validates the event against the approved source registry.
 6. The Phase 2 event processor revalidates source ID, authority/exam, HTTPS origin, PDF identity, and owner authorization before any acquisition.
-7. Only a source with `auto_acquire: true` is downloaded. The current event bridge supports same-origin HTTPS PDFs only; cross-origin Google Drive attachments remain blocked until an explicit allowlisted route is implemented and tested.
-8. Text-based PDFs are extracted to a private GitHub Actions artifact for manual review. This step does not OCR scanned pages, create passer records, or publish results. When D1 is configured, Python source-state and audit operations can also run.
+7. Only a source with `auto_acquire: true` is downloaded. Same-origin HTTPS PDFs are supported; the owner-approved CSC source additionally permits only its two exact Google Drive file IDs through a restricted Drive download route and Google-host redirect allowlist.
+8. Text-based PDFs are extracted to a private GitHub Actions artifact for manual review. The bridge enforces a 50 MiB cap and PDF signature check. This step does not OCR scanned pages, create passer records, or publish results. When D1 is configured, Python source-state and audit operations can also run.
 9. CSV files supplied through the import workflow are normalized, validated, and checked for exact/fuzzy duplicate candidates.
 10. Valid CSV batches can generate a private Git branch and owner-approval Pull Request.
 11. Exact duplicate records block automatic publication PR creation. Fuzzy candidates remain visible for review.
@@ -34,7 +34,7 @@ The manual import workflow is also available for CSV files stored in the private
 ## Python engine
 
 - `scraper/monitor.py`: HTTPS metadata checks and official-first fallback selection.
-- `scraper/downloader.py`: acquisition only from approved HTTPS sources, with same-host redirect checks, a download size cap, and SHA-256.
+- `scraper/downloader.py`: acquisition only from approved HTTPS sources, with same-host redirect checks for ordinary sources, exact-file-ID Google Drive acquisition for the approved CSC source, a restricted HTTPS Google download-host redirect allowlist, a download size cap, and SHA-256.
 - `scraper/event_processor.py`: Phase 2 Watcher-event validation, optional approved PDF acquisition, PDF signature check, and text extraction for a private manual-review artifact; no automatic passer parsing or publication.
 - `extractor/pdf_parser.py`: text extraction from text-based PDFs only.
 - `processor/normalizer.py`: preserves original names and creates normalized comparison keys.
@@ -59,7 +59,7 @@ Third-party entries require `source_type: "verified_third_party"` and `verified_
 
 For automatic acquisition, set `auto_acquire: true`, `file_format` to `csv` or `pdf`, and provide the authority, exam identifier, and integer year. A CSV must contain a `name` column. A PDF is only extracted to text and requires manual mapping/review.
 
-No real source URL or preemptive URL template is preconfigured. The optional `preemptive_url_templates` field is used by the Cloudflare Watcher only after the owner approves the exact source origin and URL pattern.
+The registry contains one owner-approved CSC Region V CSE-PPT 2026 source page. Its `drive_file_ids` list contains only the Professional and Subprofessional PDF IDs linked from that official page. `scan_page_on_baseline: true` makes the Watcher inspect the official page on its first baseline; only exact matching Drive IDs are dispatched. The Python bridge accepts the constructed Drive download route only when its ID appears in that source's allowlist. No general Google Drive URLs are authorized.
 
 ## Cloudflare Watcher
 
@@ -68,7 +68,7 @@ No real source URL or preemptive URL template is preconfigured. The optional `pr
 - `watcher-bot/tests/`: mocked Standard Mode, Peak Week, PDF detection, authorization, redirect, and webhook tests.
 - `.github/workflows/process-import.yml`: receives `source-detected` events and invokes the Python PDF review bridge; manual-drop pushes remain separate. The receiver must be on the default branch before GitHub can run repository-dispatch events.
 
-The Worker requires a Cloudflare KV namespace binding named `PEAK_WEEK` and a Cloudflare Worker secret `GITHUB_TOKEN`. The fine-grained GitHub token needs repository Contents read/write permission. The source registry remains empty until owner-approved sources are configured.
+The Worker requires a Cloudflare KV namespace binding named `PEAK_WEEK` and a Cloudflare Worker secret `GITHUB_TOKEN`. The fine-grained GitHub token needs repository Contents read/write permission. The implementation branch contains the owner-approved CSC source entry. Production monitoring remains inactive until the branch changes are reviewed, merged, and separately deployed to Cloudflare.
 
 ## D1
 
@@ -111,7 +111,7 @@ When a result publication PR matches the currently active authority, exam, and y
 
 ## Current limitations
 
-- Source registry and examination prediction configuration are empty.
+- The implementation branch now has one approved CSC source entry; the production `main` registry remains unchanged until the PR is reviewed and merged. Examination prediction configuration remains empty.
 - No real result records are included.
 - No Cloudflare Worker deployment, KV namespace, GitHub dispatch secret, D1, or Cloudflare Pages credentials have been verified.
 - PDF OCR and automatic passer extraction are not implemented.
