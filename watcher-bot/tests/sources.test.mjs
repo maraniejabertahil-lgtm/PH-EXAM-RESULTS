@@ -66,8 +66,14 @@ test("PRC homepage source cannot dispatch historical attachments on baseline", (
   assert.equal(source.source_type, "official");
   assert.equal(source.authorized, true);
   assert.equal(source.enabled, true);
+  assert.equal(source.file_format, "pdf");
+  assert.equal(source.auto_acquire, false);
   assert.equal(source.scan_page_on_baseline, false);
-  assert.equal(source.allow_linked_drive_documents, false);
+  assert.equal(source.allow_linked_drive_documents, true);
+  assert.equal(source.discover_official_result_articles, true);
+  assert.deepEqual(source.drive_link_text_patterns, ["list of successful examinees"]);
   assert.equal(source.direct_drive_fallback, false);
   assert.deepEqual(source.drive_file_ids, []);
+  assert.equal(source.robots_policy_verified, true);
+  assert.equal(source.robots_policy_url, "https://www.prc.gov.ph/robots.txt");
 });
