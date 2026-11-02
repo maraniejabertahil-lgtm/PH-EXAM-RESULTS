@@ -4,12 +4,9 @@ on:
   workflow_dispatch:
     inputs:
       source_id:
-        description: Approved PRC LEPT source ID
+        description: Exact enabled source ID from python-engine/config/prc-sources.json
         required: true
-        type: choice
-        options:
-          - PRC-LEPT-2026-03-ELEMENTARY
-          - PRC-LEPT-2026-03-SECONDARY
+        type: string
 
 permissions:
   contents: read
