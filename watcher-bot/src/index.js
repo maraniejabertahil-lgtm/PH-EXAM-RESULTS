@@ -265,6 +265,10 @@ async function scanApprovedDocuments(source, pageUrl, env, fetchImpl, now) {
 }
 
 async function dispatchDetectedPdf(env, source, pdfUrl, metadata, fetchImpl, now) {
+  const eventType = env.GITHUB_EVENT_TYPE || "source-detected";
+  if (!["source-detected", "staging-source-detected"].includes(eventType)) {
+    throw new Error("GITHUB_EVENT_TYPE must be source-detected or staging-source-detected.");
+  }
   const key = await kvKey("dispatched", source.id, pdfUrl);
   if (await env.PEAK_WEEK.get(key)) return { status: "already_dispatched", url: pdfUrl };
   const response = await fetchImpl(`${GITHUB_API}/repos/${env.GITHUB_REPOSITORY}/dispatches`, {
@@ -277,7 +281,7 @@ async function dispatchDetectedPdf(env, source, pdfUrl, metadata, fetchImpl, now
       "User-Agent": USER_AGENT
     },
     body: JSON.stringify({
-      event_type: "source-detected",
+      event_type: eventType,
       client_payload: {
         source_id: String(source.id), authority: source.authority, exam: source.exam,
         source_type: source.source_type, detected_url: pdfUrl, detected_at: isoNow(now),
