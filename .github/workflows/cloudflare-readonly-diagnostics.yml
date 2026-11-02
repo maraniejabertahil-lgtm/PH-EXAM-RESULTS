@@ -1,9 +1,17 @@
 name: Read-only Cloudflare Watcher Diagnostics
 
 on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/cloudflare-readonly-diagnostics.yml"
   push:
     branches:
+      - main
       - diagnostics/cloudflare-readonly-20261102
+    paths:
+      - ".github/workflows/cloudflare-readonly-diagnostics.yml"
   workflow_dispatch:
 
 permissions:
