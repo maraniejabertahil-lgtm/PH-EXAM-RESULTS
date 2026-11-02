@@ -1,0 +1,71 @@
+name: Manual Source Validation
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_id:
+        description: Exact disabled official source marked manual_drop_required
+        required: true
+        type: choice
+        options:
+          - CSC-CSE-PPT-2026-08-09-REGION-V
+      drive_file_id:
+        description: Exact owner-approved Google Drive file ID already listed in sources.json
+        required: true
+        type: string
+      confirm_validation_only:
+        description: Confirm that this run will not download, extract, or publish a PDF
+        required: true
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  actions: write
+
+jobs:
+  validate-manual-source:
+    name: Validate owner-approved manual source
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Build validation-only report
+        env:
+          SOURCE_ID: ${{ inputs.source_id }}
+          DRIVE_FILE_ID: ${{ inputs.drive_file_id }}
+          CONFIRM_VALIDATION_ONLY: ${{ inputs.confirm_validation_only }}
+        run: |
+          set -euo pipefail
+          python python-engine/retrieval/manual_source_validation.py \
+            --registry python-engine/config/sources.json \
+            --output artifacts/manual-source-validation.json \
+            --source-id "$SOURCE_ID" \
+            --drive-file-id "$DRIVE_FILE_ID" \
+            --confirm-validation-only "$CONFIRM_VALIDATION_ONLY"
+
+      - name: Upload validation artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: manual-source-validation-${{ github.run_id }}
+          path: artifacts/manual-source-validation.json
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Record validation-only result
+        run: |
+          {
+            echo "## Manual source validation"
+            echo ""
+            echo "- Owner-approved disabled source and exact Drive ID were validated against the registry."
+            echo "- No network request or PDF download was performed."
+            echo "- PDF acquisition: false; extraction: false; publication: false."
+            echo "- Validation JSON is available as the workflow artifact."
+          } >> "$GITHUB_STEP_SUMMARY"
