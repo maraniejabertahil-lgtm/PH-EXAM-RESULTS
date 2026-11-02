@@ -123,3 +123,5 @@ jobs:
             "https://api.github.com/repos/$GH_REPOSITORY/dispatches" \
             --data "$payload"
           echo "Synthetic source-detected event submitted to the production receiver."
+
+# Smoke-test the production receiver using a synthetic, validation-only event.
