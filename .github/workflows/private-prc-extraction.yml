@@ -1,0 +1,53 @@
+name: Private PRC Staging Extraction
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_id:
+        description: Approved PRC LEPT source ID
+        required: true
+        type: choice
+        options:
+          - PRC-LEPT-2026-03-ELEMENTARY
+          - PRC-LEPT-2026-03-SECONDARY
+
+permissions:
+  contents: read
+
+jobs:
+  extract-private:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout staging source registry and extractor
+        uses: actions/checkout@v5
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install PDF and OCR dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y poppler-utils tesseract-ocr tesseract-ocr-eng
+          npm install --no-save --no-package-lock pdfjs-dist@4.10.38
+
+      - name: Validate extractor syntax
+        run: node --check tools/extract-prc-pdf.mjs
+
+      - name: Acquire and extract approved official PRC examination PDF
+        env:
+          SOURCE_ID: ${{ inputs.source_id }}
+          SOURCE_REGISTRY: python-engine/config/prc-sources.json
+          OUTPUT_DIR: private-prc-extraction
+        run: node tools/extract-prc-pdf.mjs
+
+      - name: Upload sanitized extraction metadata only
+        uses: actions/upload-artifact@v4
+        with:
+          name: prc-extraction-metadata-${{ github.run_id }}
+          path: private-prc-extraction/extraction-report.json
+          if-no-files-found: error
+          retention-days: 1
+
