@@ -6,11 +6,14 @@ from urllib.parse import parse_qs, urlsplit
 
 def is_approved_drive_event(payload: dict, source: dict, detected) -> bool:
     """Accept only exact allowlisted IDs or opt-in links from the exact official page."""
-    if detected.scheme != "https" or detected.hostname != "drive.google.com":
-        return False
-    if detected.username or detected.password or detected.port not in (None, 443):
-        return False
-    if detected.path != "/uc":
+    try:
+        if detected.scheme != "https" or detected.hostname != "drive.google.com":
+            return False
+        if detected.username or detected.password or detected.port not in (None, 443):
+            return False
+        if detected.path != "/uc":
+            return False
+    except ValueError:
         return False
 
     query = parse_qs(detected.query, keep_blank_values=True)
