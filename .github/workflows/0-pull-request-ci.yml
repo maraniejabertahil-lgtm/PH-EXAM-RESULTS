@@ -1,6 +1,9 @@
 name: 0 - Pull Request Quality Checks
 
 on:
+  push:
+    branches:
+      - implementation/two-public-pages
   pull_request:
     branches:
       - main
