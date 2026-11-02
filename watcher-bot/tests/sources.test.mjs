@@ -16,6 +16,7 @@ test("source registry has unique, valid official sources and explicit disable re
     ids.add(source.id);
     assert.ok(["PRC", "CSC"].includes(source.authority));
     assert.ok(["official", "verified_third_party"].includes(source.source_type));
+    assert.equal(source.file_format, "pdf");
     if (source.enabled === true && source.source_type === "official") {
       assert.equal(source.authorized, true);
     } else if (source.enabled === false) {
