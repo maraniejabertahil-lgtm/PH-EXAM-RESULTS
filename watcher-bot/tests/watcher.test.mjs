@@ -41,6 +41,36 @@ function githubFetch(sources, handler) {
   return { fetchImpl, dispatches };
 }
 
+async function runApprovedDriveFallback(eventType) {
+  const ids = [
+    "1jQmBLSU2azhFvCgU6l8m6ljXGDmIRa1l",
+    "1qYaCbxIZ_6DHyMD9FhgZdj-YtbIJh5Wf"
+  ];
+  const source = approvedSource({
+    url: "https://www.csc.gov.ph/regional-offices/region-v/examination/results-10072026",
+    drive_file_ids: ids,
+    direct_drive_fallback: true
+  });
+  const env = envFor();
+  if (eventType) env.GITHUB_EVENT_TYPE = eventType;
+  const { fetchImpl, dispatches } = githubFetch([source], async (url) => {
+    if (url === source.url) return new Response("Forbidden", { status: 403 });
+    if (url.startsWith("https://drive.google.com/uc?export=download&id=")) {
+      const id = new URL(url).searchParams.get("id");
+      return new Response(null, {
+        status: 302,
+        headers: { location: "https://drive.usercontent.google.com/download?id=" + id + "&export=download" }
+      });
+    }
+    if (url.startsWith("https://drive.usercontent.google.com/download?id=")) {
+      return new Response("%PDF-1.7\\nverified fallback PDF", { status: 206 });
+    }
+    throw new Error("Unexpected request: " + url);
+  });
+  const report = await runScheduled({ env, fetchImpl, scheduledTime: Date.UTC(2026, 10, 2) });
+  return { ids, report, dispatches };
+}
+
 test("standard mode checks configured source once and creates a baseline", async () => {
   const source = approvedSource();
   const { fetchImpl } = githubFetch([source], async (_url, init) => {
@@ -228,45 +258,27 @@ test("official source HEAD 403 falls back to bounded GET on the same origin", as
   assert.equal(methods[1].url, source.url);
 });
 
-test("CSC 403 triggers direct retrieval of only the exact pre-approved Drive IDs", async () => {
-  const ids = [
-    "1jQmBLSU2azhFvCgU6l8m6ljXGDmIRa1l",
-    "1qYaCbxIZ_6DHyMD9FhgZdj-YtbIJh5Wf"
-  ];
-  const source = approvedSource({
-    url: "https://www.csc.gov.ph/regional-offices/region-v/examination/results-10072026",
-    drive_file_ids: ids,
-    direct_drive_fallback: true
-  });
-  const env = envFor();
-  env.GITHUB_EVENT_TYPE = "staging-source-detected";
-  const { fetchImpl, dispatches } = githubFetch([source], async (url, init) => {
-    if (url === source.url) return new Response("Forbidden", { status: 403 });
-    if (url.startsWith("https://drive.google.com/uc?export=download&id=")) {
-      const id = new URL(url).searchParams.get("id");
-      return new Response(null, {
-        status: 302,
-        headers: { location: "https://drive.usercontent.google.com/download?id=" + id + "&export=download" }
-      });
-    }
-    if (url.startsWith("https://drive.usercontent.google.com/download?id=")) {
-      return new Response("%PDF-1.7\\nverified staging PDF", { status: 206 });
-    }
-    throw new Error("Unexpected request: " + url);
-  });
-  const report = await runScheduled({ env, fetchImpl, scheduledTime: Date.UTC(2026, 10, 2) });
+test("CSC 403 production fallback dispatches only exact approved Drive IDs to the production receiver", async () => {
+  const { ids, report, dispatches } = await runApprovedDriveFallback();
   const result = report.first_check.results[0];
   assert.equal(result.status, "http_error_drive_fallback_recovered");
   assert.equal(result.http_status, 403);
   assert.equal(result.drive_fallback_results.length, 2);
   assert.ok(result.drive_fallback_results.every((item) => item.status === "dispatched"));
   assert.equal(dispatches.length, 2);
-  assert.ok(dispatches.every((item) => item.event_type === "staging-source-detected"));
+  assert.ok(dispatches.every((item) => item.event_type === "source-detected"));
   assert.ok(dispatches.every((item) => item.client_payload.detection_method === "approved_drive_fallback"));
   assert.deepEqual(
     dispatches.map((item) => new URL(item.client_payload.detected_url).searchParams.get("id")).sort(),
     ids.slice().sort()
   );
+});
+
+test("CSC 403 fallback in preview preserves the isolated staging event type", async () => {
+  const { report, dispatches } = await runApprovedDriveFallback("staging-source-detected");
+  assert.equal(report.first_check.results[0].status, "http_error_drive_fallback_recovered");
+  assert.equal(dispatches.length, 2);
+  assert.ok(dispatches.every((item) => item.event_type === "staging-source-detected"));
 });
 
 test("approved Drive ID returning HTML is not dispatched as a PDF", async () => {
