@@ -22,7 +22,7 @@ id = "ebfd9a0e0ac34990883f536cc6d8d2b4"
 # Previews use the staging registry and staging KV, never Production KV.
 [previews.vars]
 GITHUB_REPOSITORY = "maraniejabertahil-lgtm/PH-EXAM-RESULTS"
-GITHUB_SOURCE_REF = "implementation/two-public-pages"
+GITHUB_SOURCE_REF = "fix/approved-drive-fallback-on-csc-403"
 GITHUB_SOURCE_PATH = "python-engine/config/sources.json"
 GITHUB_EVENT_TYPE = "staging-source-detected"
 
