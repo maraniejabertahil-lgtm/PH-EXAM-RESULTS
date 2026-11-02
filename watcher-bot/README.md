@@ -12,9 +12,10 @@ This folder implements Phase 1 of the approved Master Technical Blueprint. It is
 - Checks source URLs using HTTPS `HEAD` requests. If a server rejects `HEAD` with HTTP 403, 405, or 501, it retries the same approved URL with a bounded `GET` range (bytes 0–1023); redirects remain HTTPS and same-origin only.
 - When a monitored page's HTTP metadata changes, scans the page for same-origin PDF links and checks those links.
 - During Peak Week, expands owner-configured `preemptive_url_templates` for the current and following UTC month. Supported placeholders: `{EXAM}`, `{YYYY}`, `{YY}`, `{MM}`, and `{YYYYMM}`.
-- Dispatches GitHub `repository_dispatch` only after a candidate passes the configured PDF checks. An owner-approved Google Drive ID is not treated as proof of PDF content: the Worker checks the response bytes for a `%PDF-` signature. If Google redirects outside the approved origin, or the response cannot be verified, the candidate is held for manual review and is not dispatched.
+- Dispatches GitHub `repository_dispatch` only after a candidate passes the PDF byte check. Every direct PDF candidate, including same-origin page links and Peak Week preemptive URLs, must return a bounded first-kilobyte response containing the `%PDF-` signature before dispatch.
+- An owner-approved Google Drive ID is not treated as proof of PDF content. Its download is followed manually for at most five redirects, only over HTTPS, only on `drive.google.com` or the exact `drive.usercontent.google.com` download host, and only while the exact approved file ID remains in the redirect URL. The final bounded response must contain the `%PDF-` signature. Any other host, path, ID, or unverified response is held for manual review and is not dispatched.
 - Uses KV to remember source metadata and successfully dispatched PDF URLs, preventing repeated dispatches. A failed or unverified candidate is not marked as dispatched.
-- Rejects cross-origin redirects and cross-origin PDF links. Those sources require a separately verified/manual route.
+- Rejects cross-origin redirects for CSC/source pages and arbitrary PDF links. The sole cross-origin exception is the narrow, exact-host Google Drive download route described above; it cannot be used for general external links.
 - Counts both outbound HTTP requests and KV operations, then stops at 45 total subrequests per invocation to leave headroom below the Workers Free limit of 50.
 
 ## Required Cloudflare setup
