@@ -24,6 +24,7 @@ id = "ebfd9a0e0ac34990883f536cc6d8d2b4"
 GITHUB_REPOSITORY = "maraniejabertahil-lgtm/PH-EXAM-RESULTS"
 GITHUB_SOURCE_REF = "implementation/two-public-pages"
 GITHUB_SOURCE_PATH = "python-engine/config/sources.json"
+GITHUB_EVENT_TYPE = "staging-source-detected"
 
 [[previews.kv_namespaces]]
 binding = "PEAK_WEEK"
