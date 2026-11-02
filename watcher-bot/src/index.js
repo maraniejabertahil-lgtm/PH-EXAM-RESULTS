@@ -626,5 +626,28 @@ export default {
   async scheduled(controller, env) {
     return runScheduled({ env, scheduledTime: controller.scheduledTime || Date.now() });
   },
-  async fetch() { return new Response("Not found", { status: 404 }); }
+  async fetch(request, env) {
+    const url = new URL(request.url);
+    if (url.pathname !== "/__staging/scan" || request.method !== "POST") {
+      return new Response("Not found", { status: 404 });
+    }
+    // Previews have no Cron Trigger. This authenticated one-shot route is
+    // deliberately unavailable unless the Preview-only event type is set.
+    if (env.GITHUB_EVENT_TYPE !== "staging-source-detected") {
+      return new Response("Not found", { status: 404 });
+    }
+    const scanToken = env.STAGING_SCAN_TOKEN;
+    if (!scanToken || request.headers.get("authorization") !== `Bearer ${scanToken}`) {
+      return new Response("Unauthorized", { status: 401 });
+    }
+    try {
+      const report = await runScheduled({ env, scheduledTime: Date.now() });
+      return Response.json(report, {
+        headers: { "Cache-Control": "no-store" }
+      });
+    } catch (error) {
+      console.error("Staging scan failed:", String(error.message || error));
+      return Response.json({ error: "Staging scan failed." }, { status: 500 });
+    }
+  }
 };
