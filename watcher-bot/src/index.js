@@ -219,14 +219,14 @@ async function findApprovedGoogleDriveLinks(pageUrl, source, fetchImpl) {
   } finally { await reader.cancel().catch(() => {}); }
   const html = new TextDecoder().decode(concatBytes(chunks, total));
   const found = new Set();
-  const hrefs = /href\\s*=\\s*["']([^"']+)["']/gi;
+  const hrefs = /href\s*=\s*["']([^"']+)["']/gi;
   let match;
   while ((match = hrefs.exec(html))) {
     try {
       const link = new URL(match[1], finalUrl);
       if (link.protocol !== "https:" || link.hostname.toLowerCase() !== "drive.google.com" ||
           link.username || link.password) continue;
-      const fileMatch = link.pathname.match(/^\\/file\\/d\\/([A-Za-z0-9_-]{10,})\\/view\\/?$/);
+      const fileMatch = link.pathname.match(/^\/file\/d\/([A-Za-z0-9_-]{10,})\/view\/?$/);
       if (fileMatch && allowed.has(fileMatch[1])) found.add(fileMatch[1]);
     } catch { /* Ignore malformed or non-Drive links. */ }
   }
