@@ -201,7 +201,8 @@ async function findSameOriginPdfLinks(pageUrl, fetchImpl) {
 
 async function findApprovedGoogleDriveLinks(pageUrl, source, fetchImpl) {
   const allowed = new Set(Array.isArray(source.drive_file_ids) ? source.drive_file_ids : []);
-  if (allowed.size === 0) return [];
+  const discoverOfficialPageDriveLinks = source.allow_linked_drive_documents === true;
+  if (allowed.size === 0 && !discoverOfficialPageDriveLinks) return [];
   const page = validateHttpsUrl(pageUrl);
   const { response, finalUrl } = await fetchSameOrigin(page.href, {
     method: "GET", headers: { "User-Agent": USER_AGENT, Accept: "text/html" }
@@ -220,7 +221,7 @@ async function findApprovedGoogleDriveLinks(pageUrl, source, fetchImpl) {
     }
   } finally { await reader.cancel().catch(() => {}); }
   const html = new TextDecoder().decode(concatBytes(chunks, total));
-  const found = new Set();
+  const found = new Map();
   const hrefs = /href\s*=\s*["']([^"']+)["']/gi;
   let match;
   while ((match = hrefs.exec(html))) {
@@ -229,12 +230,18 @@ async function findApprovedGoogleDriveLinks(pageUrl, source, fetchImpl) {
       if (link.protocol !== "https:" || link.hostname.toLowerCase() !== "drive.google.com" ||
           link.username || link.password) continue;
       const fileMatch = link.pathname.match(/^\/file\/d\/([A-Za-z0-9_-]{10,})\/view\/?$/);
-      if (fileMatch && allowed.has(fileMatch[1])) found.add(fileMatch[1]);
+      if (fileMatch && (allowed.has(fileMatch[1]) || discoverOfficialPageDriveLinks)) {
+        found.set(fileMatch[1], {
+          discovered: !allowed.has(fileMatch[1]),
+          sourcePageUrl: source.url
+        });
+      }
     } catch { /* Ignore malformed or non-Drive links. */ }
   }
-  return [...found].map((id) => ({
+  return [...found].map(([id, provenance]) => ({
     id,
-    url: `https://drive.google.com/uc?export=download&id=${encodeURIComponent(id)}`
+    url: `https://drive.google.com/uc?export=download&id=${encodeURIComponent(id)}`,
+    ...provenance
   }));
 }
 
@@ -361,7 +368,9 @@ async function scanApprovedDocuments(source, pageUrl, env, fetchImpl, now) {
         continue;
       }
       const dispatched = await dispatchDetectedPdf(env, source, item.url, {
-        status: 206, contentType: "application/pdf", preemptive: false, driveFileId: item.id
+        status: 206, contentType: "application/pdf", preemptive: false, driveFileId: item.id,
+        officialPageDriveLink: item.discovered === true,
+        sourcePageUrl: item.discovered === true ? item.sourcePageUrl : null
       }, fetchImpl, now);
       results.push({ url: item.url, drive_file_id: item.id, status: dispatched.status });
     } catch (error) {
@@ -394,7 +403,9 @@ async function dispatchDetectedPdf(env, source, pdfUrl, metadata, fetchImpl, now
       client_payload: {
         source_id: String(source.id), authority: source.authority, exam: source.exam,
         source_type: source.source_type, detected_url: pdfUrl, detected_at: isoNow(now),
-        detection_method: metadata.driveFallback ? "approved_drive_fallback" : (metadata.preemptive ? "preemptive_head" : "source_page_change"),
+        detection_method: metadata.officialPageDriveLink ? "official_page_drive_link" :
+          (metadata.driveFallback ? "approved_drive_fallback" : (metadata.preemptive ? "preemptive_head" : "source_page_change")),
+        source_page_url: metadata.officialPageDriveLink ? metadata.sourcePageUrl : null,
         http_status: metadata.status, content_type: metadata.contentType
       }
     }),

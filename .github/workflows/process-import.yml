@@ -28,7 +28,10 @@ jobs:
           import os
           import re
           from pathlib import Path
-          from urllib.parse import parse_qs, urlsplit
+          from urllib.parse import urlsplit
+          import sys
+          sys.path.insert(0, "python-engine/retrieval")
+          from watcher_event_validation import is_approved_drive_event
 
           payload = json.loads(os.environ["CLIENT_PAYLOAD"])
           if not isinstance(payload, dict):
@@ -78,18 +81,8 @@ jobs:
               raise SystemExit("Rejected: detected URL must be HTTPS and contain no credentials.")
 
           if detected.hostname.lower() == "drive.google.com":
-              query = parse_qs(detected.query, keep_blank_values=True)
-              allowed_ids = source.get("drive_file_ids", [])
-              file_ids = query.get("id", [])
-              if (
-                  detected.path != "/uc"
-                  or query.get("export") != ["download"]
-                  or len(file_ids) != 1
-                  or not isinstance(allowed_ids, list)
-                  or file_ids[0] not in allowed_ids
-                  or detected.port not in (None, 443)
-              ):
-                  raise SystemExit("Rejected: Google Drive URL is not an exact owner-approved file ID.")
+              if not is_approved_drive_event(payload, source, detected):
+                  raise SystemExit("Rejected: Google Drive URL is neither an exact owner-approved ID nor a verified official-page discovery event.")
           else:
               approved = urlsplit(source.get("url", ""))
               def origin(parts):
@@ -115,6 +108,7 @@ jobs:
               "authority": source["authority"],
               "exam": source["exam"],
               "detected_url": payload["detected_url"],
+              "source_page_url": payload.get("source_page_url"),
               "detection_method": payload.get("detection_method", "not supplied"),
               "validation_only": True,
               "pdf_acquired": False,
