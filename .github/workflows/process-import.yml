@@ -60,7 +60,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: detected-source-review-${{ github.run_id }}
-          path: artifacts/detected-source/review.json
+          path: artifacts/detected-source/review.*
           if-no-files-found: error
           retention-days: 7
 
