@@ -252,7 +252,7 @@ async function findApprovedGoogleDriveLinks(pageUrl, source, fetchImpl) {
       if (fileMatch && (allowed.has(fileMatch[1]) || discoverOfficialPageDriveLinks)) {
         found.set(fileMatch[1], {
           discovered: !allowed.has(fileMatch[1]),
-          sourcePageUrl: source.url
+          sourcePageUrl: pageUrl
         });
       }
     } catch { /* Ignore malformed or non-Drive links. */ }
@@ -357,7 +357,53 @@ async function scanApprovedDriveFiles(source, env, fetchImpl, now) {
   return results;
 }
 
-async function scanApprovedDocuments(source, pageUrl, env, fetchImpl, now) {
+async function findOfficialResultArticleLinks(pageUrl, fetchImpl) {
+  const page = validateHttpsUrl(pageUrl);
+  const { response, finalUrl } = await fetchSameOrigin(page.href, {
+    method: "GET", headers: { "User-Agent": USER_AGENT, Accept: "text/html" }
+  }, fetchImpl);
+  if (!response.ok) {
+    if (response.body) await response.body.cancel();
+    return [];
+  }
+  const reader = response.body?.getReader();
+  if (!reader) return [];
+  const chunks = [];
+  let total = 0;
+  try {
+    while (total < MAX_HTML_BYTES) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      const part = value.subarray(0, MAX_HTML_BYTES - total);
+      chunks.push(part);
+      total += part.length;
+      if (part.length !== value.length) break;
+    }
+  } finally { await reader.cancel().catch(() => {}); }
+  const html = new TextDecoder().decode(concatBytes(chunks, total));
+  const found = [];
+  const seen = new Set();
+  const anchors = /<a\\b[^>]*href\\s*=\\s*["']([^"']+)["'][^>]*>([\\s\\S]*?)<\\/a>/gi;
+  const resultTitle = /(?:licensure|special|qualifying|civil service|career service|examination|exam).{0,100}(?:results?|passers?)|(?:results?|passers?).{0,100}(?:licensure|special|qualifying|civil service|career service|examination|exam)/i;
+  let match;
+  while ((match = anchors.exec(html)) && found.length < 3) {
+    const label = match[2].replace(/<[^>]*>/g, " ").replace(/&nbsp;|&#160;/gi, " ").replace(/&amp;/gi, "&").replace(/\\s+/g, " ").trim();
+    if (!resultTitle.test(label)) continue;
+    try {
+      const link = new URL(match[1], finalUrl);
+      if (link.protocol !== "https:" || link.origin !== page.origin ||
+          link.username || link.password || link.search || link.hash ||
+          !(link.pathname.startsWith("/article/") || /^\\/node\\/[0-9]+\\/?$/.test(link.pathname))) continue;
+      if (!seen.has(link.href)) {
+        seen.add(link.href);
+        found.push(link.href);
+      }
+    } catch { /* Ignore malformed or non-official article links. */ }
+  }
+  return found;
+}
+
+async function scanApprovedDocuments(source, pageUrl, env, fetchImpl, now, allowArticleDiscovery = true) {
   const sameOriginLinks = await findSameOriginPdfLinks(pageUrl, fetchImpl);
   const driveLinks = await findApprovedGoogleDriveLinks(pageUrl, source, fetchImpl);
   const results = [];
@@ -394,6 +440,20 @@ async function scanApprovedDocuments(source, pageUrl, env, fetchImpl, now) {
       results.push({ url: item.url, drive_file_id: item.id, status: dispatched.status });
     } catch (error) {
       results.push({ drive_file_id: item.id, status: "pdf_verification_error_manual_review_required", error: String(error.message || error).slice(0, 160) });
+    }
+  }
+  if (allowArticleDiscovery && source.discover_official_result_articles === true) {
+    try {
+      const articlePages = await findOfficialResultArticleLinks(pageUrl, fetchImpl);
+      for (const articleUrl of articlePages) {
+        const articleResults = await scanApprovedDocuments(source, articleUrl, env, fetchImpl, now, false);
+        results.push(...articleResults.map((item) => ({ ...item, article_url: articleUrl })));
+      }
+    } catch (error) {
+      results.push({
+        status: "official_article_discovery_error_manual_review_required",
+        error: String(error.message || error).slice(0, 160)
+      });
     }
   }
   return results;
