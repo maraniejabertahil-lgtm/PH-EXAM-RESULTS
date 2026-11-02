@@ -49,12 +49,12 @@ async function main() {
   for (let n = 1; n <= doc.numPages; n++) {
     const p = await doc.getPage(n);
     const c = await p.getTextContent();
-    const t = c.items.filter(x => typeof x.str === "string").map(x => x.str).join(" ").replace(/[\\t ]+/g, " ").trim();
-    pages.push(`===== PAGE ${n} =====\\n${t}`);
+    const t = c.items.filter(x => typeof x.str === "string").map(x => x.str).join(" ").replace(/[\t ]+/g, " ").trim();
+    pages.push(`===== PAGE ${n} =====\n${t}`);
     chars += t.length;
   }
   const textPath = path.join(out, `${id}-embedded.txt`);
-  await writeFile(textPath, pages.join("\\n\\n") + "\\n", "utf8");
+  await writeFile(textPath, pages.join("\n\n") + "\n", "utf8");
 
   let ocrChars = 0;
   let ocrPages = 0;
@@ -64,17 +64,17 @@ async function main() {
     const prefix = path.join(tmp, "page");
     run("pdftoppm", ["-r", "200", "-jpeg", "-jpegopt", "quality=88", pdfPath, prefix]);
     const { readdir } = await import("node:fs/promises");
-    const imgs = (await readdir(tmp)).filter(x => /^page-\\d+\\.jpg$/i.test(x))
-      .sort((a,b) => Number(a.match(/\\d+/)[0]) - Number(b.match(/\\d+/)[0]));
+    const imgs = (await readdir(tmp)).filter(x => /^page-\d+\.jpg$/i.test(x))
+      .sort((a,b) => Number(a.match(/\d+/)[0]) - Number(b.match(/\d+/)[0]));
     if (imgs.length !== doc.numPages) fail("Rendered page count does not match PDF page count.");
     const ocr = [];
     for (let i=0; i<imgs.length; i++) {
       const t = run("tesseract", [path.join(tmp, imgs[i]), "stdout", "-l", "eng", "--psm", "6"]).trim();
-      ocr.push(`===== PAGE ${i+1} =====\\n${t}`);
+      ocr.push(`===== PAGE ${i+1} =====\n${t}`);
       ocrChars += t.length;
     }
     ocrPages = imgs.length;
-    await writeFile(path.join(out, `${id}-ocr.txt`), ocr.join("\\n\\n") + "\\n", "utf8");
+    await writeFile(path.join(out, `${id}-ocr.txt`), ocr.join("\n\n") + "\n", "utf8");
   }
 
   const report = {
@@ -88,7 +88,7 @@ async function main() {
     expected_passers_are_reference_only: true,
     count_match_verified: false, names_verified: false, published: false
   };
-  await writeFile(path.join(out, "extraction-report.json"), JSON.stringify(report, null, 2) + "\\n");
+  await writeFile(path.join(out, "extraction-report.json"), JSON.stringify(report, null, 2) + "\n");
   console.log(JSON.stringify(report, null, 2));
   await doc.destroy();
 }
