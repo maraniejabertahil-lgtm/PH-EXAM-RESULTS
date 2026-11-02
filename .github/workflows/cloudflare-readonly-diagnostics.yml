@@ -15,12 +15,13 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   diagnostics:
+    if: github.event_name == 'push'
     runs-on: ubuntu-latest
-    timeout-minutes: 4
+    timeout-minutes: 6
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5
@@ -35,15 +36,44 @@ jobs:
           test -n "$CLOUDFLARE_API_TOKEN"
           test -n "$CLOUDFLARE_ACCOUNT_ID"
           echo "Cloudflare credentials are present."
-      - name: Read production Peak Week flag
-        working-directory: watcher-bot
+      - name: Verify production KV namespace and PEAK_WEEK key
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
-        continue-on-error: true
+          KV_NAMESPACE_ID: ebfd9a0e0ac34990883f536cc6d8d2b4
         run: |
           set -euo pipefail
-          npx --yes wrangler@4.156.2 kv key get --binding=PEAK_WEEK PEAK_WEEK --remote
+          api="https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/storage/kv/namespaces"
+          headers=(-H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" -H "Accept: application/json")
+          namespace_status="$(curl -sS -o /tmp/kv-namespace.json -w '%{http_code}' "$api/$KV_NAMESPACE_ID" "${headers[@]}")"
+          if [ "$namespace_status" != "200" ]; then
+            echo "::error::KV namespace metadata request returned HTTP $namespace_status."
+            cat /tmp/kv-namespace.json
+            exit 1
+          fi
+          echo "Production KV namespace metadata is readable (HTTP 200)."
+          key_status="$(curl -sS -o /tmp/peak-week-value -w '%{http_code}' "$api/$KV_NAMESPACE_ID/values/PEAK_WEEK" "${headers[@]}")"
+          case "$key_status" in
+            200)
+              value="$(cat /tmp/peak-week-value)"
+              case "$value" in
+                true|1) echo "PEAK_WEEK=true" ;;
+                false|0) echo "PEAK_WEEK=false" ;;
+                *) echo "PEAK_WEEK key exists with a non-boolean value; Worker will interpret it as OFF." ;;
+              esac
+              ;;
+            404)
+              echo "PEAK_WEEK key is absent (HTTP 404); Worker interprets the missing value as OFF."
+              ;;
+            *)
+              echo "::error::PEAK_WEEK value request returned unexpected HTTP $key_status."
+              cat /tmp/peak-week-value
+              exit 1
+              ;;
+          esac
+      - name: Run Peak Week simulation tests
+        working-directory: watcher-bot
+        run: npm test
       - name: Observe production Worker logs
         working-directory: watcher-bot
         env:
@@ -57,7 +87,39 @@ jobs:
           if [ "$code" -eq 124 ]; then
             echo "Observation window ended normally."
           elif [ "$code" -ne 0 ]; then
-            echo "::warning::Tail unavailable; token may lack observability permission (exit $code)."
+            echo "::error::Production Worker tail failed (exit $code)."
+            exit "$code"
           fi
-
-# Re-run after owner updated the Cloudflare KV read permission.
+      - name: Dispatch a synthetic event to the production receiver
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPOSITORY: ${{ github.repository }}
+          GH_RUN_ID: ${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          payload="$(python - <<'PY'
+          import json
+          import os
+          run_id = os.environ["GH_RUN_ID"]
+          print(json.dumps({
+              "event_type": "source-detected",
+              "client_payload": {
+                  "source_id": "CSC-CSE-PPT-2026-08-09-REGION-V",
+                  "authority": "CSC",
+                  "exam": "CSE-PPT-2026",
+                  "source_type": "official",
+                  "detected_url": f"https://www.csc.gov.ph/diagnostic/receiver-smoke-{run_id}.pdf",
+                  "content_type": "application/pdf",
+                  "detection_method": "diagnostic_receiver_smoke_test"
+              }
+          }))
+          PY
+          )"
+          curl --fail-with-body -sS -X POST \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            -H "Content-Type: application/json" \
+            "https://api.github.com/repos/$GH_REPOSITORY/dispatches" \
+            --data "$payload"
+          echo "Synthetic source-detected event submitted to the production receiver."
