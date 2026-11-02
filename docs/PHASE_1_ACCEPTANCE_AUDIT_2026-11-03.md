@@ -66,3 +66,34 @@ Do not add guessed production URL templates. Add a template only after its patte
 No production Watcher source registry, production Worker code, production KV value, or production secret was changed during this audit. No production runtime code or source-registry change was merged. The only operational workflow merged was the read-only diagnostics workflow in PR #18. No Phase 1 acceptance is granted by this report.
 
 **Phase 1 remains operational but incomplete. Phase 2 must not be declared unblocked by the existence of staging extraction code alone.**
+
+## 8. Follow-up work completed on 2026-11-03
+
+- Merged PR #24, adding plain-text Google Drive URL recognition for explicitly owner-enabled official pages. The detector still requires the exact HTTPS `drive.google.com` host, the supported `/file/d/{id}/view` path, an approved/discovered ID from an authorized official page, a permitted Google download redirect, and a real PDF byte signature.
+- Merged PR #23, adding a normal GET metadata fallback after an approved page rejects both HEAD and a bounded Range GET. The response body is cancelled immediately; the existing bounded scanners remain responsible for reading page/PDF bytes.
+- Merged PR #25, adding opt-in, bounded discovery of up to three same-origin PRC result article pages from an approved listing page. Article links must be same-origin, use an approved `/article/` or `/node/{numeric-id}` path, and have a result-related title. Article PDFs still pass the existing Drive redirect and PDF signature checks. The feature is not enabled in the production source registry.
+- The production Worker build and deployment for the PR #25 merge completed successfully. Its tests passed before deployment.
+- Merged PR #27 to disable the CSC Region V source while direct requests return HTTP 403 security verification. The approved source record and its historical Drive IDs were preserved, but the source is now disabled and marked for manual-drop fallback. This prevents repeated polling against a site presenting an anti-bot verification barrier.
+
+## 9. PRC source-discovery findings
+
+- The official PRC exam-results listing is `https://www.prc.gov.ph/articles/exam-results`. It lists recent exam-result announcement articles.
+- Official PRC announcement pages expose separate Google Drive documents, including a "List of Successful Examinees" file. For example, the official August/September 2026 Nurses announcement links to `https://drive.google.com/file/d/13u_FOsF3DxS7RvMOdMqsg4Q1HF2rKtvU/view?usp=sharing`.
+- PRC pages were reachable with HTTP 200 from the GitHub-runner diagnostic. However, the PRC `robots.txt` policy was not successfully verified. Therefore the new PRC article-discovery capability remains opt-in and **no PRC source has been added or enabled in production**.
+- The Jina Reader diagnostic returned cached page text with existing CSC Drive IDs, but its fresh/browser-mode response returned HTTP 401 and its JSON response contained a "Just a moment" security-verification page. It is not accepted as a production source or a compliant bypass. It will not be used by the production Watcher.
+
+## 10. Current production source status
+
+- The production registry currently contains one source record, CSC Region V, but it is disabled.
+- There are currently **zero enabled automated sources** in production.
+- No PRC source is active because its robots policy remains unverified.
+- CSC direct automated monitoring is paused because of the security-verification barrier.
+- The `manual-drop/` push trigger currently only acknowledges the event; its workflow explicitly does not acquire, extract, or publish results. Manual-drop extraction is therefore **not yet implemented** and must be completed as part of the processing/worker phase before it can be treated as an operational fallback.
+- No preemptive URL templates have been configured or proven against a genuine official PDF appearing before its announcement page changes.
+
+## 11. Updated acceptance decision
+
+**PHASE 1 REMAINS NOT ACCEPTED.**
+
+The Watcher runtime, event receiver validation, bounded PDF verification, deduplication, test suite, and deployment pipeline have useful verified evidence. However, the current production source registry has no enabled sources, there is no genuine fresh official PDF detection-to-receiver test, PRC robots policy remains unverified, CSC presents a security-verification barrier, and manual-drop processing is not implemented. Synthetic test fixtures and cached proxy content do not satisfy live-source acceptance.
+
