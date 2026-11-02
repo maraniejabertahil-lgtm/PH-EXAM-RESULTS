@@ -374,52 +374,69 @@ async function scanApprovedDriveFiles(source, env, fetchImpl, now) {
   return results;
 }
 
-async function findOfficialResultArticleLinks(pageUrl, fetchImpl) {
+async function findOfficialResultArticleLinks(pageUrl, fetchImpl, pagination = null) {
   const page = validateHttpsUrl(pageUrl);
-  const { response, finalUrl } = await fetchSameOrigin(page.href, {
-    method: "GET", headers: { "User-Agent": USER_AGENT, Accept: "text/html" }
-  }, fetchImpl);
-  if (!response.ok) {
-    if (response.body) await response.body.cancel();
-    return [];
-  }
-  const reader = response.body?.getReader();
-  if (!reader) return [];
-  const chunks = [];
-  let total = 0;
-  try {
-    while (total < MAX_HTML_BYTES) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      const part = value.subarray(0, MAX_HTML_BYTES - total);
-      chunks.push(part);
-      total += part.length;
-      if (part.length !== value.length) break;
-    }
-  } finally { await reader.cancel().catch(() => {}); }
-  const html = new TextDecoder().decode(concatBytes(chunks, total));
+  const configuredPages = Number.isInteger(pagination?.max_pages) ? pagination.max_pages : 1;
+  const maxPages = Math.max(1, Math.min(3, configuredPages));
+  const configuredPerPage = Number.isInteger(pagination?.max_articles_per_page)
+    ? pagination.max_articles_per_page : 3;
+  const maxArticlesPerPage = Math.max(1, Math.min(3, configuredPerPage));
+  const queryParameter = typeof pagination?.query_parameter === "string" &&
+    /^[a-z][a-z0-9_]{0,31}$/i.test(pagination.query_parameter)
+    ? pagination.query_parameter : null;
+  const pagesToRead = queryParameter ? maxPages : 1;
   const found = [];
   const seen = new Set();
-  const anchors = /<a\b[^>]*href\s*=\s*["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi;
+  const anchors = /<a\\b[^>]*href\\s*=\\s*["']([^"']+)["'][^>]*>([\\s\\S]*?)<\\/a>/gi;
   const resultTitle = /(?:licensure|special|qualifying|civil service|career service|examination|exam).{0,100}(?:results?|passers?)|(?:results?|passers?).{0,100}(?:licensure|special|qualifying|civil service|career service|examination|exam)/i;
-  let match;
-  while ((match = anchors.exec(html)) && found.length < 3) {
-    const label = match[2].replace(/<[^>]*>/g, " ").replace(/&nbsp;|&#160;/gi, " ").replace(/&amp;/gi, "&").replace(/\s+/g, " ").trim();
-    if (!resultTitle.test(label)) continue;
+
+  for (let pageIndex = 0; pageIndex < pagesToRead; pageIndex += 1) {
+    const listingUrl = new URL(page.href);
+    if (pageIndex > 0) listingUrl.searchParams.set(queryParameter, String(pageIndex));
+    const { response, finalUrl } = await fetchSameOrigin(listingUrl.href, {
+      method: "GET", headers: { "User-Agent": USER_AGENT, Accept: "text/html" }
+    }, fetchImpl);
+    if (!response.ok) {
+      if (response.body) await response.body.cancel();
+      if (pageIndex === 0) return found;
+      break;
+    }
+    const reader = response.body?.getReader();
+    if (!reader) break;
+    const chunks = [];
+    let total = 0;
     try {
-      const link = new URL(match[1], finalUrl);
-      if (link.protocol !== "https:" || link.origin !== new URL(finalUrl).origin ||
-          link.username || link.password || link.search || link.hash ||
-          !(link.pathname.startsWith("/article/") || /^\/node\/[0-9]+\/?$/.test(link.pathname))) continue;
-      if (!seen.has(link.href)) {
-        seen.add(link.href);
-        found.push(link.href);
+      while (total < MAX_HTML_BYTES) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        const part = value.subarray(0, MAX_HTML_BYTES - total);
+        chunks.push(part);
+        total += part.length;
+        if (part.length !== value.length) break;
       }
-    } catch { /* Ignore malformed or non-official article links. */ }
+    } finally { await reader.cancel().catch(() => {}); }
+    const html = new TextDecoder().decode(concatBytes(chunks, total));
+    let match;
+    let pageArticleCount = 0;
+    anchors.lastIndex = 0;
+    while ((match = anchors.exec(html)) && pageArticleCount < maxArticlesPerPage) {
+      const label = match[2].replace(/<[^>]*>/g, " ").replace(/&nbsp;|&#160;/gi, " ").replace(/&amp;/gi, "&").replace(/\\s+/g, " ").trim();
+      if (!resultTitle.test(label)) continue;
+      try {
+        const link = new URL(match[1], finalUrl);
+        if (link.protocol !== "https:" || link.origin !== new URL(finalUrl).origin ||
+            link.username || link.password || link.search || link.hash ||
+            !(link.pathname.startsWith("/article/") || /^\\/node\\/[0-9]+\\/?$/.test(link.pathname))) continue;
+        if (!seen.has(link.href)) {
+          seen.add(link.href);
+          found.push(link.href);
+          pageArticleCount += 1;
+        }
+      } catch { /* Ignore malformed or non-official article links. */ }
+    }
   }
   return found;
 }
-
 async function scanApprovedDocuments(source, pageUrl, env, fetchImpl, now, allowArticleDiscovery = true) {
   const sameOriginLinks = await findSameOriginPdfLinks(pageUrl, fetchImpl);
   const driveLinks = await findApprovedGoogleDriveLinks(pageUrl, source, fetchImpl);
@@ -462,10 +479,33 @@ async function scanApprovedDocuments(source, pageUrl, env, fetchImpl, now, allow
   }
   if (allowArticleDiscovery && source.discover_official_result_articles === true) {
     try {
-      const articlePages = await findOfficialResultArticleLinks(pageUrl, fetchImpl);
-      for (const articleUrl of articlePages) {
+      const articlePages = await findOfficialResultArticleLinks(pageUrl, fetchImpl, source.discovery_pagination);
+      let articlesToScan = articlePages;
+      if (source.track_new_articles_only === true) {
+        const snapshotKey = await kvKey("article-snapshot", source.id, source.url);
+        const previousRaw = await env.PEAK_WEEK.get(snapshotKey);
+        let previousArticles = [];
+        try {
+          const parsed = previousRaw === null ? [] : JSON.parse(previousRaw);
+          if (Array.isArray(parsed)) previousArticles = parsed.filter((value) => typeof value === "string");
+        } catch { /* A corrupt snapshot is treated as empty and safely rebuilt. */ }
+        const previousSet = new Set(previousArticles);
+        articlesToScan = articlePages.filter((url) => !previousSet.has(url));
+      }
+      for (const articleUrl of articlesToScan) {
         const articleResults = await scanApprovedDocuments(source, articleUrl, env, fetchImpl, now, false);
         results.push(...articleResults.map((item) => ({ ...item, article_url: articleUrl })));
+      }
+      if (source.track_new_articles_only === true) {
+        const snapshotKey = await kvKey("article-snapshot", source.id, source.url);
+        const previousRaw = await env.PEAK_WEEK.get(snapshotKey);
+        let previousArticles = [];
+        try {
+          const parsed = previousRaw === null ? [] : JSON.parse(previousRaw);
+          if (Array.isArray(parsed)) previousArticles = parsed.filter((value) => typeof value === "string");
+        } catch { /* Rebuild from the currently visible official listing pages. */ }
+        const merged = [...new Set([...previousArticles, ...articlePages])].slice(-500);
+        await env.PEAK_WEEK.put(snapshotKey, JSON.stringify(merged), { expirationTtl: BASELINE_TTL_SECONDS });
       }
     } catch (error) {
       results.push({
@@ -565,6 +605,19 @@ async function checkTarget(target, env, fetchImpl, now, allowPageChange) {
       await env.PEAK_WEEK.put(key, current, { expirationTtl: BASELINE_TTL_SECONDS });
     } catch (error) {
       return { source_id: sourceId, url: target.url, status: "subrequest_budget_reached", error: String(error.message || error).slice(0, 200) };
+    }
+    if (source.track_new_articles_only === true && source.discover_official_result_articles === true && !target.preemptive) {
+      try {
+        const articlePages = await findOfficialResultArticleLinks(target.url, fetchImpl, source.discovery_pagination);
+        const snapshotKey = await kvKey("article-snapshot", source.id, target.url);
+        await env.PEAK_WEEK.put(snapshotKey, JSON.stringify(articlePages), { expirationTtl: BASELINE_TTL_SECONDS });
+        return {
+          source_id: sourceId, url: target.url, status: "baseline_created",
+          discovered_article_count: articlePages.length, historical_articles_skipped: articlePages.length
+        };
+      } catch (error) {
+        return { source_id: sourceId, url: target.url, status: "baseline_created_page_scan_error", error: String(error.message || error).slice(0, 240) };
+      }
     }
     if (source.scan_page_on_baseline === true && !target.preemptive) {
       try {
