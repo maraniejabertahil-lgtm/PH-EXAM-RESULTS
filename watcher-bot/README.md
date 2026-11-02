@@ -9,11 +9,11 @@ This folder implements Phase 1 of the approved Master Technical Blueprint. It is
 - Peak Week Mode is enabled by setting the `PEAK_WEEK` KV key to the text value `true`; the Worker performs two scans 30 seconds apart.
 - Reads the authorized source registry from `python-engine/config/sources.json` on the configured GitHub ref.
 - Checks official sources first for each authority/examination. Verified third-party sources are checked only when configured official sources for that same scope are unavailable; third-party sources are not used when no official source is configured.
-- Checks source URLs using HTTPS `HEAD` requests. A `GET` with a one-byte range is used only when a server rejects `HEAD` with HTTP 405 or 501.
+- Checks source URLs using HTTPS `HEAD` requests. If a server rejects `HEAD` with HTTP 403, 405, or 501, it retries the same approved URL with a bounded `GET` range (bytes 0–1023); redirects remain HTTPS and same-origin only.
 - When a monitored page's HTTP metadata changes, scans the page for same-origin PDF links and checks those links.
 - During Peak Week, expands owner-configured `preemptive_url_templates` for the current and following UTC month. Supported placeholders: `{EXAM}`, `{YYYY}`, `{YY}`, `{MM}`, and `{YYYYMM}`.
-- Dispatches GitHub `repository_dispatch` event type `source-detected` only after a PDF candidate returns a successful HTTP response.
-- Uses KV to remember source metadata and successfully dispatched PDF URLs, preventing repeated dispatches.
+- Dispatches GitHub `repository_dispatch` only after a candidate passes the configured PDF checks. An owner-approved Google Drive ID is not treated as proof of PDF content: the Worker checks the response bytes for a `%PDF-` signature. If Google redirects outside the approved origin, or the response cannot be verified, the candidate is held for manual review and is not dispatched.
+- Uses KV to remember source metadata and successfully dispatched PDF URLs, preventing repeated dispatches. A failed or unverified candidate is not marked as dispatched.
 - Rejects cross-origin redirects and cross-origin PDF links. Those sources require a separately verified/manual route.
 - Counts both outbound HTTP requests and KV operations, then stops at 45 total subrequests per invocation to leave headroom below the Workers Free limit of 50.
 

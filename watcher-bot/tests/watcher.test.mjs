@@ -183,6 +183,11 @@ test("baseline scan dispatches only the two exact owner-approved Google Drive ID
         { status: 200, headers: { "content-type": "text/html" } }
       );
     }
+    if (url.startsWith("https://drive.google.com/uc?export=download&id=")) {
+      return new Response("%PDF-1.7\nverified test PDF", {
+        status: 206, headers: { "content-type": "application/pdf" }
+      });
+    }
     throw new Error("Unexpected external request: " + url);
   });
   const report = await runScheduled({ env: envFor(), fetchImpl, scheduledTime: Date.UTC(2026, 10, 2) });
@@ -193,6 +198,51 @@ test("baseline scan dispatches only the two exact owner-approved Google Drive ID
     ids.slice().sort()
   );
   assert.ok(dispatches.every((item) => item.client_payload.content_type === "application/pdf"));
+});
+
+test("official source HEAD 403 falls back to bounded GET on the same origin", async () => {
+  const source = approvedSource();
+  const methods = [];
+  const { fetchImpl } = githubFetch([source], async (url, init) => {
+    methods.push({ url, method: init.method, range: new Headers(init.headers).get("range") });
+    if (init.method === "HEAD") return new Response(null, { status: 403 });
+    return new Response("<html>Official results page</html>", {
+      status: 200, headers: { "content-type": "text/html" }
+    });
+  });
+  const report = await runScheduled({ env: envFor(), fetchImpl });
+  assert.equal(report.first_check.results[0].status, "baseline_created");
+  assert.deepEqual(methods.map((item) => item.method), ["HEAD", "GET"]);
+  assert.equal(methods[1].range, "bytes=0-1023");
+  assert.equal(methods[1].url, source.url);
+});
+
+test("approved Drive ID returning HTML is not dispatched as a PDF", async () => {
+  const id = "1jQmBLSU2azhFvCgU6l8m6ljXGDmIRa1l";
+  const source = approvedSource({
+    drive_file_ids: [id], scan_page_on_baseline: true,
+    url: "https://csc.example.gov.ph/results"
+  });
+  const { fetchImpl, dispatches } = githubFetch([source], async (url, init) => {
+    if (url === source.url && init.method === "HEAD") {
+      return new Response(null, { status: 200, headers: { etag: '"stable"', "content-type": "text/html" } });
+    }
+    if (url === source.url && init.method === "GET") {
+      return new Response('<a href="https://drive.google.com/file/d/' + id + '/view">PDF</a>', {
+        status: 200, headers: { "content-type": "text/html" }
+      });
+    }
+    if (url.startsWith("https://drive.google.com/uc?")) {
+      return new Response("<html>Access denied</html>", {
+        status: 200, headers: { "content-type": "text/html" }
+      });
+    }
+    throw new Error("Unexpected request: " + url);
+  });
+  const report = await runScheduled({ env: envFor(), fetchImpl });
+  assert.equal(report.first_check.results[0].status, "baseline_created");
+  assert.equal(report.first_check.results[0].pdf_results[0].status, "pdf_verification_failed_manual_review_required");
+  assert.equal(dispatches.length, 0);
 });
 
 test("a PDF URL returning an HTML page is not dispatched", async () => {

@@ -125,10 +125,12 @@ async function requestMetadata(url, fetchImpl) {
     method: "HEAD",
     headers: { "User-Agent": USER_AGENT, Accept: "application/pdf,text/html,*/*" }
   }, fetchImpl);
-  if (result.response.status === 405 || result.response.status === 501) {
+  // Some official sites reject HEAD (403) while allowing an ordinary bounded GET.
+  // Retry only the approved URL, with a small byte range and the same-origin redirect guard.
+  if ([403, 405, 501].includes(result.response.status)) {
     result = await fetchSameOrigin(url, {
       method: "GET",
-      headers: { "User-Agent": USER_AGENT, Range: "bytes=0-0", Accept: "application/pdf,text/html,*/*" }
+      headers: { "User-Agent": USER_AGENT, Range: "bytes=0-1023", Accept: "application/pdf,text/html,*/*" }
     }, fetchImpl);
     if (result.response.body) await result.response.body.cancel();
   }
@@ -236,6 +238,40 @@ async function findApprovedGoogleDriveLinks(pageUrl, source, fetchImpl) {
   }));
 }
 
+async function verifyPdfCandidate(url, fetchImpl) {
+  const { response } = await fetchSameOrigin(url, {
+    method: "GET",
+    headers: {
+      "User-Agent": USER_AGENT,
+      Range: "bytes=0-1023",
+      Accept: "application/pdf,application/octet-stream,*/*"
+    }
+  }, fetchImpl);
+  if (![200, 206].includes(response.status)) {
+    if (response.body) await response.body.cancel();
+    return false;
+  }
+  const reader = response.body?.getReader();
+  if (!reader) return false;
+  const chunks = [];
+  let total = 0;
+  try {
+    while (total < 1024) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      const part = value.subarray(0, 1024 - total);
+      chunks.push(part);
+      total += part.length;
+      if (part.length !== value.length) break;
+    }
+  } finally {
+    await reader.cancel().catch(() => {});
+  }
+  const prefix = concatBytes(chunks, total);
+  const signature = new TextDecoder("latin1").decode(prefix);
+  return signature.includes("%PDF-");
+}
+
 async function scanApprovedDocuments(source, pageUrl, env, fetchImpl, now) {
   const sameOriginLinks = await findSameOriginPdfLinks(pageUrl, fetchImpl);
   const driveLinks = await findApprovedGoogleDriveLinks(pageUrl, source, fetchImpl);
@@ -253,12 +289,20 @@ async function scanApprovedDocuments(source, pageUrl, env, fetchImpl, now) {
   }
   for (const item of driveLinks) {
     try {
+      // An approved Drive ID is not proof that the response is a PDF.
+      // Keep Drive redirects constrained to the approved origin; if Google redirects
+      // elsewhere, require manual review rather than trusting a synthetic 200/PDF header.
+      const verified = await verifyPdfCandidate(item.url, fetchImpl);
+      if (!verified) {
+        results.push({ drive_file_id: item.id, status: "pdf_verification_failed_manual_review_required" });
+        continue;
+      }
       const dispatched = await dispatchDetectedPdf(env, source, item.url, {
-        status: 200, contentType: "application/pdf", preemptive: false, driveFileId: item.id
+        status: 206, contentType: "application/pdf", preemptive: false, driveFileId: item.id
       }, fetchImpl, now);
       results.push({ url: item.url, drive_file_id: item.id, status: dispatched.status });
     } catch (error) {
-      results.push({ drive_file_id: item.id, status: "dispatch_error", error: String(error.message || error).slice(0, 160) });
+      results.push({ drive_file_id: item.id, status: "pdf_verification_error_manual_review_required", error: String(error.message || error).slice(0, 160) });
     }
   }
   return results;
