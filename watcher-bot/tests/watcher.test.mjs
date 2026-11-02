@@ -695,7 +695,8 @@ test("opt-in PRC listing discovery scans only same-origin result articles and ve
   assert.equal(dispatches.length, 1);
   assert.equal(dispatches[0].client_payload.authority, "PRC");
   assert.equal(dispatches[0].client_payload.detection_method, "official_page_drive_link");
-  assert.equal(dispatches[0].client_payload.source_page_url, articleUrl);
+  assert.equal(dispatches[0].client_payload.source_page_url, listingUrl);
+  assert.equal(dispatches[0].client_payload.source_article_url, articleUrl);
   assert.equal(dispatches[0].client_payload.detected_url,
     "https://drive.google.com/uc?export=download&id=" + discoveredId);
 });
