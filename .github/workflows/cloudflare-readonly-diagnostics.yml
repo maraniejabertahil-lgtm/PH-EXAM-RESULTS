@@ -106,3 +106,5 @@ jobs:
 # Read-only diagnostic refresh: test the canonical CSC hostname.
 
 # Read-only diagnostic refresh: verify PRC baseline and preserved CSC pause after registry merge.
+
+# Read-only diagnostic refresh: verify PRC article discovery is enabled without baseline dispatch.
