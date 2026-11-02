@@ -9,6 +9,8 @@ on:
       - ".github/workflows/process-import.yml"
       - ".github/workflows/watcher-ci.yml"
       - "python-engine/config/sources.json"
+      - "python-engine/retrieval/**"
+      - "python-engine/tests/**"
   pull_request:
     branches:
       - main
@@ -17,6 +19,8 @@ on:
       - ".github/workflows/process-import.yml"
       - ".github/workflows/watcher-ci.yml"
       - "python-engine/config/sources.json"
+      - "python-engine/retrieval/**"
+      - "python-engine/tests/**"
   workflow_dispatch:
 
 permissions:
@@ -37,3 +41,10 @@ jobs:
       - name: Run Watcher automated tests
         working-directory: watcher-bot
         run: npm test
+      - name: Set up Python for public PDF retrieval tests
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Run approved Drive retrieval unit tests
+        working-directory: python-engine
+        run: PYTHONPATH=retrieval python -m unittest discover -s tests -v
