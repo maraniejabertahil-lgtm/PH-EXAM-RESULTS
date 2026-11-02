@@ -133,6 +133,17 @@ async function requestMetadata(url, fetchImpl) {
       headers: { "User-Agent": USER_AGENT, Range: "bytes=0-1023", Accept: "application/pdf,text/html,*/*" }
     }, fetchImpl);
     if (result.response.body) await result.response.body.cancel();
+
+    // Some official sites reject both HEAD and Range requests but allow a normal GET.
+    // Retry without Range, then cancel the body immediately; page/PDF bytes are read only
+    // by the existing bounded scanners after the metadata check succeeds.
+    if ([403, 405, 501].includes(result.response.status)) {
+      result = await fetchSameOrigin(url, {
+        method: "GET",
+        headers: { "User-Agent": USER_AGENT, Accept: "application/pdf,text/html,*/*" }
+      }, fetchImpl);
+      if (result.response.body) await result.response.body.cancel();
+    }
   }
   const response = result.response;
   return {
