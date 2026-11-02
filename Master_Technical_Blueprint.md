@@ -1,0 +1,305 @@
+MASTER TECHNICAL BLUEPRINT
+
+PH-EXAM-RESULTS
+Python-First, Free-Only, High-Concurrency Architecture
+
+Document purpose: Final approved architecture blueprint for the PH-EXAM-RESULTS platform, incorporating the Split Watcher/Worker Architecture and Greenlight Protocol.
+
+⸻
+
+PART 1 — PROJECT OBJECTIVES AND NON-NEGOTIABLE RULES
+
+1.1 Main Objective
+
+Build a reliable, automated examination results platform for the Philippine Regulatory Commission (PRC) and Civil Service Commission (CSC).
+
+The platform must:
+
+1. Monitor authorized official examination-result sources (and verified third-party websites if official sources are unavailable or unreachable).
+2. Acquire available official result documents or datasets.
+3. Process and extract examination information using Python.
+4. Validate extracted information before publication.
+5. Detect duplicates and prevent incorrect records.
+6. Maintain examination monitoring and historical release information.
+7. Prepare and publish verified examination results.
+8. Allow visitors to search by authority, examination, year, and name.
+9. Support 30,000–59,000 simultaneous visitors through a static-first architecture.
+10. Provide an owner control system (via GitOps) for monitoring automation and controlling publication.
+11. Preserve previous working results if processing or publication fails.
+
+1.2 Non-Negotiable Architecture Rules
+
+• Use free services only. Do not introduce a paid subscription, server, API, database, or automation platform.
+• Python must be the primary processing language.
+• Do not require a Cloudflare Worker or backend server for public searching.
+• Do not expose database credentials, API tokens, or private records to the browser.
+• Do not publish unverified examination results.
+• Preserve the locked public page designs (Searching and Preparing pages).
+• Every important process must have logging, validation, error handling, and recovery procedures.
+
+⸻
+
+PART 2 — TECHNOLOGY STACK AND RESPONSIBILITIES
+
+|Technology                  |Primary Responsibility                                                                                      |
+|:---------------------------|:-----------------------------------------------------------------------------------------------------------|
+|**Cloudflare Workers (JS)** |“The Watcher”: 24/7 high-speed 30-second monitoring and preemptive URL guessing (Uses 0 GitHub minutes).    |
+|**Python**                  |Main automation, processing, extraction (PDF/CSV), validation, and dataset generation.                      |
+|**GitHub Actions**          |“The Worker”: Triggered by the Watcher via Webhook. Executes heavy Python extraction and deployments.       |
+|**GitHub (GitOps)**         |Source-code management, Pull Request-based approval workflow, version history.                              |
+|**Cloudflare Pages**        |Public website hosting, static asset delivery, and JSON dataset distribution.                               |
+|**Cloudflare D1 / KV**      |Internal operational database (metadata, batch statuses) accessed via REST API. KV used for Peak Week flags.|
+|**HTML/CSS**                |Website structure, visual design, and responsive layouts.                                                   |
+|**JavaScript (Web Workers)**|Browser-side search, filtering, IndexedDB caching, and UI state management.                                 |
+|**JSON**                    |Highly optimized, array-of-arrays public search-data format.                                                |
+
+⸻
+
+PART 3 — COMPLETE SYSTEM ARCHITECTURE
+
+[ OFFICIAL PRC/CSC SOURCES & VERIFIED THIRD PARTIES / MIRRORS ]
+           ↓
+[ CLOUDFLARE WORKER (The Watcher) ] ── Runs 1-min cron (30-sec loop in Peak Week)
+           ↓ (If new PDF / 200 OK detected)
+[ WEBHOOK (repository_dispatch) ]
+           ↓
+[ GITHUB ACTIONS (The Worker) ] ── Wakes up Python Engine
+           ↓
+[ PYTHON ENGINE ] 
+ ├─ 1. Acquire: Downloads PDFs/CSVs.
+ ├─ 2. Extract: Parses data (pdfplumber/pandas).
+ ├─ 3. Validate (Greenlight Protocol): Calculates Confidence Score.
+ ├─ 4. Store Metadata: Writes run status to CF D1 (via REST API).
+ └─ 5. Propose: Generates JSON datasets and opens a GitHub Pull Request.
+           ↓
+[ PUBLICATION LOGIC ]
+ ├─ IF Score == 100%: Python AUTO-MERGES the PR. 
+ └─ IF Score < 100%: Aborts auto-merge. Sends alert to Owner for manual PR review.
+           ↓
+[ CLOUDFLARE PAGES (Edge Network) ]
+ ├─ Hosts HTML, JS, CSS, and static JSON datasets globally.
+ └─ Python automatically blasts Facebook/Telegram API: "Results are Live!"
+           ↓
+[ VISITOR BROWSER ]
+ └─ Downloads UI -> Fetches specific JSON -> JS Web Worker searches locally.
+
+⸻
+
+PART 4 — PYTHON ENGINE: INTERNAL MODULE ARCHITECTURE
+
+python-engine/
+│
+├── requirements.txt
+├── main.py                 # CLI entry point (process, publish)
+│
+├── extractor/              # File parsing and data extraction
+│   ├── pdf_parser.py       # High-accuracy PDF extraction (e.g., pdfplumber)
+│   └── text_cleaner.py     # OCR fallback and text sanitization
+│
+├── processor/              # Data normalization and validation
+│   ├── normalizer.py       # Name, date, and exam standardization
+│   ├── duplicates.py       # Fuzzy and exact duplicate detection
+│   └── validator.py        # GREENLIGHT PROTOCOL: Confidence Scoring
+│
+├── database/               # State management and history
+│   └── d1_client.py        # Cloudflare D1 REST API client
+│
+└── publisher/              # Dataset generation for deployment
+    ├── json_builder.py     # Compiles array-of-arrays JSON chunks
+    ├── manifest.py         # Generates manifest.json with hashes
+    ├── broadcaster.py      # Triggers Facebook/Telegram API updates
+    └── gitops_manager.py   # Handles PR creation and Auto-Merge logic
+
+⸻
+
+PART 5 — AUTOMATION AND GITOPS APPROVAL WORKFLOW
+
+5.1 The Greenlight Protocol (Conditional Auto-Publish)
+
+To beat competitors, Python must grade its own extraction. During the processor/validator.py step, Python calculates a Confidence Score. To score 100%, the batch MUST meet ALL the following criteria:
+
+1. Count Match: Total extracted names perfectly match the announced number of passers.
+2. Zero Blanks: No records have empty name fields.
+3. Zero Duplicates: No exact duplicate names or sequence numbers.
+4. Zero Anomalies: No unexpected alien characters or unparseable symbols.
+
+5.2 The GitOps Approval Flow
+
+1. Python successfully parses a new batch of results.
+2. Python commits the JSON datasets to a new branch and opens a Pull Request.
+3. IF Score == 100%: Python uses the GITHUB_TOKEN to automatically merge the Pull Request it just created. Cloudflare Pages begins deployment instantly. (Zero human intervention).
+4. IF Score < 100%: Auto-merge is aborted. The PR remains open. The system sends an urgent alert (via Telegram/Email) to the Owner stating: “Extraction Confidence [X]%. Manual PR Review Required.”
+
+⸻
+
+PART 6 — INTERNAL DATABASE DESIGN (CLOUDFLARE D1 & KV)
+
+• Cloudflare KV: Stores a simple boolean { "PEAK_WEEK": true } so the Cloudflare Worker can check its mode in 1 millisecond.
+• Cloudflare D1: monitoring_logs, import_batches, and release_predictions.
+• D1 is strictly accessed via Cloudflare REST API. No direct SQL drivers inside GitHub Actions. No database queries from the public frontend.
+
+⸻
+
+PART 7 — PUBLIC DATASET AND SEARCH ARCHITECTURE
+
+7.1 Array-of-Arrays JSON Format
+
+Datasets will use an Array of Arrays format to drastically reduce file sizes.
+
+{
+  "columns": ["name", "rating", "region", "seq"],
+  "data": [
+    ["DELA CRUZ, JUAN A", 85.5, "NCR", 145],
+    ["SANTOS, MARIA B", 88.0, "REGION III", 146]
+  ]
+}
+
+7.2 Dataset Sharding & Manifest
+
+• Datasets are split by Authority → Exam → Year.
+• If a JSON file exceeds 10MB (e.g., PRC LET), Python shards it alphabetically (2026-A-M.json, 2026-N-Z.json).
+• manifest.json acts as the router, providing cache-busting hashes to the frontend.
+
+⸻
+
+PART 8 — HIGH-CONCURRENCY DESIGN
+
+Target: 30,000–59,000 simultaneous visitors.
+
+1. Zero Backend Queries: The search bar does not send HTTP requests.
+2. IndexedDB Caching: Downloaded JSON datasets are stored in the browser’s IndexedDB. Subsequent searches load instantly from local storage.
+3. Web Worker Offloading: Searching an array of 50,000+ strings runs inside a JavaScript Web Worker (search.js), ensuring the phone’s UI does not freeze.
+
+⸻
+
+PART 9 — PREPARING PAGE & PREEMPTIVE STRIKE (PEAK WEEK)
+
+9.1 Peak Week Mode Logic
+
+• Activation: Starts exactly 7 days before the D1 historically predicted release date (or manually triggered by the Owner).
+• Deactivation: Ends 2 days after the results are actually published. Rule: Peak Week only stops if the results really arrive and are caught.
+• UI Change: The website reads a generated status.json and changes the UI to the “Preparing Mode” screen (navy/teal palette).
+
+9.2 The Preemptive Strike
+
+During Peak Week, the Cloudflare Worker does not just watch the official homepage. It actively guesses future PDF URLs using lightweight HEAD requests (e.g., csc.gov.ph/CSE_082026_passers.pdf). If it gets a 200 OK before the official announcement, it triggers the extraction immediately.
+
+⸻
+
+PART 10 — OWNER CONTROL CENTER
+
+• Approvals: Messy data falls back to GitHub Pull Requests. Owner reviews the Validation Report in the PR description and clicks “Merge”.
+• Overrides (Manual Drop): If the scraper is completely blocked, the Owner can manually drag and drop a PDF into the /manual-drop/ folder in GitHub. This instantly triggers the extraction workflow.
+
+⸻
+
+PART 11 — WATCHER & WORKER AUTOMATION DESIGN
+
+We abandon GitHub Actions for monitoring. It is replaced by Cloudflare Workers.
+
+11.1 The Watcher (Cloudflare Worker)
+
+• Trigger: 1-minute cron (* * * * *).
+• Standard Mode: Fetches the site once, terminates.
+• Peak Week Mode: Fetches the site & guesses preemptive URLs. Waits 30 seconds (await new Promise(r => setTimeout(r, 30000))). Fetches again.
+• Webhook: Upon detecting a change or a 200 OK, it sends a repository_dispatch webhook to GitHub containing the direct PDF URL.
+
+11.2 The Worker (GitHub Actions)
+
+• .github/workflows/process-import.yml: Triggered by repository_dispatch (from Worker) or push (to /manual-drop/).
+• .github/workflows/deploy-pages.yml: Triggered by PR merge to main. Deploys the site.
+
+⸻
+
+PART 12 — PUBLICATION AND RECOVERY SAFETY
+
+• Safe Deployment: Merging the PR (whether Auto or Manual) ensures only validated JSON enters the main branch.
+• Rollback: If a published dataset contains errors, the Owner clicks “Revert” on the problematic Merge Commit in GitHub. Cloudflare Pages automatically redeploys the previous working state within 3 minutes.
+
+⸻
+
+PART 13 — SECURITY REQUIREMENTS
+
+1. No Frontend Secrets: API keys and internal database IDs must NEVER exist in public code.
+2. Cloudflare Worker Secrets: The GitHub PAT used by the Worker to fire the webhook must be stored securely using wrangler secret.
+3. GitHub Secrets: All credentials (CF_API_TOKEN) are stored in GitHub Actions Secrets.
+4. Read-Only Public Site: The Cloudflare Pages site has zero mechanism to write data.
+
+⸻
+
+PART 14 — FREE SERVICE LIMITS AND ARCHITECTURAL CONSEQUENCES
+
+|Service               |Free Limit      |Architectural Protection                                                        |
+|:---------------------|:---------------|:-------------------------------------------------------------------------------|
+|**Cloudflare Workers**|100,000 reqs/day|1-min cron doing 2 checks = 2,880 requests/day. Safely uses < 3% of free tier.  |
+|**Cloudflare Pages**  |500 builds/mo.  |Batch processing via PRs keeps usage well below 500.                            |
+|**GitHub Actions**    |2,000 mins/mo.  |Removed monitoring duty from GitHub. Used strictly for fast data extraction.    |
+|**Cloudflare D1**     |500 MB storage. |Passer datasets stored as JSON in repo/Pages; D1 strictly reserved for metadata.|
+
+⸻
+
+PART 15 — FINAL REPOSITORY STRUCTURE
+
+PH-EXAM-RESULTS/
+│
+├── public/                 # Cloudflare Pages Root
+│   ├── index.html          
+│   ├── preparing.html      
+│   ├── _headers            
+│   ├── assets/js/
+│   │   ├── search.js       # JS Web Worker (UI Thread Protection)
+│   │   ├── storage.js      # IndexedDB management
+│   │   └── loader.js       
+│   └── data/               # Static JSON Output
+│
+├── watcher-bot/            # The Cloudflare Worker (JS)
+│   ├── src/index.js        # 30-sec loop, Preemptive strike, Webhook logic
+│   └── wrangler.toml       # CF config and 1-min cron trigger
+│
+├── python-engine/          # The Python App Structure (From Part 4)
+│   ├── requirements.txt
+│   ├── extractor/
+│   ├── processor/
+│   └── publisher/
+│
+├── manual-drop/            # Manual override folder for dragged-and-dropped PDFs
+│
+├── .github/workflows/      
+│   ├── process-import.yml  
+│   └── deploy-pages.yml    
+│
+└── docs/
+
+⸻
+
+PART 16 — IMPLEMENTATION ROADMAP
+
+1. Phase 1: The Watcher - Build watcher-bot/. Test the 30-sec loop, Peak Week KV check, Preemptive HEAD requests, and Webhook dispatch to GitHub.
+2. Phase 2: The Extractor & Greenlight - Build Python logic. Must successfully grade messy vs clean PDFs. Build the GitOps PR creation and Auto-Merge logic.
+3. Phase 3: Automated Broadcasting - Connect Python to Facebook Graph API and Telegram Bot API.
+4. Phase 4: Frontend Web Worker Search - Build UI, IndexedDB caching, and Web Worker search processing Array-of-Arrays JSON.
+5. Phase 5: End-to-End Simulation - Drop a dummy PDF on a target URL. Verify Worker detects it in <30s, wakes Python, auto-grades 100%, auto-merges, broadcasts, and deploys.
+
+⸻
+
+PART 17 — REQUIRED TESTING AND ACCEPTANCE CRITERIA
+
+• Extraction Safety: The Greenlight Protocol MUST fail on a test PDF missing sequence numbers. Auto-publish must abort.
+• Performance: 50,000-record dataset searchable in browser without dropping UI frames.
+• Preemptive Test: Worker successfully identifies a PDF via HEAD request before the HTML page updates.
+
+⸻
+
+PART 18 — RISKS AND HONEST LIMITATIONS
+
+1. File Type Variations: If PRC switches from PDF to embedded images, the Watcher will catch it, but Python extraction will fail the Greenlight check. Manual review required.
+2. Anti-Scraping Captchas: If the government puts the PDF behind a Cloudflare Turnstile CAPTCHA, the Worker cannot bypass it. The Owner must use the /manual-drop/ folder.
+
+⸻
+
+PART 19 — GOVERNING PRINCIPLES
+
+1. Python does the heavy lifting; the Browser does the searching.
+2. The Worker watches; GitHub processes.
+3. Zero human intervention for clean data (Greenlight Protocol); strictly manual intervention for messy data.
+4. No servers, no live database queries on the public route. Strictly $0.
