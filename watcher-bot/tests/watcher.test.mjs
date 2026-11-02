@@ -288,7 +288,7 @@ test("same-origin PDF links require a real PDF byte signature", async () => {
   const source = approvedSource();
   const env = envFor();
   const { createHash } = await import("node:crypto");
-  const hex = createHash("sha256").update(`${source.id}\\n${source.url}`).digest("hex");
+  const hex = createHash("sha256").update(`${source.id}\n${source.url}`).digest("hex");
   await env.PEAK_WEEK.put(
     `baseline:${hex}`,
     JSON.stringify({ status: 200, contentType: "text/html", etag: '"v1"', lastModified: "", contentLength: "" })
