@@ -81,15 +81,30 @@ jobs:
               query = parse_qs(detected.query, keep_blank_values=True)
               allowed_ids = source.get("drive_file_ids", [])
               file_ids = query.get("id", [])
+              exact_approved_id = (
+                  isinstance(allowed_ids, list) and file_ids[0] in allowed_ids
+                  if len(file_ids) == 1 else False
+              )
+              linked_from_approved_page = (
+                  source.get("allow_linked_drive_documents") is True
+                  and payload.get("detection_method") == "official_page_drive_link"
+                  and payload.get("source_page_url") == source.get("url")
+                  and isinstance(payload.get("source_page_url"), str)
+                  and urlsplit(payload["source_page_url"]).scheme == "https"
+                  and urlsplit(payload["source_page_url"]).hostname
+                  and urlsplit(payload["source_page_url"]).username is None
+                  and urlsplit(payload["source_page_url"]).password is None
+                  and re.fullmatch(r"[A-Za-z0-9_-]{10,200}", file_ids[0])
+                  if len(file_ids) == 1 else False
+              )
               if (
                   detected.path != "/uc"
                   or query.get("export") != ["download"]
                   or len(file_ids) != 1
-                  or not isinstance(allowed_ids, list)
-                  or file_ids[0] not in allowed_ids
                   or detected.port not in (None, 443)
+                  or not (exact_approved_id or linked_from_approved_page)
               ):
-                  raise SystemExit("Rejected: Google Drive URL is not an exact owner-approved file ID.")
+                  raise SystemExit("Rejected: Google Drive URL is neither an exact owner-approved ID nor a verified official-page discovery event.")
           else:
               approved = urlsplit(source.get("url", ""))
               def origin(parts):
