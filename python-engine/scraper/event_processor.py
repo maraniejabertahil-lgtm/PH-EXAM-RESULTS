@@ -106,8 +106,12 @@ def process_detected_pdf(payload: dict, registry_path: str | Path, output_path: 
         pdf_path.unlink(missing_ok=True)
         raise
 
+    has_text = len(lines) > 0
     report = {
-        "status": "text_extracted_manual_review_required",
+        "status": (
+            "text_extracted_manual_review_required"
+            if has_text else "pdf_acquired_no_text_manual_visual_review_required"
+        ),
         "source_id": source["id"],
         "authority": source["authority"],
         "exam": source["exam"],
@@ -117,9 +121,14 @@ def process_detected_pdf(payload: dict, registry_path: str | Path, output_path: 
         "source_file_size_bytes": acquisition["size_bytes"],
         "extracted_line_count": len(lines),
         "manual_review_required": True,
+        "visual_pdf_review_required": not has_text,
         "notice": (
-            "PDF text extraction is not passer-record extraction. "
+            "PDF text was extracted, but this is not passer-record extraction. "
             "No names were normalized, validated, deduplicated, or published."
+            if has_text else
+            "The PDF was acquired and passed its signature check, but no selectable text was extracted. "
+            "It may be scanned or image-based and requires visual review of the retained original PDF. "
+            "No OCR, passer-record extraction, or publication was performed."
         ),
         "lines": lines,
     }
