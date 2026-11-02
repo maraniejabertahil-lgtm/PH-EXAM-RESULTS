@@ -80,7 +80,7 @@ jobs:
             code="$(curl -L -sS -A 'Mozilla/5.0 (compatible; PH-EXAM-RESULTS-Diagnostics/1.0)' -o /tmp/csc-page.html -w '%{http_code}' "$url")"
             echo "CSC page GET: $url -> HTTP $code"
             if [ "$code" = "200" ]; then
-              grep -Eo 'https://drive\\.google\\.com/file/d/[A-Za-z0-9_-]+' /tmp/csc-page.html | sort -u | head -10 || true
+              grep -Eo 'https://drive\.google\.com/file/d/[A-Za-z0-9_-]+' /tmp/csc-page.html | sort -u | head -10 || true
             fi
           done
       - name: Test optional public Reader proxy for CSC page
@@ -90,7 +90,7 @@ jobs:
           code="$(curl -L -sS -o /tmp/csc-reader.txt -w '%{http_code}' "$url")"
           echo "Reader proxy response: HTTP $code"
           if [ "$code" = "200" ]; then
-            grep -Eo 'https://drive\\.google\\.com/file/d/[A-Za-z0-9_-]+' /tmp/csc-reader.txt | sort -u | head -10 || true
+            grep -Eo 'https://drive\.google\.com/file/d/[A-Za-z0-9_-]+' /tmp/csc-reader.txt | sort -u | head -10 || true
             grep -Ei 'RESULTS ARE OUT|List of Passers|Civil Service Examination' /tmp/csc-reader.txt | head -5 || true
           fi
       - name: Test fresh browser-mode Reader retrieval
@@ -100,7 +100,7 @@ jobs:
           code="$(curl -L -sS -H 'X-No-Cache: true' -H 'X-Engine: browser' -H 'X-Respond-With: html' -o /tmp/csc-reader-fresh.html -w '%{http_code}' "$url")"
           echo "Fresh browser Reader response: HTTP $code"
           if [ "$code" = "200" ]; then
-            grep -Eio 'https://drive\\.google\\.com/file/d/[A-Za-z0-9_-]+' /tmp/csc-reader-fresh.html | sort -u | head -10 || true
+            grep -Eio 'https://drive\.google\.com/file/d/[A-Za-z0-9_-]+' /tmp/csc-reader-fresh.html | sort -u | head -10 || true
             grep -Ei -A2 -B2 'Professional:|SubProfessional:|Regional List of Passers|RESULTS ARE OUT' /tmp/csc-reader-fresh.html | head -30 || true
           fi
       - name: Run Peak Week simulation tests
