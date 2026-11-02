@@ -13,7 +13,13 @@
       "enabled": true,
       "announcement_url": "https://www.prc.gov.ph/article/march-2026-licensure-examination-professional-teachers-results-released-thirty-nine-39",
       "drive_file_id": "1kY0CTSuwdxDwnf1UEvWe27HDEXU3rolE",
-      "expected_passers": 18376
+      "expected_passers": 18376,
+      "url": "https://www.prc.gov.ph/article/march-2026-licensure-examination-professional-teachers-results-released-thirty-nine-39",
+      "drive_file_ids": [
+        "1kY0CTSuwdxDwnf1UEvWe27HDEXU3rolE"
+      ],
+      "scan_page_on_baseline": true,
+      "direct_drive_fallback": true
     },
     {
       "id": "PRC-LEPT-2026-03-SECONDARY",
@@ -27,7 +33,13 @@
       "enabled": true,
       "announcement_url": "https://www.prc.gov.ph/article/march-2026-licensure-examination-professional-teachers-results-released-thirty-nine-39",
       "drive_file_id": "1RFuFGN4D1T3hkGC-iib9pRmJP1vJiJJ7",
-      "expected_passers": 45001
+      "expected_passers": 45001,
+      "url": "https://www.prc.gov.ph/article/march-2026-licensure-examination-professional-teachers-results-released-thirty-nine-39",
+      "drive_file_ids": [
+        "1RFuFGN4D1T3hkGC-iib9pRmJP1vJiJJ7"
+      ],
+      "scan_page_on_baseline": true,
+      "direct_drive_fallback": true
     },
     {
       "id": "PRC-NLE-2026-02",
@@ -39,7 +51,13 @@
       "enabled": true,
       "announcement_url": "https://www.prc.gov.ph/article/february-2026-nurses-licensure-examination-results-released-five-5-working-days",
       "drive_file_id": "1pyanD6eierylQeohhy2wm4HBWCfuSYX6",
-      "expected_passers": 3611
+      "expected_passers": 3611,
+      "url": "https://www.prc.gov.ph/article/february-2026-nurses-licensure-examination-results-released-five-5-working-days",
+      "drive_file_ids": [
+        "1pyanD6eierylQeohhy2wm4HBWCfuSYX6"
+      ],
+      "scan_page_on_baseline": true,
+      "direct_drive_fallback": true
     }
   ]
 }
