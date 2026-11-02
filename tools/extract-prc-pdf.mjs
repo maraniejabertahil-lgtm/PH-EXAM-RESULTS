@@ -17,7 +17,7 @@ const DRIVE_HOSTS = new Set(["drive.google.com", "drive.usercontent.google.com"]
 
 export function validateDriveUrl(url, fileId) {
   if (url.protocol !== "https:" || !DRIVE_HOSTS.has(url.hostname.toLowerCase()) ||
-      url.username || url.password || !["/uc", "/download"].includes(url.pathname) ||
+      url.username || url.password || url.port || !["/uc", "/download"].includes(url.pathname) ||
       url.searchParams.get("id") !== fileId) {
     fail("Blocked Google Drive redirect: expected an approved HTTPS download URL with the exact file ID.");
   }
