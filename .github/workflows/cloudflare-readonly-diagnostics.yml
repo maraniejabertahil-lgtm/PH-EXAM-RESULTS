@@ -92,3 +92,5 @@ jobs:
           fi
 
 # Read-only diagnostic refresh: verify the live Watcher after source registry updates.
+
+# Read-only diagnostic refresh: test the canonical CSC hostname.
