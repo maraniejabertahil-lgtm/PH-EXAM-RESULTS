@@ -202,7 +202,7 @@ async function findSameOriginPdfLinks(pageUrl, fetchImpl) {
 async function findApprovedGoogleDriveLinks(pageUrl, source, fetchImpl) {
   const allowed = new Set(Array.isArray(source.drive_file_ids) ? source.drive_file_ids : []);
   const discoverOfficialPageDriveLinks = source.allow_linked_drive_documents === true;
-  if (allowed.size === 0) return [];
+  if (allowed.size === 0 && !discoverOfficialPageDriveLinks) return [];
   const page = validateHttpsUrl(pageUrl);
   const { response, finalUrl } = await fetchSameOrigin(page.href, {
     method: "GET", headers: { "User-Agent": USER_AGENT, Accept: "text/html" }
