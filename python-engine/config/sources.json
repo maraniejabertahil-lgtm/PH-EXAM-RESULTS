@@ -32,9 +32,18 @@
       "url": "https://www.prc.gov.ph/",
       "direct_drive_fallback": false,
       "drive_file_ids": [],
-      "allow_linked_drive_documents": false,
+      "allow_linked_drive_documents": true,
       "scan_page_on_baseline": false,
-      "preemptive_url_templates": []
+      "preemptive_url_templates": [],
+      "file_format": "pdf",
+      "auto_acquire": false,
+      "discover_official_result_articles": true,
+      "drive_link_text_patterns": [
+        "list of successful examinees"
+      ],
+      "robots_policy_verified": true,
+      "robots_policy_url": "https://www.prc.gov.ph/robots.txt",
+      "robots_policy_checked_at": "2026-11-03"
     }
   ]
 }
