@@ -69,6 +69,20 @@ class DetectedSourceProcessorTests(unittest.TestCase):
         self.assertEqual(report["status"], "text_extracted_manual_review_required")
         self.assertEqual(report["lines"], ["CSC result"])
 
+    def test_acquired_pdf_without_selectable_text_requires_visual_review(self):
+        def fake_download(source, destination):
+            Path(destination).write_bytes(b"%PDF-1.7 scanned image")
+            return {"sha256": "c" * 64, "size_bytes": 20}
+        with patch("scraper.event_processor.download_approved_file", side_effect=fake_download):
+            with patch("scraper.event_processor.extract_pdf_lines", return_value=[]):
+                report = process_detected_pdf(self.payload, self.registry, self.root / "scanned-review.json")
+        self.assertEqual(
+            report["status"], "pdf_acquired_no_text_manual_visual_review_required"
+        )
+        self.assertTrue(report["visual_pdf_review_required"])
+        self.assertTrue((self.root / "scanned-review.pdf").exists())
+        self.assertEqual(report["extracted_line_count"], 0)
+
     def test_rejects_unapproved_google_drive_file_id(self):
         self.source["drive_file_ids"] = ["approved-file-id-123456"]
         self.registry.write_text(json.dumps({"schema_version": 1, "sources": [self.source]}))
