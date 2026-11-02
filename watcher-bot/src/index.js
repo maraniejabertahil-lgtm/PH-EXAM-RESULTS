@@ -452,7 +452,8 @@ async function scanApprovedDocuments(source, pageUrl, env, fetchImpl, now, allow
       const dispatched = await dispatchDetectedPdf(env, source, item.url, {
         status: 206, contentType: "application/pdf", preemptive: false, driveFileId: item.id,
         officialPageDriveLink: item.discovered === true,
-        sourcePageUrl: item.discovered === true ? item.sourcePageUrl : null
+        sourcePageUrl: item.discovered === true ? item.sourcePageUrl : null,
+        sourceArticleUrl: item.discovered === true ? item.sourceArticleUrl : null
       }, fetchImpl, now);
       results.push({ url: item.url, drive_file_id: item.id, status: dispatched.status });
     } catch (error) {
@@ -502,6 +503,7 @@ async function dispatchDetectedPdf(env, source, pdfUrl, metadata, fetchImpl, now
         detection_method: metadata.officialPageDriveLink ? "official_page_drive_link" :
           (metadata.driveFallback ? "approved_drive_fallback" : (metadata.preemptive ? "preemptive_head" : "source_page_change")),
         source_page_url: metadata.officialPageDriveLink ? metadata.sourcePageUrl : null,
+        source_article_url: metadata.officialPageDriveLink ? metadata.sourceArticleUrl : null,
         http_status: metadata.status, content_type: metadata.contentType
       }
     }),
