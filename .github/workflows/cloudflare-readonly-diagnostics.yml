@@ -94,3 +94,5 @@ jobs:
 # Read-only diagnostic refresh: verify the live Watcher after source registry updates.
 
 # Read-only diagnostic refresh: test the canonical CSC hostname.
+
+# Read-only diagnostic refresh: verify PRC baseline and preserved CSC pause after registry merge.
