@@ -44,6 +44,54 @@ jobs:
       - name: Run Python unit tests
         working-directory: python-engine
         run: python -m unittest discover -s tests -v
+      - name: Live smoke test of the two owner-approved CSC Drive PDFs
+        if: github.event_name == 'push' && contains(github.event.head_commit.message, 'LIVE-APPROVED-CSC-DRIVE-SMOKE')
+        env:
+          PYTHONPATH: python-engine
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/live-csc-review
+          python - <<'PY'
+          from pathlib import Path
+          from scraper.event_processor import process_detected_pdf
+
+          registry = "python-engine/config/sources.json"
+          source_id = "CSC-CSE-PPT-2026-08-09-REGION-V"
+          files = {
+              "professional": "1jQmBLSU2azhFvCgU6l8m6ljXGDmIRa1l",
+              "subprofessional": "1qYaCbxIZ_6DHyMD9FhgZdj-YtbIJh5Wf",
+          }
+          for label, file_id in files.items():
+              payload = {
+                  "source_id": source_id,
+                  "authority": "CSC",
+                  "exam": "CSE-PPT-2026",
+                  "detected_url": (
+                      "https://drive.google.com/uc?export=download&id=" + file_id
+                  ),
+                  "content_type": "application/pdf",
+              }
+              output = Path("artifacts/live-csc-review") / (label + "-review.json")
+              report = process_detected_pdf(payload, registry, output)
+              if report.get("status") != "text_extracted_manual_review_required":
+                  raise SystemExit(f"{label}: unexpected processing status")
+              if report.get("extracted_line_count", 0) < 1:
+                  raise SystemExit(f"{label}: PDF downloaded but no text lines were extracted")
+              print(
+                  f"{label}: verified PDF download; "
+                  f"{report['source_file_size_bytes']} bytes; "
+                  f"{report['extracted_line_count']} text lines; "
+                  f"SHA-256 {report['source_file_sha256']}"
+              )
+          PY
+      - name: Upload private CSC smoke-test text for manual review
+        if: github.event_name == 'push' && contains(github.event.head_commit.message, 'LIVE-APPROVED-CSC-DRIVE-SMOKE') && always() && hashFiles('artifacts/live-csc-review/*-review.json') != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: owner-approved-csc-drive-smoke-review
+          path: artifacts/live-csc-review/*-review.json
+          if-no-files-found: error
+          retention-days: 7
       - name: Validate public manifest, datasets, and site status
         run: python python-engine/maintenance.py
       - name: Check browser JavaScript module syntax
