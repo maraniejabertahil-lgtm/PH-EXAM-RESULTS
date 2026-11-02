@@ -90,3 +90,5 @@ jobs:
             echo "::error::Production Worker tail failed (exit $code)."
             exit "$code"
           fi
+
+# Read-only diagnostic refresh: verify the live Watcher after source registry updates.
