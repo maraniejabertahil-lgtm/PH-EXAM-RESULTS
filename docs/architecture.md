@@ -19,11 +19,11 @@ No public visitor search is sent to Python, D1, a Worker, or a backend server.
 2. The source registry is checked official-first by authority and examination.
 3. Verified third-party sources are checked only when configured official sources for the same scope are unavailable.
 4. Standard Mode checks once. Peak Week checks twice, 30 seconds apart, and expands owner-configured preemptive URL templates.
-5. The Watcher detects successful PDF URLs and sends a GitHub `repository_dispatch` event. The Phase 1 receiver validates the event against the approved source registry.
-6. Phase 2 connects the event to Python acquisition and extraction. When D1 is configured, Python compares ETag and Last-Modified metadata.
-7. Only an explicitly approved source with `auto_acquire: true` can be downloaded.
-8. CSV files are normalized, validated, and checked for exact/fuzzy duplicate candidates.
-9. Text-based PDFs are text-extracted for manual review; scanned/uncertain layouts are not automatically converted into passer records.
+5. The Watcher detects approved PDF URLs and sends a GitHub `repository_dispatch` event. The receiver validates the event against the approved source registry.
+6. The Phase 2 event processor revalidates source ID, authority/exam, HTTPS origin, PDF identity, and owner authorization before any acquisition.
+7. Only a source with `auto_acquire: true` is downloaded. The current event bridge supports same-origin HTTPS PDFs only; cross-origin Google Drive attachments remain blocked until an explicit allowlisted route is implemented and tested.
+8. Text-based PDFs are extracted to a private GitHub Actions artifact for manual review. This step does not OCR scanned pages, create passer records, or publish results. When D1 is configured, Python source-state and audit operations can also run.
+9. CSV files supplied through the import workflow are normalized, validated, and checked for exact/fuzzy duplicate candidates.
 10. Valid CSV batches can generate a private Git branch and owner-approval Pull Request.
 11. Exact duplicate records block automatic publication PR creation. Fuzzy candidates remain visible for review.
 12. Only a merged PR can reach the production Pages deployment workflow.
@@ -35,6 +35,7 @@ The manual import workflow is also available for CSV files stored in the private
 
 - `scraper/monitor.py`: HTTPS metadata checks and official-first fallback selection.
 - `scraper/downloader.py`: acquisition only from approved HTTPS sources, with same-host redirect checks, a download size cap, and SHA-256.
+- `scraper/event_processor.py`: Phase 2 Watcher-event validation, optional approved PDF acquisition, PDF signature check, and text extraction for a private manual-review artifact; no automatic passer parsing or publication.
 - `extractor/pdf_parser.py`: text extraction from text-based PDFs only.
 - `processor/normalizer.py`: preserves original names and creates normalized comparison keys.
 - `processor/validator.py`: validates authority, examination identifier, year, name, rating, and sequence fields.
@@ -65,7 +66,7 @@ No real source URL or preemptive URL template is preconfigured. The optional `pr
 - `watcher-bot/src/index.js`: scheduled source checks, Peak Week 30-second second scan, preemptive PDF URL expansion, PDF detection, GitHub repository dispatch, and KV deduplication.
 - `watcher-bot/wrangler.toml`: one-minute Cron Trigger and `PEAK_WEEK` KV binding.
 - `watcher-bot/tests/`: mocked Standard Mode, Peak Week, PDF detection, authorization, redirect, and webhook tests.
-- `.github/workflows/process-import.yml`: receives `source-detected` events and manual-drop pushes. In Phase 1 it validates and records the event only; Phase 2 connects Python processing.
+- `.github/workflows/process-import.yml`: receives `source-detected` events and invokes the Python PDF review bridge; manual-drop pushes remain separate. The receiver must be on the default branch before GitHub can run repository-dispatch events.
 
 The Worker requires a Cloudflare KV namespace binding named `PEAK_WEEK` and a Cloudflare Worker secret `GITHUB_TOKEN`. The fine-grained GitHub token needs repository Contents read/write permission. The source registry remains empty until owner-approved sources are configured.
 
