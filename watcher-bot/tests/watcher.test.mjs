@@ -149,6 +149,39 @@ test("page metadata changes discover and dispatch same-origin PDF links", async 
   assert.equal(dispatches[0].client_payload.detected_url, "https://csc.example.gov.ph/downloads/CSE-list.pdf");
 });
 
+test("baseline scan dispatches only the two exact owner-approved Google Drive IDs", async () => {
+  const ids = [
+    "1jQmBLSU2azhFvCgU6l8m6ljXGDmIRa1l",
+    "1qYaCbxIZ_6DHyMD9FhgZdj-YtbIJh5Wf"
+  ];
+  const source = approvedSource({
+    drive_file_ids: ids,
+    scan_page_on_baseline: true,
+    url: "https://www.csc.gov.ph/regional-offices/region-v/examination/results-10072026"
+  });
+  const { fetchImpl, dispatches } = githubFetch([source], async (url, init) => {
+    if (url === source.url && init.method === "HEAD") {
+      return new Response(null, { status: 200, headers: { etag: '"stable"', "content-type": "text/html" } });
+    }
+    if (url === source.url && init.method === "GET") {
+      return new Response(
+        ids.map((id) => '<a href="https://drive.google.com/file/d/' + id + '/view?usp=drive_link">PDF</a>').join("") +
+        '<a href="https://drive.google.com/file/d/not-approved-000000/view">Ignore</a>',
+        { status: 200, headers: { "content-type": "text/html" } }
+      );
+    }
+    throw new Error("Unexpected external request: " + url);
+  });
+  const report = await runScheduled({ env: envFor(), fetchImpl, scheduledTime: Date.UTC(2026, 10, 2) });
+  assert.equal(report.first_check.results[0].status, "baseline_created");
+  assert.equal(dispatches.length, 2);
+  assert.deepEqual(
+    dispatches.map((item) => new URL(item.client_payload.detected_url).searchParams.get("id")).sort(),
+    ids.slice().sort()
+  );
+  assert.ok(dispatches.every((item) => item.client_payload.content_type === "application/pdf"));
+});
+
 test("a PDF URL returning an HTML page is not dispatched", async () => {
   const source = approvedSource({ url: "https://csc.example.gov.ph/fake.pdf" });
   const { fetchImpl, dispatches } = githubFetch([source], async () => new Response(null, {
