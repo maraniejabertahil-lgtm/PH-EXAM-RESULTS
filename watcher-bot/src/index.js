@@ -234,18 +234,34 @@ async function findApprovedGoogleDriveLinks(pageUrl, source, fetchImpl) {
   const html = new TextDecoder().decode(concatBytes(chunks, total));
   const found = new Map();
   const candidates = [];
-  const hrefs = /href\s*=\s*["']([^"']+)["']/gi;
+  const anchors = /<a\b[^>]*href\s*=\s*["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi;
   let match;
-  while ((match = hrefs.exec(html))) candidates.push(match[1]);
+  while ((match = anchors.exec(html))) {
+    const label = match[2]
+      .replace(/<[^>]*>/g, " ")
+      .replace(/&nbsp;|&#160;/gi, " ")
+      .replace(/&amp;/gi, "&")
+      .replace(/&quot;/gi, '"')
+      .replace(/&#39;|&apos;/gi, "'")
+      .replace(/\s+/g, " ")
+      .trim()
+      .toLowerCase();
+    candidates.push({ url: match[1], label });
+  }
 
   // CSC pages sometimes print Drive URLs as plain text instead of clickable anchors.
   // Also recognize Markdown-style proxy output, while keeping the host/path exact.
   const plainDriveUrls = /https:\/\/drive\.google\.com\/file\/d\/[A-Za-z0-9_-]{10,200}\/view(?:[?#][^\s"'<>]*)?/gi;
-  while ((match = plainDriveUrls.exec(html))) candidates.push(match[0]);
+  while ((match = plainDriveUrls.exec(html))) candidates.push({ url: match[0], label: "" });
+
+  const labelPatterns = Array.isArray(source.drive_link_text_patterns)
+    ? source.drive_link_text_patterns.filter((value) => typeof value === "string" && value.trim()).map((value) => value.trim().toLowerCase())
+    : [];
 
   for (const candidate of candidates) {
     try {
-      const link = new URL(candidate, finalUrl);
+      if (labelPatterns.length && !labelPatterns.some((pattern) => candidate.label.includes(pattern))) continue;
+      const link = new URL(candidate.url, finalUrl);
       if (link.protocol !== "https:" || link.hostname.toLowerCase() !== "drive.google.com" ||
           link.username || link.password || link.port && link.port !== "443") continue;
       const fileMatch = link.pathname.match(/^\/file\/d\/([A-Za-z0-9_-]{10,200})\/view\/?$/);
