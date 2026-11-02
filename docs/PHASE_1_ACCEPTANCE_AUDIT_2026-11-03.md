@@ -130,7 +130,7 @@ The registry now contains two source records:
    - Follows at most three same-origin result article pages under `/article/` or numeric `/node/{id}` paths.
    - `scan_page_on_baseline: false`, `direct_drive_fallback: false`, `auto_acquire: false`, and no static Drive IDs. Initial setup therefore does not dispatch historical PDFs.
    - The PRC robots.txt was retrieved with HTTP 200. Its disallowed paths are administrative, authentication, search, and system paths; it does not disallow the public `/article/` or numeric `/node/{id}` result pages.
-   - The production Worker can retrieve the PRC homepage and has an established baseline. A live scheduled event observed at 22:41 UTC (before PR #32 enabled article discovery) reported `unchanged` for the PRC homepage in both Peak Week scans; no historical document was dispatched by baseline setup. A post-PR #32 scheduled-event confirmation is being checked separately.
+   - The production Worker can retrieve the PRC homepage and has an established baseline. A post-PR #32 live scheduled event observed at 22:51:14 UTC reported `unchanged` for the PRC homepage in both Peak Week scans; no historical document was dispatched by baseline setup.
 
 2. **CSC Region V — disabled**
    - URL: `https://csc.gov.ph/regional-offices/region-v/examination`
@@ -141,11 +141,11 @@ The registry now contains two source records:
 
 ### Runtime evidence and safety
 
-- A live scheduled Worker event at 22:41 UTC reported two configured sources and one enabled source. The PRC homepage check used 6 outbound subrequests against the 45-request safety limit and produced no runtime exceptions. This event predates PR #32's article-discovery flag activation.
+- A live scheduled Worker event at 22:51:14 UTC, after PR #32, reported two configured sources and one enabled source. The PRC homepage check used 6 outbound subrequests against the 45-request safety limit and produced no runtime exceptions. The Cloudflare schedules API returned HTTP 200 and confirmed the deployed cron `* * * * *`.
 - `PEAK_WEEK=true` was observed in production KV diagnostics; this work did not change that value.
 - The Worker automatically created/uses its normal PRC homepage baseline state. No production KV values were manually edited and no secrets were changed.
 - Phase 1 remains validation-only: no PDF acquisition, extraction, or publication was performed.
-- The latest production Worker deployment after the provenance fix and PRC source configuration was recorded as version `23439037-467a-4db6-8d6d-5eee8ff65425`.
+- The post-PR #32 scheduled event reported Worker `scriptVersion.id` `305e915d-099b-479d-bb28-c57c90cc3a35`.
 
 ### Remaining acceptance gaps
 
