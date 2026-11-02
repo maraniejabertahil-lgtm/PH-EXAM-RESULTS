@@ -141,14 +141,13 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
-  receive-manual-drop:
+  acknowledge-manual-drop-folder:
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
     steps:
-      - name: Check out the manual-drop folder
-        uses: actions/checkout@v5
-      - name: Confirm manual-drop event
+      - name: Acknowledge that folder pushes are not imports
         run: |
           echo "A change was received in manual-drop/."
-          echo "Manual-drop processing remains a separate owner-triggered workflow."
-          echo "No result data was processed or published by this workflow."
+          echo "Folder pushes do not import or process result data."
+          echo "For an owner-approved disabled source, use the Actions workflow named Manual Source Validation."
+          echo "That workflow only validates an exact allowlisted Drive ID and does not download, extract, or publish a PDF."
