@@ -73,14 +73,20 @@ jobs:
               }
               output = Path("artifacts/live-csc-review") / (label + "-review.json")
               report = process_detected_pdf(payload, registry, output)
-              if report.get("status") != "text_extracted_manual_review_required":
+              allowed_statuses = {
+                  "text_extracted_manual_review_required",
+                  "pdf_acquired_no_text_manual_visual_review_required",
+              }
+              if report.get("status") not in allowed_statuses:
                   raise SystemExit(f"{label}: unexpected processing status")
-              if report.get("extracted_line_count", 0) < 1:
-                  raise SystemExit(f"{label}: PDF downloaded but no text lines were extracted")
+              pdf_path = output.with_suffix(".pdf")
+              if not pdf_path.is_file() or pdf_path.stat().st_size < 5:
+                  raise SystemExit(f"{label}: original PDF was not retained for manual review")
               print(
                   f"{label}: verified PDF download; "
                   f"{report['source_file_size_bytes']} bytes; "
-                  f"{report['extracted_line_count']} text lines; "
+                  f"{report['extracted_line_count']} selectable text lines; "
+                  f"visual review required={report.get('visual_pdf_review_required', False)}; "
                   f"SHA-256 {report['source_file_sha256']}"
               )
           PY
