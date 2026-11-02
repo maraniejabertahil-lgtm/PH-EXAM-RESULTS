@@ -70,6 +70,19 @@ test("preemptive PDF returning HTTP 200 dispatches once and is deduplicated", as
   assert.ok(dispatches.every((item) => item.event_type === "source-detected"));
 });
 
+test("staging configuration dispatches only the staging-specific event type", async () => {
+  const source = approvedSource({ url: "https://csc.example.gov.ph/current-list.pdf" });
+  const env = envFor();
+  env.GITHUB_EVENT_TYPE = "staging-source-detected";
+  const { fetchImpl, dispatches } = githubFetch([source], async () => new Response(null, {
+    status: 200, headers: { "content-type": "application/pdf" }
+  }));
+  const report = await runScheduled({ env, fetchImpl, scheduledTime: Date.UTC(2026, 10, 2) });
+  assert.equal(report.first_check.results[0].status, "dispatched");
+  assert.equal(dispatches.length, 1);
+  assert.equal(dispatches[0].event_type, "staging-source-detected");
+});
+
 test("peak week waits 30 seconds and runs two scans", async () => {
   const source = approvedSource({ preemptive_url_templates: ["https://csc.example.gov.ph/CSE_{MM}{YYYY}_passers.pdf"] });
   const { fetchImpl } = githubFetch([source], async () => new Response(null, { status: 404 }));
