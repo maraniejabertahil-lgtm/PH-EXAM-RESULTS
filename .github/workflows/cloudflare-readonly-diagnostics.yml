@@ -1,0 +1,92 @@
+name: Read-only Cloudflare Watcher Diagnostics
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/cloudflare-readonly-diagnostics.yml"
+  push:
+    branches:
+      - main
+      - diagnostics/cloudflare-readonly-20261102
+    paths:
+      - ".github/workflows/cloudflare-readonly-diagnostics.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  diagnostics:
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+      - name: Confirm credentials exist without displaying them
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
+        run: |
+          set -euo pipefail
+          test -n "$CLOUDFLARE_API_TOKEN"
+          test -n "$CLOUDFLARE_ACCOUNT_ID"
+          echo "Cloudflare credentials are present."
+      - name: Verify production KV namespace and PEAK_WEEK key
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
+          KV_NAMESPACE_ID: ebfd9a0e0ac34990883f536cc6d8d2b4
+        run: |
+          set -euo pipefail
+          api="https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/storage/kv/namespaces"
+          headers=(-H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" -H "Accept: application/json")
+          namespace_status="$(curl -sS -o /tmp/kv-namespace.json -w '%{http_code}' "$api/$KV_NAMESPACE_ID" "${headers[@]}")"
+          if [ "$namespace_status" != "200" ]; then
+            echo "::error::KV namespace metadata request returned HTTP $namespace_status."
+            cat /tmp/kv-namespace.json
+            exit 1
+          fi
+          echo "Production KV namespace metadata is readable (HTTP 200)."
+          key_status="$(curl -sS -o /tmp/peak-week-value -w '%{http_code}' "$api/$KV_NAMESPACE_ID/values/PEAK_WEEK" "${headers[@]}")"
+          case "$key_status" in
+            200)
+              value="$(cat /tmp/peak-week-value)"
+              case "$value" in
+                true|1) echo "PEAK_WEEK=true" ;;
+                false|0) echo "PEAK_WEEK=false" ;;
+                *) echo "PEAK_WEEK key exists with a non-boolean value; Worker will interpret it as OFF." ;;
+              esac
+              ;;
+            404)
+              echo "PEAK_WEEK key is absent (HTTP 404); Worker interprets the missing value as OFF."
+              ;;
+            *)
+              echo "::error::PEAK_WEEK value request returned unexpected HTTP $key_status."
+              cat /tmp/peak-week-value
+              exit 1
+              ;;
+          esac
+      - name: Run Peak Week simulation tests
+        working-directory: watcher-bot
+        run: npm test
+      - name: Observe production Worker logs
+        working-directory: watcher-bot
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
+        run: |
+          set +e
+          timeout 75s npx --yes wrangler@4.156.2 tail --format json
+          code=$?
+          set -e
+          if [ "$code" -eq 124 ]; then
+            echo "Observation window ended normally."
+          elif [ "$code" -ne 0 ]; then
+            echo "::error::Production Worker tail failed (exit $code)."
+            exit "$code"
+          fi
