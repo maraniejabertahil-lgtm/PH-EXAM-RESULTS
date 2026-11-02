@@ -19,6 +19,20 @@
         "1qYaCbxIZ_6DHyMD9FhgZdj-YtbIJh5Wf"
       ],
       "allow_linked_drive_documents": true
+    },
+    {
+      "id": "PRC-EXAM-RESULTS-HOMEPAGE",
+      "authority": "PRC",
+      "exam": "LICENSURE-EXAM-RESULTS",
+      "source_type": "official",
+      "authorized": true,
+      "enabled": true,
+      "url": "https://www.prc.gov.ph/",
+      "direct_drive_fallback": false,
+      "drive_file_ids": [],
+      "allow_linked_drive_documents": false,
+      "scan_page_on_baseline": false,
+      "preemptive_url_templates": []
     }
   ]
 }
