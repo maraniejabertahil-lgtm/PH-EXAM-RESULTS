@@ -59,3 +59,5 @@ jobs:
           elif [ "$code" -ne 0 ]; then
             echo "::warning::Tail unavailable; token may lack observability permission (exit $code)."
           fi
+
+# Re-run after owner updated the Cloudflare KV read permission.
