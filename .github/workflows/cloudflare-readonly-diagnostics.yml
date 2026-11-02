@@ -81,7 +81,7 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
         run: |
           set +e
-          timeout 75s npx --yes wrangler@4.156.2 tail --format json
+          timeout --kill-after=5s 65s npx --yes wrangler@4.156.2 tail --format json
           code=$?
           set -e
           if [ "$code" -eq 124 ]; then
