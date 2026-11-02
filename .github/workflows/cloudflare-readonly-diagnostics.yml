@@ -71,6 +71,18 @@ jobs:
               exit 1
               ;;
           esac
+      - name: Probe official CSC listing from GitHub runner
+        run: |
+          set -euo pipefail
+          for url in \
+            "https://csc.gov.ph/regional-offices/region-v/examination" \
+            "https://www.csc.gov.ph/regional-offices/region-v/examination"; do
+            code="$(curl -L -sS -A 'Mozilla/5.0 (compatible; PH-EXAM-RESULTS-Diagnostics/1.0)' -o /tmp/csc-page.html -w '%{http_code}' "$url")"
+            echo "CSC page GET: $url -> HTTP $code"
+            if [ "$code" = "200" ]; then
+              grep -Eo 'https://drive\\.google\\.com/file/d/[A-Za-z0-9_-]+' /tmp/csc-page.html | sort -u | head -10 || true
+            fi
+          done
       - name: Run Peak Week simulation tests
         working-directory: watcher-bot
         run: npm test
