@@ -83,3 +83,8 @@ The tests use mocked GitHub and source responses. They do not prove that Cloudfl
 ## Optional official-page Google Drive discovery
 
 A source may opt in to `allow_linked_drive_documents: true` only after its exact HTTPS page URL has been owner-authorized. The Watcher then accepts new Drive IDs only from exact `drive.google.com/file/d/{id}/view` links in that official page's HTML. Each candidate must still pass the existing strict Drive redirect-host, path, and ID checks and the bounded `%PDF-` byte-signature check. The dispatch carries the exact source page URL and `official_page_drive_link` detection method. The GitHub receiver accepts this path only when the page URL exactly matches the enabled, authorized registry entry and the opt-in flag is true. The option is off by default and is not enabled in production by this change.
+
+
+### Bounded official result-article discovery
+
+For an owner-approved official listing page, `discover_official_result_articles: true` enables a bounded same-origin crawl of at most three result-related article links. Only `/article/` and numeric `/node/{id}` paths are followed; external hosts, query strings, and fragments are rejected. Article-page Drive links still require `allow_linked_drive_documents: true`, exact Google Drive host/path validation, a verified PDF byte signature, and receiver-side validation of both the registered listing URL and the same-origin article URL. Use `drive_link_text_patterns` to select the intended document label (for example, `list of successful examinees`) when an article contains multiple attachments. Verify the official site's `robots.txt` before enabling this feature, and keep `scan_page_on_baseline: false` when existing historical articles must not be dispatched on initial setup.

@@ -16,6 +16,7 @@ test("source registry has unique, valid official sources and explicit disable re
     ids.add(source.id);
     assert.ok(["PRC", "CSC"].includes(source.authority));
     assert.ok(["official", "verified_third_party"].includes(source.source_type));
+    assert.equal(source.file_format, "pdf");
     if (source.enabled === true && source.source_type === "official") {
       assert.equal(source.authorized, true);
     } else if (source.enabled === false) {
@@ -66,8 +67,14 @@ test("PRC homepage source cannot dispatch historical attachments on baseline", (
   assert.equal(source.source_type, "official");
   assert.equal(source.authorized, true);
   assert.equal(source.enabled, true);
+  assert.equal(source.file_format, "pdf");
+  assert.equal(source.auto_acquire, false);
   assert.equal(source.scan_page_on_baseline, false);
-  assert.equal(source.allow_linked_drive_documents, false);
+  assert.equal(source.allow_linked_drive_documents, true);
+  assert.equal(source.discover_official_result_articles, true);
+  assert.deepEqual(source.drive_link_text_patterns, ["list of successful examinees"]);
   assert.equal(source.direct_drive_fallback, false);
   assert.deepEqual(source.drive_file_ids, []);
+  assert.equal(source.robots_policy_verified, true);
+  assert.equal(source.robots_policy_url, "https://www.prc.gov.ph/robots.txt");
 });
