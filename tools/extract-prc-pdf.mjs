@@ -7,6 +7,7 @@ import { createHash } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { spawnSync } from "node:child_process";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 const fail = (m) => { throw new Error(m); };
 
@@ -14,7 +15,7 @@ const MAX_BYTES = 50 * 1024 * 1024;
 const MAX_REDIRECTS = 5;
 const DRIVE_HOSTS = new Set(["drive.google.com", "drive.usercontent.google.com"]);
 
-function validateDriveUrl(url, fileId) {
+export function validateDriveUrl(url, fileId) {
   if (url.protocol !== "https:" || !DRIVE_HOSTS.has(url.hostname.toLowerCase()) ||
       url.username || url.password || !["/uc", "/download"].includes(url.pathname) ||
       url.searchParams.get("id") !== fileId) {
@@ -95,19 +96,31 @@ const run = (cmd, args) => {
   return r.stdout || "";
 };
 
+export function isApprovedPrcSource(source) {
+  return Boolean(source && source.authority === "PRC" &&
+    typeof source.exam === "string" && source.exam.trim() &&
+    source.authorized === true && source.enabled === true &&
+    source.source_type === "official" &&
+    /^[A-Za-z0-9_-]{10,200}$/.test(source.drive_file_id || ""));
+}
+
+export function selectApprovedSource(registry, id) {
+  if (!id || !registry || !Array.isArray(registry.sources)) {
+    fail("SOURCE_ID and a valid sources registry are required.");
+  }
+  const matches = registry.sources.filter(s => s.id === id);
+  if (matches.length !== 1) fail("SOURCE_ID must match exactly one PRC source registry entry.");
+  const source = matches[0];
+  if (!isApprovedPrcSource(source)) fail("Source is not an explicitly approved official PRC PDF.");
+  return source;
+}
+
 async function main() {
   const id = process.env.SOURCE_ID || "";
   const registryPath = process.env.SOURCE_REGISTRY || "python-engine/config/prc-sources.json";
   const out = process.env.OUTPUT_DIR || "private-prc-extraction";
   const registry = JSON.parse(await readFile(registryPath, "utf8"));
-  const matches = (registry.sources || []).filter(s => s.id === id);
-  if (matches.length !== 1) fail("SOURCE_ID must match exactly one PRC source registry entry.");
-  const source = matches[0];
-  if (source.authority !== "PRC" || typeof source.exam !== "string" || !source.exam.trim() || source.authorized !== true ||
-      source.enabled !== true || source.source_type !== "official" ||
-      !/^[A-Za-z0-9_-]{10,200}$/.test(source.drive_file_id || "")) {
-    fail("Source is not an explicitly approved official PRC PDF.");
-  }
+  const source = selectApprovedSource(registry, id);
 
   await mkdir(out, { recursive: true });
   const bytes = Buffer.from(await downloadApprovedPdf(source.drive_file_id));
@@ -164,4 +177,6 @@ async function main() {
   console.log(JSON.stringify(report, null, 2));
   await doc.destroy();
 }
-main().catch(e => { console.error(`PRC staging extraction stopped safely: ${e.message || e}`); process.exitCode = 1; });
+if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  main().catch(e => { console.error(`PRC staging extraction stopped safely: ${e.message || e}`); process.exitCode = 1; });
+}
