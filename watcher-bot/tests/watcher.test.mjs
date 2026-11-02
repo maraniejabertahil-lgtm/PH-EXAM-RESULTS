@@ -567,6 +567,44 @@ test("owner-enabled official-page Drive discovery verifies and dispatches a newl
     "https://drive.google.com/uc?export=download&id=" + discoveredId);
 });
 
+
+test("owner-enabled official-page discovery finds plain-text Drive URLs without accepting lookalike hosts", async () => {
+  const discoveredId = "1PlainTextOfficialDriveFile_2026";
+  const source = approvedSource({
+    url: "https://csc.gov.ph/regional-offices/region-v/examination",
+    allow_linked_drive_documents: true,
+    scan_page_on_baseline: true,
+    drive_file_ids: []
+  });
+  const html =
+    '<div>Professional: https://drive.google.com/file/d/' + discoveredId + '/view?usp=drive_link</div>' +
+    '<div>Hostile: https://drive.google.com.evil.example/file/d/attackerfile000/view</div>';
+  const { fetchImpl, dispatches } = githubFetch([source], async (url, init) => {
+    if (url === source.url && init.method === "HEAD") {
+      return new Response(null, { status: 200, headers: { etag: '"plain-text"', "content-type": "text/html" } });
+    }
+    if (url === source.url && init.method === "GET") {
+      return new Response(html, { status: 200, headers: { "content-type": "text/html" } });
+    }
+    if (url === "https://drive.google.com/uc?export=download&id=" + discoveredId) {
+      return new Response(null, {
+        status: 302,
+        headers: { location: "https://drive.usercontent.google.com/download?id=" + discoveredId + "&export=download" }
+      });
+    }
+    if (url === "https://drive.usercontent.google.com/download?id=" + discoveredId + "&export=download") {
+      return new Response("%PDF-1.7\\nplain-text official PDF", { status: 206 });
+    }
+    if (url.includes("drive.google.com.evil.example")) throw new Error("Lookalike host must never be fetched");
+    throw new Error("Unexpected request: " + url);
+  });
+  const report = await runScheduled({ env: envFor(), fetchImpl, scheduledTime: Date.UTC(2026, 10, 2) });
+  assert.equal(report.first_check.results[0].status, "baseline_created");
+  assert.equal(dispatches.length, 1);
+  assert.equal(dispatches[0].client_payload.detection_method, "official_page_drive_link");
+  assert.equal(dispatches[0].client_payload.source_page_url, source.url);
+});
+
 test("new Drive IDs linked from official pages remain blocked unless owner enables discovery", async () => {
   const discoveredId = "1UnapprovedDiscoveryMustNotDispatch";
   const source = approvedSource({
