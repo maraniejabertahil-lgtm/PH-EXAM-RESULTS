@@ -17,3 +17,19 @@ crons = ["* * * * *"]
 [[kv_namespaces]]
 binding = "PEAK_WEEK"
 id = "ebfd9a0e0ac34990883f536cc6d8d2b4"
+
+[env.staging]
+name = "ph-exam-results-watcher-staging"
+workers_dev = true
+
+[env.staging.vars]
+GITHUB_REPOSITORY = "maraniejabertahil-lgtm/PH-EXAM-RESULTS"
+GITHUB_SOURCE_REF = "implementation/two-public-pages"
+GITHUB_SOURCE_PATH = "python-engine/config/sources.json"
+
+[env.staging.triggers]
+crons = ["* * * * *"]
+
+[[env.staging.kv_namespaces]]
+binding = "PEAK_WEEK"
+id = "cc91a5e8fdfa426f9f9f3b19218e232b"
