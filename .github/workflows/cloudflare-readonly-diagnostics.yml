@@ -93,6 +93,16 @@ jobs:
             grep -Eo 'https://drive\\.google\\.com/file/d/[A-Za-z0-9_-]+' /tmp/csc-reader.txt | sort -u | head -10 || true
             grep -Ei 'RESULTS ARE OUT|List of Passers|Civil Service Examination' /tmp/csc-reader.txt | head -5 || true
           fi
+      - name: Test fresh browser-mode Reader retrieval
+        run: |
+          set -euo pipefail
+          url="https://r.jina.ai/https://csc.gov.ph/regional-offices/region-v/examination"
+          code="$(curl -L -sS -H 'X-No-Cache: true' -H 'X-Engine: browser' -H 'X-Respond-With: html' -o /tmp/csc-reader-fresh.html -w '%{http_code}' "$url")"
+          echo "Fresh browser Reader response: HTTP $code"
+          if [ "$code" = "200" ]; then
+            grep -Eio 'https://drive\\.google\\.com/file/d/[A-Za-z0-9_-]+' /tmp/csc-reader-fresh.html | sort -u | head -10 || true
+            grep -Ei -A2 -B2 'Professional:|SubProfessional:|Regional List of Passers|RESULTS ARE OUT' /tmp/csc-reader-fresh.html | head -30 || true
+          fi
       - name: Run Peak Week simulation tests
         working-directory: watcher-bot
         run: npm test
