@@ -40,3 +40,28 @@ test("catalogue keeps profession categories separate from the SPLE umbrella", ()
   assert.equal(catalogue.counts.numbered_2026_schedule_sittings, 88);
   assert.match(catalogue.scope, /not a complete historical register/i);
 });
+
+const sourceRegistryUrl = new URL("../../python-engine/config/prc-sources.json", import.meta.url);
+const sourceRegistry = JSON.parse(await readFile(sourceRegistryUrl, "utf8"));
+
+test("PRC source records match the watcher and extractor contracts", () => {
+  assert.ok(Array.isArray(sourceRegistry.sources));
+  assert.ok(sourceRegistry.sources.length > 0);
+  const ids = new Set();
+  for (const source of sourceRegistry.sources) {
+    assert.equal(source.authority, "PRC");
+    assert.equal(source.source_type, "official");
+    assert.equal(source.authorized, true);
+    assert.equal(source.enabled, true);
+    assert.equal(typeof source.exam, "string");
+    assert.ok(source.exam.trim());
+    assert.equal(source.url, source.announcement_url);
+    assert.match(source.url, /^https:\/\/www\.prc\.gov\.ph\//);
+    assert.ok(Array.isArray(source.drive_file_ids));
+    assert.deepEqual(source.drive_file_ids, [source.drive_file_id]);
+    assert.equal(source.scan_page_on_baseline, true);
+    assert.equal(source.direct_drive_fallback, true);
+    assert.ok(!ids.has(source.id), "source IDs must be unique");
+    ids.add(source.id);
+  }
+});
