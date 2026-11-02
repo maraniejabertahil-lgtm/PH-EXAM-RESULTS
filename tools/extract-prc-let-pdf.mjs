@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * Private PRC LEPT sample acquisition, PDF text extraction and OCR.
- * Staging-only: creates a private Actions artifact; never commits or publishes data.
+ * Staging-only: extracts approved PRC LEPT PDFs; never commits or publishes names.
  */
 import { createHash } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
@@ -9,6 +9,85 @@ import { spawnSync } from "node:child_process";
 import path from "node:path";
 
 const fail = (m) => { throw new Error(m); };
+
+const MAX_BYTES = 50 * 1024 * 1024;
+const MAX_REDIRECTS = 5;
+const DRIVE_HOSTS = new Set(["drive.google.com", "drive.usercontent.google.com"]);
+
+function validateDriveUrl(url, fileId) {
+  if (url.protocol !== "https:" || !DRIVE_HOSTS.has(url.hostname.toLowerCase()) ||
+      url.username || url.password || !["/uc", "/download"].includes(url.pathname) ||
+      url.searchParams.get("id") !== fileId) {
+    fail("Blocked Google Drive redirect: expected an approved HTTPS download URL with the exact file ID.");
+  }
+}
+
+async function downloadApprovedPdf(fileId) {
+  const start = new URL("https://drive.google.com/uc");
+  start.searchParams.set("export", "download");
+  start.searchParams.set("id", fileId);
+  let current = start;
+
+  for (let redirects = 0; redirects <= MAX_REDIRECTS; redirects += 1) {
+    validateDriveUrl(current, fileId);
+    const response = await fetch(current, {
+      method: "GET",
+      redirect: "manual",
+      headers: {
+        "User-Agent": "PH-EXAM-RESULTS-PRC-LEPT-Extractor/1.0",
+        "Accept": "application/pdf,application/octet-stream,*/*"
+      },
+      signal: AbortSignal.timeout(30000)
+    });
+
+    if ([301, 302, 303, 307, 308].includes(response.status)) {
+      const location = response.headers.get("location");
+      if (!location) fail("Drive redirect did not include a Location header.");
+      current = new URL(location, current);
+      validateDriveUrl(current, fileId);
+      continue;
+    }
+
+    if (response.status !== 200 && response.status !== 206) {
+      fail(`Google Drive returned HTTP ${response.status}; access was not bypassed.`);
+    }
+    const type = (response.headers.get("content-type") || "").split(";")[0].toLowerCase();
+    if (type === "text/html") fail("Google Drive returned an HTML interstitial, not a PDF.");
+
+    const declaredLength = Number(response.headers.get("content-length") || 0);
+    if (declaredLength > MAX_BYTES) fail("PDF exceeds the 50 MB limit.");
+    const reader = response.body?.getReader();
+    if (!reader) fail("Google Drive returned no response body.");
+    const chunks = [];
+    let total = 0;
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        total += value.byteLength;
+        if (total > MAX_BYTES) {
+          await reader.cancel();
+          fail("PDF exceeds the 50 MB limit.");
+        }
+        chunks.push(value);
+      }
+    } finally {
+      reader.releaseLock();
+    }
+    if (!total) fail("Google Drive returned an empty file.");
+    const bytes = new Uint8Array(total);
+    let offset = 0;
+    for (const chunk of chunks) {
+      bytes.set(chunk, offset);
+      offset += chunk.byteLength;
+    }
+    if (!Buffer.from(bytes.subarray(0, 1024)).includes(Buffer.from("%PDF-"))) {
+      fail("Downloaded bytes do not contain the PDF signature.");
+    }
+    return bytes;
+  }
+  fail("Google Drive exceeded the redirect limit.");
+}
 const run = (cmd, args) => {
   const r = spawnSync(cmd, args, { encoding: "utf8", maxBuffer: 30 * 1024 * 1024 });
   if (r.error) throw r.error;
@@ -31,14 +110,7 @@ async function main() {
   }
 
   await mkdir(out, { recursive: true });
-  const url = new URL("https://drive.google.com/uc");
-  url.searchParams.set("export", "download");
-  url.searchParams.set("id", source.drive_file_id);
-  const response = await fetch(url, { redirect: "follow", signal: AbortSignal.timeout(60000) });
-  if (!response.ok) fail(`Google Drive returned HTTP ${response.status}.`);
-  const bytes = Buffer.from(await response.arrayBuffer());
-  if (!bytes.length || bytes.length > 50 * 1024 * 1024) fail("PDF is empty or exceeds 50 MB.");
-  if (!bytes.subarray(0, 1024).includes(Buffer.from("%PDF-"))) fail("Drive did not return a PDF; refusing HTML/interstitial content.");
+  const bytes = Buffer.from(await downloadApprovedPdf(source.drive_file_id));
 
   const pdfPath = path.join(out, `${id}.pdf`);
   await writeFile(pdfPath, bytes);
