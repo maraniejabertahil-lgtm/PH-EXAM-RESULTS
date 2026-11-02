@@ -761,7 +761,9 @@ test("new Drive IDs linked from official pages remain blocked unless owner enabl
 
 
 
-test("PRC listing baseline snapshots historical articles and dispatches only a newly posted result PDF", async () => {
+
+
+test("PRC listing snapshots historical pages and processes newly posted result articles in bounded batches", async () => {
   const source = approvedSource({
     id: "PRC-EXAM-RESULTS-HOMEPAGE",
     authority: "PRC",
@@ -772,53 +774,76 @@ test("PRC listing baseline snapshots historical articles and dispatches only a n
     discover_official_result_articles: true,
     track_new_articles_only: true,
     result_listing_page_count: 3,
-    max_result_articles_per_scan: 3,
+    max_result_articles_per_page: 10,
+    max_new_result_articles_per_scan: 3,
     drive_link_text_patterns: ["list of successful examinees"],
     drive_file_ids: []
   });
   const oldArticles = [
     "https://www.prc.gov.ph/node/9450",
     "https://www.prc.gov.ph/node/9451",
-    "https://www.prc.gov.ph/node/9452"
+    "https://www.prc.gov.ph/node/9452",
+    "https://www.prc.gov.ph/node/9453",
+    "https://www.prc.gov.ph/node/9454",
+    "https://www.prc.gov.ph/node/9455"
   ];
-  const newArticle = "https://www.prc.gov.ph/node/9999";
-  const newDriveId = "1PRCNewOfficialSuccessfulExaminees2026";
+  const newArticles = [
+    "https://www.prc.gov.ph/node/9990",
+    "https://www.prc.gov.ph/node/9991",
+    "https://www.prc.gov.ph/node/9992",
+    "https://www.prc.gov.ph/node/9993"
+  ];
+  const driveIds = [
+    "1PRCNewSuccessfulExamineesResultA2026",
+    "1PRCNewSuccessfulExamineesResultB2026",
+    "1PRCNewSuccessfulExamineesResultC2026",
+    "1PRCNewSuccessfulExamineesResultD2026"
+  ];
   let listingVersion = 1;
   const env = envFor();
-  const listingHtml = (version) => version === 1
-    ? '<a href="/node/9450">October 2026 Licensure Examination Results Released</a>'
-    : '<a href="/node/9999">November 2026 Licensure Examination Results Released</a><a href="/node/9450">October 2026 Licensure Examination Results Released</a>';
+  const anchors = (urls, label) => urls.map((url) =>
+    '<a href="' + url.replace("https://www.prc.gov.ph", "") + '">' + label + '</a>'
+  ).join("");
+  const listingPage = (pageIndex) => {
+    if (pageIndex === 0) {
+      const urls = listingVersion === 1
+        ? oldArticles.slice(0, 2)
+        : [...newArticles, ...oldArticles.slice(0, 2)];
+      return anchors(urls, "November 2026 Licensure Examination Results Released") +
+        '<a href="https://evil.example/node/999">November 2026 Licensure Examination Results Released</a>';
+    }
+    return anchors(oldArticles.slice(pageIndex * 2, pageIndex * 2 + 2),
+      "October 2026 Licensure Examination Results Released");
+  };
   const { fetchImpl, dispatches } = githubFetch([source], async (url, init = {}) => {
     if (url === source.url && init.method === "HEAD") {
       return new Response(null, { status: 200, headers: { etag: '"prc-listing-v' + listingVersion + '"', "content-type": "text/html" } });
     }
     if (url === source.url && init.method === "GET") {
-      return new Response(listingHtml(listingVersion), { status: 200, headers: { "content-type": "text/html" } });
+      return new Response(listingPage(0), { status: 200, headers: { "content-type": "text/html" } });
     }
     if (url === source.url + "?page=1" && init.method === "GET") {
-      return new Response('<a href="/node/9451">September 2026 Licensure Examination Results Released</a>', {
-        status: 200, headers: { "content-type": "text/html" }
-      });
+      return new Response(listingPage(1), { status: 200, headers: { "content-type": "text/html" } });
     }
     if (url === source.url + "?page=2" && init.method === "GET") {
-      return new Response('<a href="/node/9452">August 2026 Licensure Examination Results Released</a>', {
-        status: 200, headers: { "content-type": "text/html" }
-      });
+      return new Response(listingPage(2), { status: 200, headers: { "content-type": "text/html" } });
     }
-    if (url === newArticle && init.method === "GET") {
+    const articleIndex = newArticles.indexOf(url);
+    if (articleIndex >= 0 && init.method === "GET") {
       return new Response(
-        '<a href="https://drive.google.com/file/d/' + newDriveId + '/view">List of Successful Examinees</a>',
+        '<a href="https://drive.google.com/file/d/' + driveIds[articleIndex] + '/view">List of Successful Examinees</a>',
         { status: 200, headers: { "content-type": "text/html" } }
       );
     }
-    if (oldArticles.includes(url)) throw new Error("Historical article must not be opened for PDF acquisition");
-    if (url === "https://drive.google.com/uc?export=download&id=" + newDriveId) {
+    if (oldArticles.includes(url)) throw new Error("Historical PRC article must never be opened for acquisition");
+    if (url.startsWith("https://drive.google.com/uc?export=download&id=")) {
+      const id = new URL(url).searchParams.get("id");
       return new Response(null, {
         status: 302,
-        headers: { location: "https://drive.usercontent.google.com/download?id=" + newDriveId + "&export=download" }
+        headers: { location: "https://drive.usercontent.google.com/download?id=" + id + "&export=download" }
       });
     }
-    if (url === "https://drive.usercontent.google.com/download?id=" + newDriveId + "&export=download") {
+    if (url.startsWith("https://drive.usercontent.google.com/download?id=")) {
       return new Response("%PDF-1.7\\nPRC official successful examinees", { status: 206 });
     }
     if (url.includes("evil.example")) throw new Error("Cross-origin result links must never be fetched");
@@ -827,17 +852,20 @@ test("PRC listing baseline snapshots historical articles and dispatches only a n
 
   const baseline = await runScheduled({ env, fetchImpl, scheduledTime: Date.UTC(2026, 10, 3) });
   assert.equal(baseline.first_check.results[0].status, "baseline_created");
-  assert.equal(baseline.first_check.results[0].discovered_article_count, 3);
-  assert.equal(baseline.first_check.results[0].historical_articles_skipped, 3);
+  assert.equal(baseline.first_check.results[0].discovered_article_count, 6);
+  assert.equal(baseline.first_check.results[0].historical_articles_skipped, 6);
   assert.equal(dispatches.length, 0, "baseline must never import historical result PDFs");
 
   listingVersion = 2;
-  const changed = await runScheduled({ env, fetchImpl, scheduledTime: Date.UTC(2026, 10, 3, 0, 1) });
-  assert.equal(changed.first_check.results[0].status, "changed");
-  assert.equal(dispatches.length, 1);
-  assert.equal(dispatches[0].client_payload.authority, "PRC");
-  assert.equal(dispatches[0].client_payload.source_article_url, newArticle);
-  assert.equal(dispatches[0].client_payload.detected_url,
-    "https://drive.google.com/uc?export=download&id=" + newDriveId);
-  assert.ok(changed.outbound_subrequests_used <= changed.outbound_subrequest_safety_limit);
+  const firstBatch = await runScheduled({ env, fetchImpl, scheduledTime: Date.UTC(2026, 10, 3, 0, 1) });
+  assert.equal(firstBatch.first_check.results[0].status, "changed");
+  assert.equal(dispatches.length, 3);
+  assert.ok(firstBatch.first_check.results[0].pdf_results.some((item) => item.status === "article_batch_pending"));
+  assert.ok(firstBatch.outbound_subrequests_used <= firstBatch.outbound_subrequest_safety_limit);
+
+  const secondBatch = await runScheduled({ env, fetchImpl, scheduledTime: Date.UTC(2026, 10, 3, 0, 2) });
+  assert.equal(secondBatch.first_check.results[0].status, "changed");
+  assert.equal(dispatches.length, 4);
+  assert.equal(dispatches[3].client_payload.source_article_url, newArticles[3]);
+  assert.ok(secondBatch.outbound_subrequests_used <= secondBatch.outbound_subrequest_safety_limit);
 });
