@@ -83,7 +83,7 @@ jobs:
             echo "## Cloudflare Watcher deployment"
             echo ""
             echo "- Wrangler deployment command completed successfully."
-            echo "- Configuration source: `watcher-bot/wrangler.toml`."
+            echo '- Configuration source: `watcher-bot/wrangler.toml`.'
             echo "- Existing production KV namespace and Cron configuration were read from the Wrangler configuration."
             echo "- No Worker secrets were supplied or replaced by this workflow."
           } >> "$GITHUB_STEP_SUMMARY"
