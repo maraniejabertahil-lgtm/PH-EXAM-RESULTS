@@ -8,7 +8,7 @@
       "year": 2026,
       "source_type": "official",
       "authorized": true,
-      "enabled": true,
+      "enabled": false,
       "url": "https://csc.gov.ph/regional-offices/region-v/examination",
       "file_format": "pdf",
       "auto_acquire": true,
@@ -18,7 +18,9 @@
         "1jQmBLSU2azhFvCgU6l8m6ljXGDmIRa1l",
         "1qYaCbxIZ_6DHyMD9FhgZdj-YtbIJh5Wf"
       ],
-      "allow_linked_drive_documents": true
+      "allow_linked_drive_documents": true,
+      "manual_drop_required": true,
+      "disable_reason": "Official CSC source returns HTTP 403 security verification to direct requests; automated monitoring is paused per Master Technical Blueprint. Use manual-drop until official access is available."
     }
   ]
 }
