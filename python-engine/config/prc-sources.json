@@ -28,6 +28,18 @@
       "announcement_url": "https://www.prc.gov.ph/article/march-2026-licensure-examination-professional-teachers-results-released-thirty-nine-39",
       "drive_file_id": "1RFuFGN4D1T3hkGC-iib9pRmJP1vJiJJ7",
       "expected_passers": 45001
+    },
+    {
+      "id": "PRC-NLE-2026-02",
+      "authority": "PRC",
+      "exam": "NLE",
+      "year": 2026,
+      "source_type": "official",
+      "authorized": true,
+      "enabled": true,
+      "announcement_url": "https://www.prc.gov.ph/article/february-2026-nurses-licensure-examination-results-released-five-5-working-days",
+      "drive_file_id": "1pyanD6eierylQeohhy2wm4HBWCfuSYX6",
+      "expected_passers": 3611
     }
   ]
 }
