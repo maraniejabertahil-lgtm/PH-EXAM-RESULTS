@@ -461,8 +461,12 @@ async function findOfficialResultArticleLinks(pageUrl, fetchImpl, source = {}) {
 }
 
 async function scanApprovedDocuments(source, pageUrl, env, fetchImpl, now, allowArticleDiscovery = true) {
-  const sameOriginLinks = await findSameOriginPdfLinks(pageUrl, fetchImpl);
-  const driveLinks = await findApprovedGoogleDriveLinks(pageUrl, source, fetchImpl);
+  const trackNewArticlesOnly = source.track_new_articles_only === true &&
+    source.discover_official_result_articles === true;
+  const isListingPage = pageUrl === source.url;
+  const skipListingAttachments = trackNewArticlesOnly && allowArticleDiscovery && isListingPage;
+  const sameOriginLinks = skipListingAttachments ? [] : await findSameOriginPdfLinks(pageUrl, fetchImpl);
+  const driveLinks = skipListingAttachments ? [] : await findApprovedGoogleDriveLinks(pageUrl, source, fetchImpl);
   const results = [];
   for (const pdfUrl of sameOriginLinks.slice(0, 5)) {
     try {
@@ -482,8 +486,6 @@ async function scanApprovedDocuments(source, pageUrl, env, fetchImpl, now, allow
   }
   for (const item of driveLinks) {
     try {
-      // Only the exact approved Drive file ID may traverse the narrowly allowlisted
-      // Google download host. The returned bytes must still contain the PDF signature.
       const verified = await verifyPdfCandidate(item.url, fetchImpl, item.id);
       if (!verified) {
         results.push({ drive_file_id: item.id, status: "pdf_verification_failed_manual_review_required" });
@@ -503,16 +505,87 @@ async function scanApprovedDocuments(source, pageUrl, env, fetchImpl, now, allow
   if (allowArticleDiscovery && source.discover_official_result_articles === true) {
     try {
       const articleDiscovery = await findOfficialResultArticleLinks(pageUrl, fetchImpl, source);
-      for (const articleUrl of articleDiscovery.links) {
-        const articleResults = await scanApprovedDocuments(source, articleUrl, env, fetchImpl, now, false);
+      let articlesToScan = articleDiscovery.links;
+      let snapshotKey = null;
+      let previousArticles = [];
+      let snapshotValid = false;
+      if (trackNewArticlesOnly) {
+        snapshotKey = await kvKey("article-snapshot", source.id, source.url);
+        const previousRaw = await env.PEAK_WEEK.get(snapshotKey);
+        if (previousRaw !== null) {
+          try {
+            const parsed = JSON.parse(previousRaw);
+            if (Array.isArray(parsed) && parsed.every((value) => typeof value === "string")) {
+              previousArticles = parsed;
+              snapshotValid = true;
+            }
+          } catch { /* Rebuild a corrupt snapshot without importing historical documents. */ }
+        }
+        if (!snapshotValid) {
+          if (articleDiscovery.errors.length === 0) {
+            await env.PEAK_WEEK.put(snapshotKey, JSON.stringify(articleDiscovery.links), {
+              expirationTtl: BASELINE_TTL_SECONDS
+            });
+            results.push({
+              status: "article_snapshot_rebuilt_historical_skipped",
+              discovered_article_count: articleDiscovery.links.length
+            });
+          } else {
+            results.push({
+              status: "article_snapshot_rebuild_deferred_due_to_listing_error",
+              discovered_article_count: articleDiscovery.links.length
+            });
+          }
+          articlesToScan = [];
+        } else {
+          const previousSet = new Set(previousArticles);
+          articlesToScan = articleDiscovery.links.filter((url) => !previousSet.has(url));
+        }
+      }
+
+      let retryableArticleFailure = false;
+      const retryableStatuses = new Set([
+        "pdf_verification_failed_manual_review_required",
+        "pdf_verification_error_manual_review_required",
+        "check_error",
+        "dispatch_error",
+        "article_scan_error_manual_review_required",
+        "article_has_no_matching_pdf_yet",
+        "subrequest_budget_reached"
+      ]);
+      for (const articleUrl of articlesToScan) {
+        let articleResults = [];
+        try {
+          articleResults = await scanApprovedDocuments(source, articleUrl, env, fetchImpl, now, false);
+        } catch (error) {
+          articleResults = [{
+            status: "article_scan_error_manual_review_required",
+            error: String(error.message || error).slice(0, 160)
+          }];
+        }
+        if (trackNewArticlesOnly && articleResults.length === 0) {
+          articleResults.push({ status: "article_has_no_matching_pdf_yet" });
+        }
+        if (articleResults.some((item) => retryableStatuses.has(item.status))) {
+          retryableArticleFailure = true;
+        }
         results.push(...articleResults.map((item) => ({ ...item, article_url: articleUrl })));
       }
+
       for (const issue of articleDiscovery.errors) {
         results.push({
           status: "official_listing_page_unavailable",
           listing_page_url: issue.url,
           http_status: issue.http_status ?? null,
           error: issue.error ?? null
+        });
+      }
+
+      if (trackNewArticlesOnly && snapshotValid &&
+          articleDiscovery.errors.length === 0 && !retryableArticleFailure) {
+        const merged = [...new Set([...previousArticles, ...articleDiscovery.links])].slice(-500);
+        await env.PEAK_WEEK.put(snapshotKey, JSON.stringify(merged), {
+          expirationTtl: BASELINE_TTL_SECONDS
         });
       }
     } catch (error) {
@@ -609,6 +682,33 @@ async function checkTarget(target, env, fetchImpl, now, allowPageChange) {
     return { source_id: sourceId, url: target.url, status: "subrequest_budget_reached", error: String(error.message || error).slice(0, 200) };
   }
   if (previous === null) {
+    if (source.track_new_articles_only === true && source.discover_official_result_articles === true && !target.preemptive) {
+      try {
+        const discovery = await findOfficialResultArticleLinks(target.url, fetchImpl, source);
+        if (discovery.errors.length > 0) {
+          return {
+            source_id: sourceId, url: target.url, status: "baseline_created_page_scan_error",
+            discovered_article_count: discovery.links.length,
+            listing_page_errors: discovery.errors
+          };
+        }
+        const snapshotKey = await kvKey("article-snapshot", source.id, source.url);
+        await env.PEAK_WEEK.put(snapshotKey, JSON.stringify(discovery.links), {
+          expirationTtl: BASELINE_TTL_SECONDS
+        });
+        await env.PEAK_WEEK.put(key, current, { expirationTtl: BASELINE_TTL_SECONDS });
+        return {
+          source_id: sourceId, url: target.url, status: "baseline_created",
+          discovered_article_count: discovery.links.length,
+          historical_articles_skipped: discovery.links.length
+        };
+      } catch (error) {
+        return {
+          source_id: sourceId, url: target.url, status: "baseline_created_page_scan_error",
+          error: String(error.message || error).slice(0, 240)
+        };
+      }
+    }
     try {
       await env.PEAK_WEEK.put(key, current, { expirationTtl: BASELINE_TTL_SECONDS });
     } catch (error) {
@@ -625,14 +725,33 @@ async function checkTarget(target, env, fetchImpl, now, allowPageChange) {
     return { source_id: sourceId, url: target.url, status: "baseline_created" };
   }
   if (previous === current) return { source_id: sourceId, url: target.url, status: "unchanged" };
-  try {
-    await env.PEAK_WEEK.put(key, current, { expirationTtl: BASELINE_TTL_SECONDS });
-  } catch (error) {
-    return { source_id: sourceId, url: target.url, status: "subrequest_budget_reached", error: String(error.message || error).slice(0, 200) };
+  if (source.track_new_articles_only !== true) {
+    try {
+      await env.PEAK_WEEK.put(key, current, { expirationTtl: BASELINE_TTL_SECONDS });
+    } catch (error) {
+      return { source_id: sourceId, url: target.url, status: "subrequest_budget_reached", error: String(error.message || error).slice(0, 200) };
+    }
   }
-  if (!allowPageChange) return { source_id: sourceId, url: target.url, status: "changed_no_page_scan" };
+  if (!allowPageChange) {
+    if (source.track_new_articles_only === true) {
+      try {
+        await env.PEAK_WEEK.put(key, current, { expirationTtl: BASELINE_TTL_SECONDS });
+      } catch (error) {
+        return { source_id: sourceId, url: target.url, status: "subrequest_budget_reached", error: String(error.message || error).slice(0, 200) };
+      }
+    }
+    return { source_id: sourceId, url: target.url, status: "changed_no_page_scan" };
+  }
   try {
     const results = await scanApprovedDocuments(source, target.url, env, fetchImpl, now);
+    if (source.track_new_articles_only === true) {
+      const retryable = results.some((item) =>
+        /(?:error|unavailable|failed|no_matching_pdf_yet|budget_reached)/.test(String(item.status))
+      );
+      if (!retryable) {
+        await env.PEAK_WEEK.put(key, current, { expirationTtl: BASELINE_TTL_SECONDS });
+      }
+    }
     return { source_id: sourceId, url: target.url, status: "changed", pdf_results: results };
   } catch (error) {
     return { source_id: sourceId, url: target.url, status: "page_scan_error", error: String(error.message || error).slice(0, 240) };
