@@ -1,4 +1,22 @@
 {
   "schema_version": 1,
-  "sources": []
+  "sources": [
+    {
+      "id": "CSC-CSE-PPT-2026-08-09-REGION-V",
+      "authority": "CSC",
+      "exam": "CSE-PPT-2026",
+      "year": 2026,
+      "source_type": "official",
+      "authorized": true,
+      "enabled": true,
+      "url": "https://www.csc.gov.ph/regional-offices/region-v/examination/results-10072026",
+      "file_format": "pdf",
+      "auto_acquire": true,
+      "scan_page_on_baseline": true,
+      "drive_file_ids": [
+        "1jQmBLSU2azhFvCgU6l8m6ljXGDmIRa1l",
+        "1qYaCbxIZ_6DHyMD9FhgZdj-YtbIJh5Wf"
+      ]
+    }
+  ]
 }
