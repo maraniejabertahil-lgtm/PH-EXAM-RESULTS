@@ -71,6 +71,29 @@ jobs:
               exit 1
               ;;
           esac
+      - name: Verify deployed production Worker Cron schedule
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
+        run: |
+          set -euo pipefail
+          code="$(curl -sS -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" -o /tmp/worker-schedules.json -w '%{http_code}' "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/workers/scripts/ph-exam-results-watcher/schedules")"
+          echo "Production Worker schedules API: HTTP $code"
+          if [ "$code" = "200" ]; then
+            python - <<'PY'
+          import json
+          with open("/tmp/worker-schedules.json", encoding="utf-8") as handle:
+              payload = json.load(handle)
+          if not payload.get("success"):
+              raise SystemExit("Cloudflare did not confirm schedule query success")
+          schedules = [item.get("cron") for item in payload.get("result", {}).get("schedules", [])]
+          print("Deployed production cron schedules:", schedules)
+          if "* * * * *" not in schedules:
+              raise SystemExit("Expected one-minute production cron trigger is missing")
+          PY
+          else
+            echo "::warning::The configured API token cannot read Worker schedules; live cron status remains unverified."
+          fi
       - name: Check PRC robots policy before enabling article crawling
         run: |
           set -euo pipefail
@@ -91,7 +114,7 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
         run: |
           set +e
-          timeout --kill-after=5s 65s npx --yes wrangler@4.156.2 tail --format json
+          timeout --kill-after=5s 125s npx --yes wrangler@4.156.2 tail --format json
           code=$?
           set -e
           if [ "$code" -eq 124 ]; then
