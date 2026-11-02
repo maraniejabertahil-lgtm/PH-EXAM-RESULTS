@@ -71,6 +71,16 @@ jobs:
               exit 1
               ;;
           esac
+      - name: Check PRC robots policy before enabling article crawling
+        run: |
+          set -euo pipefail
+          code="$(curl -L -sS -A 'Mozilla/5.0 (compatible; PH-EXAM-RESULTS-Diagnostics/1.0)' -o /tmp/prc-robots.txt -w '%{http_code}' 'https://www.prc.gov.ph/robots.txt')"
+          echo "PRC robots.txt: HTTP $code"
+          if [ "$code" = "200" ]; then
+            cat /tmp/prc-robots.txt
+          else
+            echo "Robots policy could not be retrieved; automated article crawling must remain disabled."
+          fi
       - name: Run Peak Week simulation tests
         working-directory: watcher-bot
         run: npm test
