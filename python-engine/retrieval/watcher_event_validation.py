@@ -38,12 +38,49 @@ def is_approved_drive_event(payload: dict, source: dict, detected) -> bool:
 
     try:
         page = urlsplit(source_page_url)
-        return (
-            page.scheme == "https"
-            and bool(page.hostname)
-            and page.username is None
-            and page.password is None
-            and page.port in (None, 443)
+        page_origin = (
+            page.scheme,
+            (page.hostname or "").lower(),
+            page.port or 443,
         )
+        if (
+            page.scheme != "https"
+            or not page.hostname
+            or page.username is not None
+            or page.password is not None
+            or page.port not in (None, 443)
+        ):
+            return False
+
+        article_url = payload.get("source_article_url")
+        if source.get("discover_official_result_articles") is True:
+            if not isinstance(article_url, str) or not article_url:
+                return False
+        elif article_url not in (None, ""):
+            return False
+
+        if article_url:
+            article = urlsplit(article_url)
+            article_origin = (
+                article.scheme,
+                (article.hostname or "").lower(),
+                article.port or 443,
+            )
+            allowed_path = (
+                article.path.startswith("/article/")
+                or re.fullmatch(r"/node/[0-9]+/?", article.path) is not None
+            )
+            if (
+                article_origin != page_origin
+                or article.scheme != "https"
+                or article.username is not None
+                or article.password is not None
+                or article.port not in (None, 443)
+                or article.query
+                or article.fragment
+                or not allowed_path
+            ):
+                return False
+        return True
     except ValueError:
         return False
