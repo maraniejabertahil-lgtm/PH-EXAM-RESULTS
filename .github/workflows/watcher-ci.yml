@@ -11,6 +11,10 @@ on:
       - "python-engine/config/sources.json"
       - "python-engine/retrieval/**"
       - "python-engine/tests/**"
+      - "tools/extract-prc-pdf.mjs"
+      - "watcher-bot/tests/prc-extractor.test.mjs"
+      - ".github/workflows/private-prc-extraction.yml"
+      - "python-engine/config/prc-sources.json"
   pull_request:
     branches:
       - main
@@ -21,6 +25,10 @@ on:
       - "python-engine/config/sources.json"
       - "python-engine/retrieval/**"
       - "python-engine/tests/**"
+      - "tools/extract-prc-pdf.mjs"
+      - "watcher-bot/tests/prc-extractor.test.mjs"
+      - ".github/workflows/private-prc-extraction.yml"
+      - "python-engine/config/prc-sources.json"
   workflow_dispatch:
 
 permissions:
@@ -41,6 +49,8 @@ jobs:
       - name: Run Watcher automated tests
         working-directory: watcher-bot
         run: npm test
+      - name: Run PRC extractor safety tests
+        run: node --test watcher-bot/tests/prc-extractor.test.mjs
       - name: Set up Python for public PDF retrieval tests
         uses: actions/setup-python@v6
         with:
