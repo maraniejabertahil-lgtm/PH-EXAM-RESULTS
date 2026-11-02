@@ -16,7 +16,7 @@ Before production use, open **Settings → Branches** (or the repository ruleset
 |---|---|
 | 1 - Manual Source Check (Owner Diagnostic) | Manually runs the legacy Python metadata check; no scheduled trigger remains |
 | Cloudflare Watcher | Runs scheduled source monitoring every minute; Peak Week checks twice 30 seconds apart and sends `source-detected` repository dispatch events |
-| Process Detected Source and Manual Drop | Receives and validates Watcher events and manual-drop pushes; Phase 1 does not yet run Python extraction |
+| Process Detected Source and Manual Drop | Validates Watcher events against the owner-approved registry and invokes the Phase 2 Python PDF review bridge; manual-drop pushes remain a separate intake path |
 | 2 - Process Result Import and Open Approval PR | Manually processes an owner-supplied CSV in `private-imports/` |
 | 2B - Extract PDF Text for Manual Review | Extracts text from a private PDF and stores a review artifact; does not publish results |
 | 3 - Deploy Public Site to Cloudflare Pages | Validates and deploys the approved `public/` directory |
@@ -50,13 +50,13 @@ These are official starting points identified for owner review only. They are no
 
 - PRC examination-result articles: https://www.prc.gov.ph/articles/exam-results. Individual PRC result articles link to official result documents; the inspected example linked its list of successful examinees through Google Drive. Each direct document URL and its download/redirect behavior must be verified separately before enabling acquisition.
 - CSC Examination Portal: https://exam.csc.gov.ph/list_passers.php. The portal exposes official passer-search categories and exam-year links, but its list-of-passers interface is interactive. A monitor-only page check is not equivalent to extracting a complete result dataset.
-- CSC examination advisories: https://csc.gov.ph/examination-advisories/. These official notices can identify result-release announcements, but the actual passer list still needs to be retrieved from the official CSC portal or a specifically linked official document.
+- CSC examination advisories: https://csc.gov.ph/examination-advisories/. These official notices can identify result-release announcements. For the 09 August 2026 CSE-PPT, CSC Region V published the official results page https://www.csc.gov.ph/regional-offices/region-v/examination/results-10072026, which links the Professional and Subprofessional passer-list PDFs hosted on Google Drive: https://drive.google.com/file/d/1jQmBLSU2azhFvCgU6l8m6ljXGDmIRa1l/view?usp=drive_link and https://drive.google.com/file/d/1qYaCbxIZ_6DHyMD9FhgZdj-YtbIJh5Wf/view?usp=drive_link. The CSC page is an official source; the linked files are cross-origin and require a separately tested, explicitly approved Google Drive acquisition route.
 
 Do not enable `auto_acquire` for these index pages. The source registry remains empty until the owner approves each precise source and its supported acquisition method. The downloader follows only same-host, same-port HTTPS redirects and rejects cross-origin redirects before following them. Some PRC Google Drive attachments may redirect to a different Google host; those must remain manual-download/manual-review inputs unless a compliant direct-download route is verified.
 
 ## Cloudflare Watcher setup (Phase 1)
 
-1. Open `watcher-bot/wrangler.toml` and replace `REPLACE_WITH_CLOUDFLARE_KV_NAMESPACE_ID` with the ID of a Workers KV namespace created in the correct Cloudflare account.
+1. Confirm the existing `PEAK_WEEK` KV namespace ID in `watcher-bot/wrangler.toml` matches the intended Cloudflare account. Do not replace it with a placeholder.
 2. Set a Cloudflare Worker secret named `GITHUB_TOKEN`. Use a fine-grained GitHub token limited to this repository with **Contents: Read and write** permission. Read is needed to load the private source registry; write is needed for the repository-dispatch endpoint.
 3. Confirm `GITHUB_REPOSITORY`, `GITHUB_SOURCE_REF`, and `GITHUB_SOURCE_PATH` in `wrangler.toml`.
 4. From the `watcher-bot/` folder, authenticate Wrangler to the intended Cloudflare account and deploy the Worker.
@@ -64,7 +64,7 @@ Do not enable `auto_acquire` for these index pages. The source registry remains 
 6. Set the KV key `PEAK_WEEK` to the text value `true` to enable Peak Week Mode; set it to `false` to return to Standard Mode.
 7. Do not call Phase 1 live until a real owner-approved source is configured and a real PDF detection reaches the GitHub Actions receiver.
 
-The GitHub receiver is on the PR branch. GitHub `repository_dispatch` workflows must exist on the repository's default branch to run. Therefore, the live webhook receiver cannot be verified until the reviewed implementation is merged into `main`. No merge or deployment is performed by Phase 1 code changes.
+The GitHub receiver and Phase 2 Python bridge are on the implementation PR branch. GitHub `repository_dispatch` workflows must exist on the repository's default branch to run. Therefore, the live webhook-to-Python path cannot be verified until the reviewed implementation is merged into `main`. No merge or deployment is performed by these code changes.
 
 The Watcher uses a maximum of 45 outbound subrequests per scheduled invocation to stay below the Workers Free subrequest limit. It does not monitor any source while the registry is empty.
 
@@ -81,6 +81,19 @@ The Watcher uses a maximum of 45 outbound subrequests per scheduled invocation t
 9. Enable automatic acquisition only after the source and sample file are verified.
 
 The registry is currently empty. Do not add guessed URLs or scrape a site without permission.
+
+
+## Phase 2 Watcher-to-Python PDF review bridge
+
+The implementation branch now contains `python-engine/scraper/event_processor.py` and a `process-import.yml` receiver that connects a validated `source-detected` event to the Python engine.
+
+- The event must match exactly one enabled, owner-authorized registry source and its authority/exam.
+- The detected document must be identified as a PDF and remain on the exact approved HTTPS origin.
+- The bridge downloads only when `auto_acquire: true`; otherwise it records that owner acquisition approval is still required and does not download.
+- Downloaded content is checked for a PDF signature, size-limited by the existing downloader, SHA-256 hashed, and text-extracted.
+- The output is a short-lived GitHub Actions review artifact. It is not a passer dataset, is not OCR, and is never published automatically.
+- The CSC August 2026 passer PDFs linked from the official Region V page are hosted on Google Drive, outside the CSC page's origin. The current same-origin bridge intentionally rejects those links. A Google Drive-specific allowlisted download route must be implemented and tested before those PDFs can be acquired automatically.
+- This receiver is not active until its workflow exists on the default branch. The source registry also remains empty until the owner approves the exact CSC source and acquisition route.
 
 ## Manual CSV import
 
