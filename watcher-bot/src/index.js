@@ -372,7 +372,9 @@ async function scanApprovedDocuments(source, pageUrl, env, fetchImpl, now) {
 }
 
 async function dispatchDetectedPdf(env, source, pdfUrl, metadata, fetchImpl, now) {
-  const eventType = metadata.driveFallback ? "staging-source-detected" : (env.GITHUB_EVENT_TYPE || "source-detected");
+  // Production uses source-detected by default. Preview environments explicitly set staging-source-detected.
+  // Fallback detection must not silently divert a production event to the staging receiver.
+  const eventType = env.GITHUB_EVENT_TYPE || "source-detected";
   if (!["source-detected", "staging-source-detected"].includes(eventType)) {
     throw new Error("GITHUB_EVENT_TYPE must be source-detected or staging-source-detected.");
   }
