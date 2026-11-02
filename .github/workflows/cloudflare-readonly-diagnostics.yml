@@ -113,6 +113,20 @@ jobs:
             grep -Eio 'https://drive\.google\.com/file/d/[A-Za-z0-9_-]+' /tmp/csc-reader-nocache.html | sort -u | head -10 || true
             grep -Ei -A2 -B2 'Professional:|SubProfessional:|Regional List of Passers|RESULTS ARE OUT' /tmp/csc-reader-nocache.html | head -30 || true
           fi
+      - name: Probe official PRC pages from GitHub runner
+        run: |
+          set -euo pipefail
+          for url in \
+            "https://www.prc.gov.ph/" \
+            "https://www.prc.gov.ph/node/9450" \
+            "https://www.prc.gov.ph/article/august-and-september-2026-nurses-licensure-examination-results-released-five-5-working-days"; do
+            code="$(curl -L -sS -A 'Mozilla/5.0 (compatible; PH-EXAM-RESULTS-Diagnostics/1.0)' -o /tmp/prc-page.html -w '%{http_code}' "$url")"
+            echo "PRC page GET: $url -> HTTP $code"
+            if [ "$code" = "200" ]; then
+              grep -Eio 'https://drive\\.google\\.com/file/d/[A-Za-z0-9_-]+' /tmp/prc-page.html | sort -u | head -5 || true
+              grep -Ei 'examination results|successful examinees|list of passers' /tmp/prc-page.html | head -3 || true
+            fi
+          done
       - name: Run Peak Week simulation tests
         working-directory: watcher-bot
         run: npm test
