@@ -108,3 +108,30 @@ def process_detected_pdf(payload: dict, registry_path: str | Path, output_path: 
     }
     destination.write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\\n", encoding="utf-8")
     return report
+
+
+def main() -> int:
+    import argparse
+    parser = argparse.ArgumentParser(description="Process one validated Watcher PDF event.")
+    parser.add_argument("--payload", required=True, help="Path to JSON Watcher client payload.")
+    parser.add_argument("--registry", default="python-engine/config/sources.json")
+    parser.add_argument("--output", required=True, help="Path for the private JSON review artifact.")
+    args = parser.parse_args()
+    try:
+        payload = json.loads(Path(args.payload).read_text(encoding="utf-8"))
+        report = process_detected_pdf(payload, args.registry, args.output)
+    except (OSError, json.JSONDecodeError, DetectedSourceError, Exception) as exc:
+        print(json.dumps({"status": "processing_rejected_or_failed", "error": str(exc)[:500]}))
+        return 1
+    print(json.dumps({
+        "status": report["status"],
+        "source_id": report.get("source_id"),
+        "extracted_line_count": report.get("extracted_line_count", 0),
+        "manual_review_required": report.get("manual_review_required", True),
+        "output": args.output,
+    }, ensure_ascii=False))
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
