@@ -130,7 +130,7 @@ The registry now contains two source records:
    - Follows at most three same-origin result article pages under `/article/` or numeric `/node/{id}` paths.
    - `scan_page_on_baseline: false`, `direct_drive_fallback: false`, `auto_acquire: false`, and no static Drive IDs. Initial setup therefore does not dispatch historical PDFs.
    - The PRC robots.txt was retrieved with HTTP 200. Its disallowed paths are administrative, authentication, search, and system paths; it does not disallow the public `/article/` or numeric `/node/{id}` result pages.
-   - The production Worker can retrieve the PRC homepage and has an established baseline. The latest observed check reported `unchanged`; no historical document was dispatched by baseline setup.
+   - The production Worker can retrieve the PRC homepage and has an established baseline. A live scheduled event observed at 22:41 UTC (before PR #32 enabled article discovery) reported `unchanged` for the PRC homepage in both Peak Week scans; no historical document was dispatched by baseline setup. A post-PR #32 scheduled-event confirmation is being checked separately.
 
 2. **CSC Region V — disabled**
    - URL: `https://csc.gov.ph/regional-offices/region-v/examination`
@@ -141,7 +141,7 @@ The registry now contains two source records:
 
 ### Runtime evidence and safety
 
-- The production Worker reported two configured sources and one enabled source. The PRC homepage check used 6 outbound subrequests against the 45-request safety limit and produced no runtime exceptions.
+- A live scheduled Worker event at 22:41 UTC reported two configured sources and one enabled source. The PRC homepage check used 6 outbound subrequests against the 45-request safety limit and produced no runtime exceptions. This event predates PR #32's article-discovery flag activation.
 - `PEAK_WEEK=true` was observed in production KV diagnostics; this work did not change that value.
 - The Worker automatically created/uses its normal PRC homepage baseline state. No production KV values were manually edited and no secrets were changed.
 - Phase 1 remains validation-only: no PDF acquisition, extraction, or publication was performed.
