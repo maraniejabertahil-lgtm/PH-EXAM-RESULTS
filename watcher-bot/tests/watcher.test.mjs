@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { runScheduled, expandPreemptiveTemplates } from "../src/index.js";
+import worker, { runScheduled, expandPreemptiveTemplates } from "../src/index.js";
 
 const repository = "owner/repository";
 class MemoryKV {
@@ -433,4 +433,98 @@ test("Peak Week safety budget counts HTTP and KV subrequests together", async ()
   assert.equal(fetchCalls + kv.calls, report.outbound_subrequests_used);
   assert.ok(report.outbound_subrequests_used <= 45);
   assert.ok(report.second_check.results.some((item) => item.status === "subrequest_budget_reached" || item.status === "check_error"));
+});
+
+
+test("CSC 403 falls back to exact owner-approved Google Drive IDs without scraping the blocked page", async () => {
+  const ids = [
+    "1jQmBLSU2azhFvCgU6l8m6ljXGDmIRa1l",
+    "1qYaCbxIZ_6DHyMD9FhgZdj-YtbIJh5Wf",
+    "short-id",
+    "1jQmBLSU2azhFvCgU6l8m6ljXGDmIRa1l"
+  ];
+  const source = approvedSource({
+    drive_file_ids: ids,
+    url: "https://www.csc.gov.ph/regional-offices/region-v/examination/results-10072026"
+  });
+  const env = envFor();
+  env.GITHUB_EVENT_TYPE = "staging-source-detected";
+  const { fetchImpl, dispatches } = githubFetch([source], async (url, init) => {
+    if (url === source.url) {
+      assert.ok(["HEAD", "GET"].includes(init.method));
+      return new Response(null, { status: 403 });
+    }
+    if (url.startsWith("https://drive.google.com/uc?export=download&id=")) {
+      const id = new URL(url).searchParams.get("id");
+      return new Response(null, {
+        status: 302,
+        headers: { location: "https://drive.usercontent.google.com/download?id=" + id + "&export=download" }
+      });
+    }
+    if (url.startsWith("https://drive.usercontent.google.com/download?id=")) {
+      return new Response("%PDF-1.7\\nverified test PDF", {
+        status: 206, headers: { "content-type": "application/pdf" }
+      });
+    }
+    throw new Error("Unexpected request: " + url);
+  });
+  const report = await runScheduled({ env, fetchImpl, scheduledTime: Date.UTC(2026, 10, 2) });
+  const result = report.first_check.results[0];
+  assert.equal(result.status, "http_error");
+  assert.equal(result.http_status, 403);
+  assert.equal(result.fallback, "approved_drive_ids");
+  assert.equal(result.pdf_results.length, 2);
+  assert.ok(result.pdf_results.every((item) => item.status === "dispatched"));
+  assert.equal(dispatches.length, 2);
+  assert.ok(dispatches.every((item) => item.event_type === "staging-source-detected"));
+  assert.ok(dispatches.every((item) => item.client_payload.detection_method === "approved_drive_id_fallback"));
+  assert.deepEqual(
+    dispatches.map((item) => new URL(item.client_payload.detected_url).searchParams.get("id")).sort(),
+    ids.slice(0, 2).sort()
+  );
+});
+
+test("CSC 403 direct Drive fallback still rejects non-PDF content", async () => {
+  const id = "1jQmBLSU2azhFvCgU6l8m6ljXGDmIRa1l";
+  const source = approvedSource({ drive_file_ids: [id] });
+  const env = envFor();
+  env.GITHUB_EVENT_TYPE = "staging-source-detected";
+  const { fetchImpl, dispatches } = githubFetch([source], async (url) => {
+    if (url === source.url) return new Response(null, { status: 403 });
+    if (url.startsWith("https://drive.google.com/uc?")) {
+      return new Response(null, {
+        status: 302,
+        headers: { location: "https://drive.usercontent.google.com/download?id=" + id + "&export=download" }
+      });
+    }
+    if (url.startsWith("https://drive.usercontent.google.com/download?id=")) {
+      return new Response("<html>Access denied</html>", { status: 200 });
+    }
+    throw new Error("Unexpected request: " + url);
+  });
+  const report = await runScheduled({ env, fetchImpl });
+  assert.equal(report.first_check.results[0].pdf_results[0].status, "pdf_verification_failed_manual_review_required");
+  assert.equal(dispatches.length, 0);
+});
+
+
+test("manual scan endpoint requires the Preview bearer token", async () => {
+  const env = envFor();
+  env.GITHUB_EVENT_TYPE = "staging-source-detected";
+  env.STAGING_SCAN_TOKEN = "preview-test-secret";
+  const response = await worker.fetch(new Request("https://preview.example/__staging/scan", {
+    method: "POST"
+  }), env);
+  assert.equal(response.status, 401);
+});
+
+test("manual scan endpoint is unavailable outside Worker Previews", async () => {
+  const env = envFor();
+  env.GITHUB_EVENT_TYPE = "production";
+  env.STAGING_SCAN_TOKEN = "preview-test-secret";
+  const response = await worker.fetch(new Request("https://worker.example/__staging/scan", {
+    method: "POST",
+    headers: { authorization: "Bearer preview-test-secret" }
+  }), env);
+  assert.equal(response.status, 404);
 });
