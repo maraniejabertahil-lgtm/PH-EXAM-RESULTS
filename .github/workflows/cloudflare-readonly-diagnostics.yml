@@ -1,6 +1,9 @@
 name: Read-only Cloudflare Watcher Diagnostics
 
 on:
+  push:
+    branches:
+      - diagnostics/cloudflare-readonly-20261102
   workflow_dispatch:
 
 permissions:
