@@ -59,7 +59,7 @@ test("CSC source remains paused until its official security verification barrier
   ]);
 });
 
-test("PRC source monitors the official exam-results listing and bounded article discovery", () => {
+test("PRC source monitors the official exam-results listing without importing historical baseline attachments", () => {
   const source = registry.sources.find((item) => item.id === "PRC-EXAM-RESULTS-HOMEPAGE");
   assert.ok(source);
   assert.equal(source.url, "https://www.prc.gov.ph/articles/exam-results");
@@ -69,7 +69,8 @@ test("PRC source monitors the official exam-results listing and bounded article 
   assert.equal(source.enabled, true);
   assert.equal(source.file_format, "pdf");
   assert.equal(source.auto_acquire, false);
-  assert.equal(source.scan_page_on_baseline, true);
+  assert.equal(source.scan_page_on_baseline, false);
+  assert.equal(source.track_new_articles_only, true);
   assert.equal(source.result_listing_page_count, 3);
   assert.equal(source.max_result_articles_per_scan, 3);
   assert.equal(source.allow_linked_drive_documents, true);
