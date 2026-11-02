@@ -1,0 +1,53 @@
+name: Private CSC PDF Text Extraction (Node.js)
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_id:
+        description: Exact source ID from python-engine/config/sources.json
+        required: true
+        type: string
+        default: CSC-CSE-PPT-2026-08-09-REGION-V
+      drive_file_id:
+        description: One exact CSC-approved Google Drive file ID
+        required: true
+        type: string
+        default: 1jQmBLSU2azhFvCgU6l8m6ljXGDmIRa1l
+
+permissions:
+  contents: read
+
+jobs:
+  extract-private:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out approved registry and extractor
+        uses: actions/checkout@v5
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install PDF.js
+        run: npm install --no-save --no-package-lock pdfjs-dist@4.10.38
+
+      - name: Check extractor syntax
+        run: node --check tools/extract-csc-pdf.mjs
+
+      - name: Download only the approved Drive PDF and extract embedded text
+        env:
+          SOURCE_ID: ${{ inputs.source_id }}
+          DRIVE_FILE_ID: ${{ inputs.drive_file_id }}
+          SOURCE_REGISTRY: python-engine/config/sources.json
+          OUTPUT_DIR: private-extraction
+        run: node tools/extract-csc-pdf.mjs
+
+      - name: Keep results private to repository collaborators
+        uses: actions/upload-artifact@v4
+        with:
+          name: private-csc-extraction-${{ github.run_id }}
+          path: private-extraction/
+          if-no-files-found: error
+          retention-days: 1
