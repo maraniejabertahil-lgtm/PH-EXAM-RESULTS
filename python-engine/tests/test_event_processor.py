@@ -37,7 +37,7 @@ class DetectedSourceProcessorTests(unittest.TestCase):
 
     def test_rejects_cross_origin_pdf(self):
         self.payload["detected_url"] = "https://drive.google.com/file/result.pdf"
-        with self.assertRaisesRegex(DetectedSourceError, "outside the exact approved"):
+        with self.assertRaisesRegex(DetectedSourceError, "Google Drive URL"):
             process_detected_pdf(self.payload, self.registry, self.root / "report.json")
 
     def test_rejects_metadata_mismatch(self):
