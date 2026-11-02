@@ -66,6 +66,32 @@ class DownloaderSafetyTests(unittest.TestCase):
         with self.assertRaises(DownloadError):
             download_approved_file(source, "/tmp/should-not-exist.csv")
 
+    def test_rejects_google_drive_file_id_not_in_allowlist_before_network(self):
+        source = {
+            "id": "csc-drive",
+            "source_type": "official",
+            "authorized": True,
+            "enabled": True,
+            "drive_file_ids": ["approved-file-id-123456"],
+            "url": "https://drive.google.com/uc?export=download&id=other-file-id-123456",
+        }
+        with patch("scraper.downloader.build_opener") as opener:
+            with self.assertRaisesRegex(DownloadError, "exact approved file ID"):
+                download_approved_file(source, "/tmp/not-downloaded.pdf")
+        opener.assert_not_called()
+
+    def test_google_drive_redirect_allowlist_rejects_non_google_hosts(self):
+        from scraper.downloader import GoogleDriveRedirectHandler
+        self.assertTrue(GoogleDriveRedirectHandler._allowed(
+            "https://drive.usercontent.google.com/download?id=approved"
+        ))
+        self.assertFalse(GoogleDriveRedirectHandler._allowed(
+            "https://malicious.example/download"
+        ))
+        self.assertFalse(GoogleDriveRedirectHandler._allowed(
+            "http://drive.google.com/download"
+        ))
+
     def test_rejects_unverified_third_party_source(self):
         source = {
             "id": "third-party-test",
