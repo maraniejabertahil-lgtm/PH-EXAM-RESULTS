@@ -374,55 +374,99 @@ async function scanApprovedDriveFiles(source, env, fetchImpl, now) {
   return results;
 }
 
-async function findOfficialResultArticleLinks(pageUrl, fetchImpl) {
+async function findOfficialResultArticleLinks(pageUrl, fetchImpl, source = {}) {
   const page = validateHttpsUrl(pageUrl);
-  const { response, finalUrl } = await fetchSameOrigin(page.href, {
-    method: "GET", headers: { "User-Agent": USER_AGENT, Accept: "text/html" }
-  }, fetchImpl);
-  if (!response.ok) {
-    if (response.body) await response.body.cancel();
-    return [];
-  }
-  const reader = response.body?.getReader();
-  if (!reader) return [];
-  const chunks = [];
-  let total = 0;
-  try {
-    while (total < MAX_HTML_BYTES) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      const part = value.subarray(0, MAX_HTML_BYTES - total);
-      chunks.push(part);
-      total += part.length;
-      if (part.length !== value.length) break;
-    }
-  } finally { await reader.cancel().catch(() => {}); }
-  const html = new TextDecoder().decode(concatBytes(chunks, total));
+  const configuredPageCount = Number(source.result_listing_page_count);
+  const pageCount = Number.isInteger(configuredPageCount)
+    ? Math.min(3, Math.max(1, configuredPageCount))
+    : 1;
+  const configuredMaxArticles = Number(source.max_result_articles_per_scan);
+  const maxArticles = Number.isInteger(configuredMaxArticles)
+    ? Math.min(3, Math.max(1, configuredMaxArticles))
+    : 3;
+  const perPageLimit = Math.max(1, Math.ceil(maxArticles / pageCount));
   const found = [];
   const seen = new Set();
-  const anchors = /<a\b[^>]*href\s*=\s*["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi;
+  const errors = [];
   const resultTitle = /(?:licensure|special|qualifying|civil service|career service|examination|exam).{0,100}(?:results?|passers?)|(?:results?|passers?).{0,100}(?:licensure|special|qualifying|civil service|career service|examination|exam)/i;
-  let match;
-  while ((match = anchors.exec(html)) && found.length < 3) {
-    const label = match[2].replace(/<[^>]*>/g, " ").replace(/&nbsp;|&#160;/gi, " ").replace(/&amp;/gi, "&").replace(/\s+/g, " ").trim();
-    if (!resultTitle.test(label)) continue;
+
+  for (let pageIndex = 0; pageIndex < pageCount && found.length < maxArticles; pageIndex += 1) {
+    const listingUrl = new URL(page.href);
+    if (pageIndex > 0) listingUrl.searchParams.set("page", String(pageIndex));
+    let response;
+    let finalUrl;
     try {
-      const link = new URL(match[1], finalUrl);
-      if (link.protocol !== "https:" || link.origin !== new URL(finalUrl).origin ||
-          link.username || link.password || link.search || link.hash ||
-          !(link.pathname.startsWith("/article/") || /^\/node\/[0-9]+\/?$/.test(link.pathname))) continue;
-      if (!seen.has(link.href)) {
-        seen.add(link.href);
-        found.push(link.href);
+      const fetched = await fetchSameOrigin(listingUrl.href, {
+        method: "GET", headers: { "User-Agent": USER_AGENT, Accept: "text/html" }
+      }, fetchImpl);
+      response = fetched.response;
+      finalUrl = fetched.finalUrl;
+    } catch (error) {
+      errors.push({ url: listingUrl.href, error: String(error.message || error).slice(0, 160) });
+      continue;
+    }
+    if (!response.ok) {
+      if (response.body) await response.body.cancel();
+      errors.push({ url: listingUrl.href, http_status: response.status });
+      continue;
+    }
+    const reader = response.body?.getReader();
+    if (!reader) {
+      errors.push({ url: listingUrl.href, error: "Listing response had no readable body." });
+      continue;
+    }
+    const chunks = [];
+    let total = 0;
+    try {
+      while (total < MAX_HTML_BYTES) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        const part = value.subarray(0, MAX_HTML_BYTES - total);
+        chunks.push(part);
+        total += part.length;
+        if (part.length !== value.length) break;
       }
-    } catch { /* Ignore malformed or non-official article links. */ }
+    } catch (error) {
+      errors.push({ url: listingUrl.href, error: String(error.message || error).slice(0, 160) });
+      continue;
+    } finally {
+      await reader.cancel().catch(() => {});
+    }
+    const html = new TextDecoder().decode(concatBytes(chunks, total));
+    const anchors = /<a\b[^>]*href\s*=\s*["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi;
+    let pageFound = 0;
+    let match;
+    while ((match = anchors.exec(html)) && found.length < maxArticles && pageFound < perPageLimit) {
+      const label = match[2]
+        .replace(/<[^>]*>/g, " ")
+        .replace(/&nbsp;|&#160;/gi, " ")
+        .replace(/&amp;/gi, "&")
+        .replace(/\s+/g, " ")
+        .trim();
+      if (!resultTitle.test(label)) continue;
+      try {
+        const link = new URL(match[1], finalUrl);
+        if (link.protocol !== "https:" || link.origin !== new URL(finalUrl).origin ||
+            link.username || link.password || link.search || link.hash ||
+            !(link.pathname.startsWith("/article/") || /^\/node\/[0-9]+\/?$/.test(link.pathname))) continue;
+        if (!seen.has(link.href)) {
+          seen.add(link.href);
+          found.push(link.href);
+          pageFound += 1;
+        }
+      } catch { /* Ignore malformed or non-official article links. */ }
+    }
   }
-  return found;
+  return { links: found, errors };
 }
 
 async function scanApprovedDocuments(source, pageUrl, env, fetchImpl, now, allowArticleDiscovery = true) {
-  const sameOriginLinks = await findSameOriginPdfLinks(pageUrl, fetchImpl);
-  const driveLinks = await findApprovedGoogleDriveLinks(pageUrl, source, fetchImpl);
+  const trackNewArticlesOnly = source.track_new_articles_only === true &&
+    source.discover_official_result_articles === true;
+  const isListingPage = pageUrl === source.url;
+  const skipListingAttachments = trackNewArticlesOnly && allowArticleDiscovery && isListingPage;
+  const sameOriginLinks = skipListingAttachments ? [] : await findSameOriginPdfLinks(pageUrl, fetchImpl);
+  const driveLinks = skipListingAttachments ? [] : await findApprovedGoogleDriveLinks(pageUrl, source, fetchImpl);
   const results = [];
   for (const pdfUrl of sameOriginLinks.slice(0, 5)) {
     try {
@@ -442,8 +486,6 @@ async function scanApprovedDocuments(source, pageUrl, env, fetchImpl, now, allow
   }
   for (const item of driveLinks) {
     try {
-      // Only the exact approved Drive file ID may traverse the narrowly allowlisted
-      // Google download host. The returned bytes must still contain the PDF signature.
       const verified = await verifyPdfCandidate(item.url, fetchImpl, item.id);
       if (!verified) {
         results.push({ drive_file_id: item.id, status: "pdf_verification_failed_manual_review_required" });
@@ -462,10 +504,89 @@ async function scanApprovedDocuments(source, pageUrl, env, fetchImpl, now, allow
   }
   if (allowArticleDiscovery && source.discover_official_result_articles === true) {
     try {
-      const articlePages = await findOfficialResultArticleLinks(pageUrl, fetchImpl);
-      for (const articleUrl of articlePages) {
-        const articleResults = await scanApprovedDocuments(source, articleUrl, env, fetchImpl, now, false);
+      const articleDiscovery = await findOfficialResultArticleLinks(pageUrl, fetchImpl, source);
+      let articlesToScan = articleDiscovery.links;
+      let snapshotKey = null;
+      let previousArticles = [];
+      let snapshotValid = false;
+      if (trackNewArticlesOnly) {
+        snapshotKey = await kvKey("article-snapshot", source.id, source.url);
+        const previousRaw = await env.PEAK_WEEK.get(snapshotKey);
+        if (previousRaw !== null) {
+          try {
+            const parsed = JSON.parse(previousRaw);
+            if (Array.isArray(parsed) && parsed.every((value) => typeof value === "string")) {
+              previousArticles = parsed;
+              snapshotValid = true;
+            }
+          } catch { /* Rebuild a corrupt snapshot without importing historical documents. */ }
+        }
+        if (!snapshotValid) {
+          if (articleDiscovery.errors.length === 0) {
+            await env.PEAK_WEEK.put(snapshotKey, JSON.stringify(articleDiscovery.links), {
+              expirationTtl: BASELINE_TTL_SECONDS
+            });
+            results.push({
+              status: "article_snapshot_rebuilt_historical_skipped",
+              discovered_article_count: articleDiscovery.links.length
+            });
+          } else {
+            results.push({
+              status: "article_snapshot_rebuild_deferred_due_to_listing_error",
+              discovered_article_count: articleDiscovery.links.length
+            });
+          }
+          articlesToScan = [];
+        } else {
+          const previousSet = new Set(previousArticles);
+          articlesToScan = articleDiscovery.links.filter((url) => !previousSet.has(url));
+        }
+      }
+
+      let retryableArticleFailure = false;
+      const retryableStatuses = new Set([
+        "pdf_verification_failed_manual_review_required",
+        "pdf_verification_error_manual_review_required",
+        "check_error",
+        "dispatch_error",
+        "article_scan_error_manual_review_required",
+        "article_has_no_matching_pdf_yet",
+        "subrequest_budget_reached"
+      ]);
+      for (const articleUrl of articlesToScan) {
+        let articleResults = [];
+        try {
+          articleResults = await scanApprovedDocuments(source, articleUrl, env, fetchImpl, now, false);
+        } catch (error) {
+          articleResults = [{
+            status: "article_scan_error_manual_review_required",
+            error: String(error.message || error).slice(0, 160)
+          }];
+        }
+        if (trackNewArticlesOnly && articleResults.length === 0) {
+          articleResults.push({ status: "article_has_no_matching_pdf_yet" });
+        }
+        if (articleResults.some((item) => retryableStatuses.has(item.status))) {
+          retryableArticleFailure = true;
+        }
         results.push(...articleResults.map((item) => ({ ...item, article_url: articleUrl })));
+      }
+
+      for (const issue of articleDiscovery.errors) {
+        results.push({
+          status: "official_listing_page_unavailable",
+          listing_page_url: issue.url,
+          http_status: issue.http_status ?? null,
+          error: issue.error ?? null
+        });
+      }
+
+      if (trackNewArticlesOnly && snapshotValid &&
+          articleDiscovery.errors.length === 0 && !retryableArticleFailure) {
+        const merged = [...new Set([...previousArticles, ...articleDiscovery.links])].slice(-500);
+        await env.PEAK_WEEK.put(snapshotKey, JSON.stringify(merged), {
+          expirationTtl: BASELINE_TTL_SECONDS
+        });
       }
     } catch (error) {
       results.push({
@@ -561,6 +682,33 @@ async function checkTarget(target, env, fetchImpl, now, allowPageChange) {
     return { source_id: sourceId, url: target.url, status: "subrequest_budget_reached", error: String(error.message || error).slice(0, 200) };
   }
   if (previous === null) {
+    if (source.track_new_articles_only === true && source.discover_official_result_articles === true && !target.preemptive) {
+      try {
+        const discovery = await findOfficialResultArticleLinks(target.url, fetchImpl, source);
+        if (discovery.errors.length > 0) {
+          return {
+            source_id: sourceId, url: target.url, status: "baseline_created_page_scan_error",
+            discovered_article_count: discovery.links.length,
+            listing_page_errors: discovery.errors
+          };
+        }
+        const snapshotKey = await kvKey("article-snapshot", source.id, source.url);
+        await env.PEAK_WEEK.put(snapshotKey, JSON.stringify(discovery.links), {
+          expirationTtl: BASELINE_TTL_SECONDS
+        });
+        await env.PEAK_WEEK.put(key, current, { expirationTtl: BASELINE_TTL_SECONDS });
+        return {
+          source_id: sourceId, url: target.url, status: "baseline_created",
+          discovered_article_count: discovery.links.length,
+          historical_articles_skipped: discovery.links.length
+        };
+      } catch (error) {
+        return {
+          source_id: sourceId, url: target.url, status: "baseline_created_page_scan_error",
+          error: String(error.message || error).slice(0, 240)
+        };
+      }
+    }
     try {
       await env.PEAK_WEEK.put(key, current, { expirationTtl: BASELINE_TTL_SECONDS });
     } catch (error) {
@@ -577,14 +725,33 @@ async function checkTarget(target, env, fetchImpl, now, allowPageChange) {
     return { source_id: sourceId, url: target.url, status: "baseline_created" };
   }
   if (previous === current) return { source_id: sourceId, url: target.url, status: "unchanged" };
-  try {
-    await env.PEAK_WEEK.put(key, current, { expirationTtl: BASELINE_TTL_SECONDS });
-  } catch (error) {
-    return { source_id: sourceId, url: target.url, status: "subrequest_budget_reached", error: String(error.message || error).slice(0, 200) };
+  if (source.track_new_articles_only !== true) {
+    try {
+      await env.PEAK_WEEK.put(key, current, { expirationTtl: BASELINE_TTL_SECONDS });
+    } catch (error) {
+      return { source_id: sourceId, url: target.url, status: "subrequest_budget_reached", error: String(error.message || error).slice(0, 200) };
+    }
   }
-  if (!allowPageChange) return { source_id: sourceId, url: target.url, status: "changed_no_page_scan" };
+  if (!allowPageChange) {
+    if (source.track_new_articles_only === true) {
+      try {
+        await env.PEAK_WEEK.put(key, current, { expirationTtl: BASELINE_TTL_SECONDS });
+      } catch (error) {
+        return { source_id: sourceId, url: target.url, status: "subrequest_budget_reached", error: String(error.message || error).slice(0, 200) };
+      }
+    }
+    return { source_id: sourceId, url: target.url, status: "changed_no_page_scan" };
+  }
   try {
     const results = await scanApprovedDocuments(source, target.url, env, fetchImpl, now);
+    if (source.track_new_articles_only === true) {
+      const retryable = results.some((item) =>
+        /(?:error|unavailable|failed|no_matching_pdf_yet|budget_reached)/.test(String(item.status))
+      );
+      if (!retryable) {
+        await env.PEAK_WEEK.put(key, current, { expirationTtl: BASELINE_TTL_SECONDS });
+      }
+    }
     return { source_id: sourceId, url: target.url, status: "changed", pdf_results: results };
   } catch (error) {
     return { source_id: sourceId, url: target.url, status: "page_scan_error", error: String(error.message || error).slice(0, 240) };

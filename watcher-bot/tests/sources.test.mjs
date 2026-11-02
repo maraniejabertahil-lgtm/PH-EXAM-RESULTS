@@ -59,10 +59,10 @@ test("CSC source remains paused until its official security verification barrier
   ]);
 });
 
-test("PRC homepage source cannot dispatch historical attachments on baseline", () => {
+test("PRC source monitors the official exam-results listing without importing historical baseline attachments", () => {
   const source = registry.sources.find((item) => item.id === "PRC-EXAM-RESULTS-HOMEPAGE");
   assert.ok(source);
-  assert.equal(source.url, "https://www.prc.gov.ph/");
+  assert.equal(source.url, "https://www.prc.gov.ph/articles/exam-results");
   assert.equal(source.authority, "PRC");
   assert.equal(source.source_type, "official");
   assert.equal(source.authorized, true);
@@ -70,11 +70,15 @@ test("PRC homepage source cannot dispatch historical attachments on baseline", (
   assert.equal(source.file_format, "pdf");
   assert.equal(source.auto_acquire, false);
   assert.equal(source.scan_page_on_baseline, false);
+  assert.equal(source.track_new_articles_only, true);
+  assert.equal(source.result_listing_page_count, 3);
+  assert.equal(source.max_result_articles_per_scan, 3);
   assert.equal(source.allow_linked_drive_documents, true);
   assert.equal(source.discover_official_result_articles, true);
   assert.deepEqual(source.drive_link_text_patterns, ["list of successful examinees"]);
   assert.equal(source.direct_drive_fallback, false);
   assert.deepEqual(source.drive_file_ids, []);
+  assert.deepEqual(source.preemptive_url_templates, []);
   assert.equal(source.robots_policy_verified, true);
   assert.equal(source.robots_policy_url, "https://www.prc.gov.ph/robots.txt");
 });

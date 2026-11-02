@@ -757,3 +757,87 @@ test("new Drive IDs linked from official pages remain blocked unless owner enabl
   assert.equal(driveRequests, 0);
   assert.equal(dispatches.length, 0);
 });
+
+
+
+
+test("PRC listing baseline snapshots historical articles and dispatches only a newly posted result PDF", async () => {
+  const source = approvedSource({
+    id: "PRC-EXAM-RESULTS-HOMEPAGE",
+    authority: "PRC",
+    exam: "LICENSURE-EXAM-RESULTS",
+    url: "https://www.prc.gov.ph/articles/exam-results",
+    scan_page_on_baseline: false,
+    allow_linked_drive_documents: true,
+    discover_official_result_articles: true,
+    track_new_articles_only: true,
+    result_listing_page_count: 3,
+    max_result_articles_per_scan: 3,
+    drive_link_text_patterns: ["list of successful examinees"],
+    drive_file_ids: []
+  });
+  const oldArticles = [
+    "https://www.prc.gov.ph/node/9450",
+    "https://www.prc.gov.ph/node/9451",
+    "https://www.prc.gov.ph/node/9452"
+  ];
+  const newArticle = "https://www.prc.gov.ph/node/9999";
+  const newDriveId = "1PRCNewOfficialSuccessfulExaminees2026";
+  let listingVersion = 1;
+  const env = envFor();
+  const listingHtml = (version) => version === 1
+    ? '<a href="/node/9450">October 2026 Licensure Examination Results Released</a>'
+    : '<a href="/node/9999">November 2026 Licensure Examination Results Released</a><a href="/node/9450">October 2026 Licensure Examination Results Released</a>';
+  const { fetchImpl, dispatches } = githubFetch([source], async (url, init = {}) => {
+    if (url === source.url && init.method === "HEAD") {
+      return new Response(null, { status: 200, headers: { etag: '"prc-listing-v' + listingVersion + '"', "content-type": "text/html" } });
+    }
+    if (url === source.url && init.method === "GET") {
+      return new Response(listingHtml(listingVersion), { status: 200, headers: { "content-type": "text/html" } });
+    }
+    if (url === source.url + "?page=1" && init.method === "GET") {
+      return new Response('<a href="/node/9451">September 2026 Licensure Examination Results Released</a>', {
+        status: 200, headers: { "content-type": "text/html" }
+      });
+    }
+    if (url === source.url + "?page=2" && init.method === "GET") {
+      return new Response('<a href="/node/9452">August 2026 Licensure Examination Results Released</a>', {
+        status: 200, headers: { "content-type": "text/html" }
+      });
+    }
+    if (url === newArticle && init.method === "GET") {
+      return new Response(
+        '<a href="https://drive.google.com/file/d/' + newDriveId + '/view">List of Successful Examinees</a>',
+        { status: 200, headers: { "content-type": "text/html" } }
+      );
+    }
+    if (oldArticles.includes(url)) throw new Error("Historical article must not be opened for PDF acquisition");
+    if (url === "https://drive.google.com/uc?export=download&id=" + newDriveId) {
+      return new Response(null, {
+        status: 302,
+        headers: { location: "https://drive.usercontent.google.com/download?id=" + newDriveId + "&export=download" }
+      });
+    }
+    if (url === "https://drive.usercontent.google.com/download?id=" + newDriveId + "&export=download") {
+      return new Response("%PDF-1.7\\nPRC official successful examinees", { status: 206 });
+    }
+    if (url.includes("evil.example")) throw new Error("Cross-origin result links must never be fetched");
+    throw new Error("Unexpected PRC request: " + url + " " + init.method);
+  });
+
+  const baseline = await runScheduled({ env, fetchImpl, scheduledTime: Date.UTC(2026, 10, 3) });
+  assert.equal(baseline.first_check.results[0].status, "baseline_created");
+  assert.equal(baseline.first_check.results[0].discovered_article_count, 3);
+  assert.equal(baseline.first_check.results[0].historical_articles_skipped, 3);
+  assert.equal(dispatches.length, 0, "baseline must never import historical result PDFs");
+
+  listingVersion = 2;
+  const changed = await runScheduled({ env, fetchImpl, scheduledTime: Date.UTC(2026, 10, 3, 0, 1) });
+  assert.equal(changed.first_check.results[0].status, "changed");
+  assert.equal(dispatches.length, 1);
+  assert.equal(dispatches[0].client_payload.authority, "PRC");
+  assert.equal(dispatches[0].client_payload.source_article_url, newArticle);
+  assert.equal(dispatches[0].client_payload.detected_url,
+    "https://drive.google.com/uc?export=download&id=" + newDriveId);
+  assert.ok(changed.outbound_subrequests_used <= changed.outbound_subrequest_safety_limit);
+});
