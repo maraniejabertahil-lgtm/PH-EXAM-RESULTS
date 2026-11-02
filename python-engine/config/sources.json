@@ -29,11 +29,11 @@
       "source_type": "official",
       "authorized": true,
       "enabled": true,
-      "url": "https://www.prc.gov.ph/",
+      "url": "https://www.prc.gov.ph/articles/exam-results",
       "direct_drive_fallback": false,
       "drive_file_ids": [],
       "allow_linked_drive_documents": true,
-      "scan_page_on_baseline": false,
+      "scan_page_on_baseline": true,
       "preemptive_url_templates": [],
       "file_format": "pdf",
       "auto_acquire": false,
@@ -43,7 +43,9 @@
       ],
       "robots_policy_verified": true,
       "robots_policy_url": "https://www.prc.gov.ph/robots.txt",
-      "robots_policy_checked_at": "2026-11-03"
+      "robots_policy_checked_at": "2026-11-03",
+      "result_listing_page_count": 3,
+      "max_result_articles_per_scan": 3
     }
   ]
 }
