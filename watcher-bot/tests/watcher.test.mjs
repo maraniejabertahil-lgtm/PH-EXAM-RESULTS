@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { runScheduled, expandPreemptiveTemplates } from "../src/index.js";
+import worker, { runScheduled, expandPreemptiveTemplates } from "../src/index.js";
 
 const repository = "owner/repository";
 class MemoryKV {
@@ -505,4 +505,26 @@ test("CSC 403 direct Drive fallback still rejects non-PDF content", async () => 
   const report = await runScheduled({ env, fetchImpl });
   assert.equal(report.first_check.results[0].pdf_results[0].status, "pdf_verification_failed_manual_review_required");
   assert.equal(dispatches.length, 0);
+});
+
+
+test("manual scan endpoint requires the Preview bearer token", async () => {
+  const env = envFor();
+  env.GITHUB_EVENT_TYPE = "staging-source-detected";
+  env.STAGING_SCAN_TOKEN = "preview-test-secret";
+  const response = await worker.fetch(new Request("https://preview.example/__staging/scan", {
+    method: "POST"
+  }), env);
+  assert.equal(response.status, 401);
+});
+
+test("manual scan endpoint is unavailable outside Worker Previews", async () => {
+  const env = envFor();
+  env.GITHUB_EVENT_TYPE = "production";
+  env.STAGING_SCAN_TOKEN = "preview-test-secret";
+  const response = await worker.fetch(new Request("https://worker.example/__staging/scan", {
+    method: "POST",
+    headers: { authorization: "Bearer preview-test-secret" }
+  }), env);
+  assert.equal(response.status, 404);
 });
