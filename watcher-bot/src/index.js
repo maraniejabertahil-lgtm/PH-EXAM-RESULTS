@@ -233,14 +233,22 @@ async function findApprovedGoogleDriveLinks(pageUrl, source, fetchImpl) {
   } finally { await reader.cancel().catch(() => {}); }
   const html = new TextDecoder().decode(concatBytes(chunks, total));
   const found = new Map();
+  const candidates = [];
   const hrefs = /href\s*=\s*["']([^"']+)["']/gi;
   let match;
-  while ((match = hrefs.exec(html))) {
+  while ((match = hrefs.exec(html))) candidates.push(match[1]);
+
+  // CSC pages sometimes print Drive URLs as plain text instead of clickable anchors.
+  // Also recognize Markdown-style proxy output, while keeping the host/path exact.
+  const plainDriveUrls = /https:\/\/drive\.google\.com\/file\/d\/[A-Za-z0-9_-]{10,200}\/view(?:[?#][^\s"'<>]*)?/gi;
+  while ((match = plainDriveUrls.exec(html))) candidates.push(match[0]);
+
+  for (const candidate of candidates) {
     try {
-      const link = new URL(match[1], finalUrl);
+      const link = new URL(candidate, finalUrl);
       if (link.protocol !== "https:" || link.hostname.toLowerCase() !== "drive.google.com" ||
-          link.username || link.password) continue;
-      const fileMatch = link.pathname.match(/^\/file\/d\/([A-Za-z0-9_-]{10,})\/view\/?$/);
+          link.username || link.password || link.port && link.port !== "443") continue;
+      const fileMatch = link.pathname.match(/^\/file\/d\/([A-Za-z0-9_-]{10,200})\/view\/?$/);
       if (fileMatch && (allowed.has(fileMatch[1]) || discoverOfficialPageDriveLinks)) {
         found.set(fileMatch[1], {
           discovered: !allowed.has(fileMatch[1]),
