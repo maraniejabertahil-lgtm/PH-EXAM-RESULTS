@@ -75,6 +75,7 @@ test("preemptive PDF returning HTTP 200 dispatches once and is deduplicated", as
 test("staging configuration dispatches only the staging-specific event type", async () => {
   const source = approvedSource({ url: "https://csc.example.gov.ph/current-list.pdf" });
   const env = envFor();
+  env.GITHUB_EVENT_TYPE = "staging-source-detected";
   const { fetchImpl, dispatches } = githubFetch([source], async (_url, init) => init.method === "HEAD"
     ? new Response(null, { status: 200, headers: { "content-type": "application/pdf" } })
     : new Response("%PDF-1.7\\nverified", { status: 206 }));
