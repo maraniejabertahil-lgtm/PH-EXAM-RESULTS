@@ -9,7 +9,7 @@
       "source_type": "official",
       "authorized": true,
       "enabled": true,
-      "url": "https://www.csc.gov.ph/regional-offices/region-v/examination",
+      "url": "https://csc.gov.ph/regional-offices/region-v/examination",
       "file_format": "pdf",
       "auto_acquire": true,
       "direct_drive_fallback": true,
