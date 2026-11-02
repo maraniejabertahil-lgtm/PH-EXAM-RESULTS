@@ -605,6 +605,88 @@ test("owner-enabled official-page discovery finds plain-text Drive URLs without 
   assert.equal(dispatches[0].client_payload.source_page_url, source.url);
 });
 
+
+test("opt-in PRC listing discovery scans only same-origin result articles and verifies their Drive PDFs", async () => {
+  const discoveredId = "1PRCArticleOfficialDriveFile2026";
+  const listingUrl = "https://www.prc.gov.ph/articles/exam-results";
+  const articleUrl = "https://www.prc.gov.ph/node/9450";
+  const source = approvedSource({
+    id: "prc-exam-results",
+    authority: "PRC",
+    exam: "PRC-LICENSURE",
+    url: listingUrl,
+    scan_page_on_baseline: true,
+    allow_linked_drive_documents: true,
+    discover_official_result_articles: true,
+    drive_file_ids: []
+  });
+  const listingHtml =
+    '<a href="/node/9450">October 2026 Physicians Licensure Examination Results Released In Four Working Days</a>' +
+    '<a href="/article/oathtaking">Face-to-Face Oathtaking of New Chemists</a>' +
+    '<a href="https://evil.example/node/999">October 2026 Examination Results Released</a>';
+  const articleHtml =
+    '<a href="https://drive.google.com/file/d/' + discoveredId + '/view?usp=sharing">List of Successful Examinees</a>';
+  const { fetchImpl, dispatches } = githubFetch([source], async (url, init) => {
+    if (url === listingUrl && init.method === "HEAD") {
+      return new Response(null, { status: 200, headers: { etag: '"listing-v1"', "content-type": "text/html" } });
+    }
+    if (url === listingUrl && init.method === "GET") {
+      return new Response(listingHtml, { status: 200, headers: { "content-type": "text/html" } });
+    }
+    if (url === articleUrl && init.method === "GET") {
+      return new Response(articleHtml, { status: 200, headers: { "content-type": "text/html" } });
+    }
+    if (url === "https://drive.google.com/uc?export=download&id=" + discoveredId) {
+      return new Response(null, {
+        status: 302,
+        headers: { location: "https://drive.usercontent.google.com/download?id=" + discoveredId + "&export=download" }
+      });
+    }
+    if (url === "https://drive.usercontent.google.com/download?id=" + discoveredId + "&export=download") {
+      return new Response("%PDF-1.7\\nPRC official article PDF", { status: 206 });
+    }
+    if (url.includes("evil.example")) throw new Error("Cross-origin article must never be fetched");
+    throw new Error("Unexpected request: " + url);
+  });
+  const report = await runScheduled({ env: envFor(), fetchImpl, scheduledTime: Date.UTC(2026, 10, 2) });
+  assert.equal(report.first_check.results[0].status, "baseline_created");
+  assert.equal(dispatches.length, 1);
+  assert.equal(dispatches[0].client_payload.authority, "PRC");
+  assert.equal(dispatches[0].client_payload.detection_method, "official_page_drive_link");
+  assert.equal(dispatches[0].client_payload.source_page_url, articleUrl);
+  assert.equal(dispatches[0].client_payload.detected_url,
+    "https://drive.google.com/uc?export=download&id=" + discoveredId);
+});
+
+test("PRC article discovery stays off unless explicitly enabled by the approved source", async () => {
+  const listingUrl = "https://www.prc.gov.ph/articles/exam-results";
+  const source = approvedSource({
+    id: "prc-exam-results",
+    authority: "PRC",
+    exam: "PRC-LICENSURE",
+    url: listingUrl,
+    scan_page_on_baseline: true,
+    allow_linked_drive_documents: true,
+    discover_official_result_articles: false,
+    drive_file_ids: []
+  });
+  const { fetchImpl, dispatches } = githubFetch([source], async (url, init) => {
+    if (url === listingUrl && init.method === "HEAD") {
+      return new Response(null, { status: 200, headers: { etag: '"listing-v1"', "content-type": "text/html" } });
+    }
+    if (url === listingUrl && init.method === "GET") {
+      return new Response('<a href="/node/9450">October 2026 Physicians Licensure Examination Results Released</a>', {
+        status: 200, headers: { "content-type": "text/html" }
+      });
+    }
+    if (url.includes("/node/")) throw new Error("Article must not be fetched without explicit opt-in");
+    throw new Error("Unexpected request: " + url);
+  });
+  const report = await runScheduled({ env: envFor(), fetchImpl, scheduledTime: Date.UTC(2026, 10, 2) });
+  assert.equal(report.first_check.results[0].status, "baseline_created");
+  assert.equal(dispatches.length, 0);
+});
+
 test("new Drive IDs linked from official pages remain blocked unless owner enables discovery", async () => {
   const discoveredId = "1UnapprovedDiscoveryMustNotDispatch";
   const source = approvedSource({
