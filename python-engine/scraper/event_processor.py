@@ -72,7 +72,7 @@ def process_detected_pdf(payload: dict, registry_path: str | Path, output_path: 
         }
         destination = Path(output_path)
         destination.parent.mkdir(parents=True, exist_ok=True)
-        destination.write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\\n", encoding="utf-8")
+        destination.write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
         return report
 
     acquisition_source = {**source, "url": detected_url}
@@ -106,7 +106,7 @@ def process_detected_pdf(payload: dict, registry_path: str | Path, output_path: 
         ),
         "lines": lines,
     }
-    destination.write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\\n", encoding="utf-8")
+    destination.write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     return report
 
 
@@ -120,7 +120,7 @@ def main() -> int:
     try:
         payload = json.loads(Path(args.payload).read_text(encoding="utf-8"))
         report = process_detected_pdf(payload, args.registry, args.output)
-    except (OSError, json.JSONDecodeError, DetectedSourceError, Exception) as exc:
+    except Exception as exc:
         print(json.dumps({"status": "processing_rejected_or_failed", "error": str(exc)[:500]}))
         return 1
     print(json.dumps({
