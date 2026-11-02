@@ -55,7 +55,7 @@ def download_approved_file(
     if original.scheme != "https" or not original.hostname or original.username or original.password:
         raise DownloadError("Only valid HTTPS source URLs are allowed.")
 
-    drive_mode = bool(source.get("drive_file_ids"))
+    drive_mode = (original.hostname or "").lower() == "drive.google.com"
     if drive_mode:
         from urllib.parse import parse_qs
         query = parse_qs(original.query)
