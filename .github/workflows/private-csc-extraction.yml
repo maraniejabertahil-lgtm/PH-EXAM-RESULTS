@@ -33,6 +33,9 @@ jobs:
       - name: Install PDF.js
         run: npm install --no-save --no-package-lock pdfjs-dist@4.10.38
 
+      - name: Check extractor syntax
+        run: node --check tools/extract-csc-pdf.mjs
+
       - name: Download only the approved Drive PDF and extract embedded text
         env:
           SOURCE_ID: ${{ inputs.source_id }}
