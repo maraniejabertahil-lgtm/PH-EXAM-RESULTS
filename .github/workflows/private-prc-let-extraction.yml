@@ -43,10 +43,11 @@ jobs:
           OUTPUT_DIR: private-prc-let-extraction
         run: node tools/extract-prc-let-pdf.mjs
 
-      - name: Upload private staging report and source files
+      - name: Upload sanitized extraction metadata only
         uses: actions/upload-artifact@v4
         with:
-          name: private-prc-let-staging-${{ github.run_id }}
-          path: private-prc-let-extraction/
+          name: prc-let-extraction-metadata-${{ github.run_id }}
+          path: private-prc-let-extraction/extraction-report.json
           if-no-files-found: error
           retention-days: 1
+
