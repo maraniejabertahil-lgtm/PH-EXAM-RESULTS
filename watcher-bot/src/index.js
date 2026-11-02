@@ -302,6 +302,36 @@ async function verifyPdfCandidate(url, fetchImpl, driveFileId = null) {
   return signature.includes("%PDF-");
 }
 
+async function scanApprovedDriveFiles(source, env, fetchImpl, now) {
+  // The CSC announcement may return 403 even while its already-approved public
+  // Google Drive PDFs remain downloadable. Try only IDs explicitly approved in
+  // the source registry; never discover arbitrary Drive files.
+  const ids = [...new Set(Array.isArray(source.drive_file_ids) ? source.drive_file_ids : [])]
+    .filter((id) => typeof id === "string" && /^[A-Za-z0-9_-]{10,}$/.test(id));
+  const results = [];
+  for (const id of ids) {
+    const url = `https://drive.google.com/uc?export=download&id=${encodeURIComponent(id)}`;
+    try {
+      const verified = await verifyPdfCandidate(url, fetchImpl, id);
+      if (!verified) {
+        results.push({ drive_file_id: id, status: "pdf_verification_failed_manual_review_required" });
+        continue;
+      }
+      const dispatched = await dispatchDetectedPdf(env, source, url, {
+        status: 206, contentType: "application/pdf", preemptive: false,
+        detectionMethod: "approved_drive_id_fallback", driveFileId: id
+      }, fetchImpl, now);
+      results.push({ url, drive_file_id: id, status: dispatched.status });
+    } catch (error) {
+      results.push({
+        drive_file_id: id, status: "pdf_verification_error_manual_review_required",
+        error: String(error.message || error).slice(0, 160)
+      });
+    }
+  }
+  return results;
+}
+
 async function scanApprovedDocuments(source, pageUrl, env, fetchImpl, now) {
   const sameOriginLinks = await findSameOriginPdfLinks(pageUrl, fetchImpl);
   const driveLinks = await findApprovedGoogleDriveLinks(pageUrl, source, fetchImpl);
@@ -322,10 +352,9 @@ async function scanApprovedDocuments(source, pageUrl, env, fetchImpl, now) {
       results.push({ url: pdfUrl, status: "check_error", error: String(error.message || error).slice(0, 160) });
     }
   }
+  // Use the same strict ID allowlist and PDF signature check for page-discovered links.
   for (const item of driveLinks) {
     try {
-      // Only the exact approved Drive file ID may traverse the narrowly allowlisted
-      // Google download host. The returned bytes must still contain the PDF signature.
       const verified = await verifyPdfCandidate(item.url, fetchImpl, item.id);
       if (!verified) {
         results.push({ drive_file_id: item.id, status: "pdf_verification_failed_manual_review_required" });
@@ -363,7 +392,7 @@ async function dispatchDetectedPdf(env, source, pdfUrl, metadata, fetchImpl, now
       client_payload: {
         source_id: String(source.id), authority: source.authority, exam: source.exam,
         source_type: source.source_type, detected_url: pdfUrl, detected_at: isoNow(now),
-        detection_method: metadata.preemptive ? "preemptive_head" : "source_page_change",
+        detection_method: metadata.detectionMethod || (metadata.preemptive ? "preemptive_head" : "source_page_change"),
         http_status: metadata.status, content_type: metadata.contentType
       }
     }),
@@ -386,6 +415,16 @@ async function checkTarget(target, env, fetchImpl, now, allowPageChange) {
     return { source_id: sourceId, url: target.url, status: "check_error", error: String(error.message || error).slice(0, 240) };
   }
   if (metadata.status < 200 || metadata.status >= 300) {
+    // A 403 from CSC must not prevent retrieval of public PDFs whose exact Drive
+    // IDs were already approved in the registry. This fallback does not scrape
+    // mirrors or broaden the allowed Drive hosts/IDs.
+    if (metadata.status === 403 && Array.isArray(source.drive_file_ids) && source.drive_file_ids.length > 0) {
+      const pdf_results = await scanApprovedDriveFiles(source, env, fetchImpl, now);
+      return {
+        source_id: sourceId, url: target.url, status: "http_error",
+        http_status: metadata.status, fallback: "approved_drive_ids", pdf_results
+      };
+    }
     return { source_id: sourceId, url: target.url, status: "http_error", http_status: metadata.status };
   }
   if (target.preemptive || isPdfPath(target.url) || metadata.contentType === "application/pdf") {
