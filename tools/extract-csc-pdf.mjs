@@ -6,7 +6,6 @@
 import { createHash } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { pathToFileURL } from "node:url";
 
 const MAX_BYTES = 50 * 1024 * 1024;
 const MAX_REDIRECTS = 5;
@@ -60,9 +59,32 @@ async function downloadApprovedPdf(fileId) {
     const type = (response.headers.get("content-type") || "").split(";")[0].toLowerCase();
     if (type === "text/html") fail("Google Drive returned an HTML interstitial, not a PDF.");
 
-    const bytes = new Uint8Array(await response.arrayBuffer());
-    if (!bytes.length || bytes.length > MAX_BYTES) {
-      fail(`Downloaded file is empty or exceeds the ${MAX_BYTES}-byte limit.`);
+    const declaredLength = Number(response.headers.get("content-length") || 0);
+    if (declaredLength > MAX_BYTES) fail(`PDF exceeds the ${MAX_BYTES}-byte limit.`);
+    const reader = response.body?.getReader();
+    if (!reader) fail("Google Drive returned no response body.");
+    const chunks = [];
+    let total = 0;
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        total += value.byteLength;
+        if (total > MAX_BYTES) {
+          await reader.cancel();
+          fail(`PDF exceeds the ${MAX_BYTES}-byte limit.`);
+        }
+        chunks.push(value);
+      }
+    } finally {
+      reader.releaseLock();
+    }
+    if (!total) fail("Google Drive returned an empty file.");
+    const bytes = new Uint8Array(total);
+    let offset = 0;
+    for (const chunk of chunks) {
+      bytes.set(chunk, offset);
+      offset += chunk.byteLength;
     }
     if (!Buffer.from(bytes.subarray(0, 1024)).includes(Buffer.from("%PDF-"))) {
       fail("Downloaded bytes do not contain the PDF signature.");
@@ -118,15 +140,15 @@ async function main() {
       .filter((item) => typeof item.str === "string")
       .map((item) => item.str)
       .join(" ")
-      .replace(/[\\t ]+/g, " ")
+      .replace(/[\t ]+/g, " ")
       .trim();
     pages.push({ page: pageNumber, text });
     totalCharacters += text.length;
   }
 
-  const extractedText = pages.map((page) => `===== PAGE ${page.page} =====\\n${page.text}`).join("\\n\\n");
+  const extractedText = pages.map((page) => `===== PAGE ${page.page} =====\n${page.text}`).join("\n\n");
   const textPath = path.join(outputDir, `${sourceId}-${fileId}.txt`);
-  await writeFile(textPath, extractedText + "\\n", "utf8");
+  await writeFile(textPath, extractedText + "\n", "utf8");
 
   const report = {
     status: totalCharacters > 0 ? "text_extracted_private_review_required" : "no_embedded_text_ocr_required",
@@ -145,7 +167,7 @@ async function main() {
   };
   await writeFile(
     path.join(outputDir, "extraction-report.json"),
-    JSON.stringify(report, null, 2) + "\\n",
+    JSON.stringify(report, null, 2) + "\n",
     "utf8"
   );
   console.log(JSON.stringify({
