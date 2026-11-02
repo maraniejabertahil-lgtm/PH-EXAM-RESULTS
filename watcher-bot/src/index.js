@@ -238,15 +238,45 @@ async function findApprovedGoogleDriveLinks(pageUrl, source, fetchImpl) {
   }));
 }
 
-async function verifyPdfCandidate(url, fetchImpl) {
-  const { response } = await fetchSameOrigin(url, {
+async function fetchDriveDownload(urlValue, fileId, init, fetchImpl) {
+  const original = validateHttpsUrl(urlValue);
+  if (original.hostname.toLowerCase() !== "drive.google.com" ||
+      original.pathname !== "/uc" || original.searchParams.get("id") !== fileId ||
+      original.searchParams.get("export") !== "download") {
+    throw new Error("Google Drive candidate URL does not match its approved file ID.");
+  }
+  const allowedHosts = new Set(["drive.google.com", "drive.usercontent.google.com"]);
+  let current = original;
+  for (let redirects = 0; redirects <= MAX_REDIRECTS; redirects += 1) {
+    const response = await fetchImpl(current.href, {
+      ...init, redirect: "manual", signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS)
+    });
+    if (![301, 302, 303, 307, 308].includes(response.status)) return { response, finalUrl: current.href };
+    const location = response.headers.get("location");
+    if (!location) return { response, finalUrl: current.href };
+    const next = new URL(location, current);
+    if (next.protocol !== "https:" || !allowedHosts.has(next.hostname.toLowerCase()) ||
+        next.username || next.password || next.searchParams.get("id") !== fileId ||
+        !["/uc", "/download"].includes(next.pathname)) {
+      throw new Error("Google Drive redirect rejected: host, path, or approved file ID did not match.");
+    }
+    current = next;
+  }
+  throw new Error("Too many redirects while checking an approved Google Drive file.");
+}
+
+async function verifyPdfCandidate(url, fetchImpl, driveFileId = null) {
+  const request = {
     method: "GET",
     headers: {
       "User-Agent": USER_AGENT,
       Range: "bytes=0-1023",
       Accept: "application/pdf,application/octet-stream,*/*"
     }
-  }, fetchImpl);
+  };
+  const { response } = driveFileId
+    ? await fetchDriveDownload(url, driveFileId, request, fetchImpl)
+    : await fetchSameOrigin(url, request, fetchImpl);
   if (![200, 206].includes(response.status)) {
     if (response.body) await response.body.cancel();
     return false;
@@ -280,6 +310,11 @@ async function scanApprovedDocuments(source, pageUrl, env, fetchImpl, now) {
     try {
       const pdfMetadata = await requestMetadata(pdfUrl, fetchImpl);
       if (pdfMetadata.status >= 200 && pdfMetadata.status < 300 && isPdf(pdfUrl, pdfMetadata.contentType)) {
+        const verified = await verifyPdfCandidate(pdfUrl, fetchImpl);
+        if (!verified) {
+          results.push({ url: pdfUrl, status: "pdf_verification_failed_manual_review_required" });
+          continue;
+        }
         const dispatched = await dispatchDetectedPdf(env, source, pdfUrl, { ...pdfMetadata, preemptive: false }, fetchImpl, now);
         results.push({ url: pdfUrl, status: dispatched.status });
       }
@@ -289,10 +324,9 @@ async function scanApprovedDocuments(source, pageUrl, env, fetchImpl, now) {
   }
   for (const item of driveLinks) {
     try {
-      // An approved Drive ID is not proof that the response is a PDF.
-      // Keep Drive redirects constrained to the approved origin; if Google redirects
-      // elsewhere, require manual review rather than trusting a synthetic 200/PDF header.
-      const verified = await verifyPdfCandidate(item.url, fetchImpl);
+      // Only the exact approved Drive file ID may traverse the narrowly allowlisted
+      // Google download host. The returned bytes must still contain the PDF signature.
+      const verified = await verifyPdfCandidate(item.url, fetchImpl, item.id);
       if (!verified) {
         results.push({ drive_file_id: item.id, status: "pdf_verification_failed_manual_review_required" });
         continue;
@@ -359,6 +393,10 @@ async function checkTarget(target, env, fetchImpl, now, allowPageChange) {
       return { source_id: sourceId, url: target.url, status: "not_pdf", http_status: metadata.status };
     }
     try {
+      const verified = await verifyPdfCandidate(target.url, fetchImpl);
+      if (!verified) {
+        return { source_id: sourceId, url: target.url, status: "pdf_verification_failed_manual_review_required", preemptive: target.preemptive };
+      }
       const result = await dispatchDetectedPdf(env, source, target.url, { ...metadata, preemptive: target.preemptive }, fetchImpl, now);
       return { source_id: sourceId, url: target.url, status: result.status, preemptive: target.preemptive };
     } catch (error) {

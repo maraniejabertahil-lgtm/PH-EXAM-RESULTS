@@ -56,9 +56,11 @@ test("standard mode checks configured source once and creates a baseline", async
 
 test("preemptive PDF returning HTTP 200 dispatches once and is deduplicated", async () => {
   const source = approvedSource({ preemptive_url_templates: ["https://csc.example.gov.ph/CSE_{MM}{YYYY}_passers.pdf"] });
-  const { fetchImpl, dispatches } = githubFetch([source], async (url) => {
+  const { fetchImpl, dispatches } = githubFetch([source], async (url, init) => {
     if (url.endsWith("CSE_112026_passers.pdf")) {
-      return new Response(null, { status: 200, headers: { "content-type": "application/pdf" } });
+      return init.method === "HEAD"
+        ? new Response(null, { status: 200, headers: { "content-type": "application/pdf" } })
+        : new Response("%PDF-1.7\\nverified", { status: 206 });
     }
     return new Response(null, { status: 404 });
   });
@@ -74,9 +76,9 @@ test("staging configuration dispatches only the staging-specific event type", as
   const source = approvedSource({ url: "https://csc.example.gov.ph/current-list.pdf" });
   const env = envFor();
   env.GITHUB_EVENT_TYPE = "staging-source-detected";
-  const { fetchImpl, dispatches } = githubFetch([source], async () => new Response(null, {
-    status: 200, headers: { "content-type": "application/pdf" }
-  }));
+  const { fetchImpl, dispatches } = githubFetch([source], async (_url, init) => init.method === "HEAD"
+    ? new Response(null, { status: 200, headers: { "content-type": "application/pdf" } })
+    : new Response("%PDF-1.7\\nverified", { status: 206 }));
   const report = await runScheduled({ env, fetchImpl, scheduledTime: Date.UTC(2026, 10, 2) });
   assert.equal(report.first_check.results[0].status, "dispatched");
   assert.equal(dispatches.length, 1);
@@ -152,7 +154,9 @@ test("page metadata changes discover and dispatch same-origin PDF links", async 
       });
     }
     if (url === "https://csc.example.gov.ph/downloads/CSE-list.pdf") {
-      return new Response(null, { status: 200, headers: { "content-type": "application/pdf" } });
+      return init.method === "HEAD"
+        ? new Response(null, { status: 200, headers: { "content-type": "application/pdf" } })
+        : new Response("%PDF-1.7\\nverified", { status: 206 });
     }
     return new Response(null, { status: 404 });
   });
@@ -184,7 +188,14 @@ test("baseline scan dispatches only the two exact owner-approved Google Drive ID
       );
     }
     if (url.startsWith("https://drive.google.com/uc?export=download&id=")) {
-      return new Response("%PDF-1.7\nverified test PDF", {
+      const id = new URL(url).searchParams.get("id");
+      return new Response(null, {
+        status: 302,
+        headers: { location: "https://drive.usercontent.google.com/download?id=" + id + "&export=download" }
+      });
+    }
+    if (url.startsWith("https://drive.usercontent.google.com/download?id=")) {
+      return new Response("%PDF-1.7\\nverified test PDF", {
         status: 206, headers: { "content-type": "application/pdf" }
       });
     }
@@ -245,6 +256,64 @@ test("approved Drive ID returning HTML is not dispatched as a PDF", async () => 
   assert.equal(dispatches.length, 0);
 });
 
+test("Google Drive redirects to an unapproved host are held for manual review", async () => {
+  const id = "1jQmBLSU2azhFvCgU6l8m6ljXGDmIRa1l";
+  const source = approvedSource({
+    drive_file_ids: [id], scan_page_on_baseline: true,
+    url: "https://csc.example.gov.ph/results"
+  });
+  const { fetchImpl, dispatches } = githubFetch([source], async (url, init) => {
+    if (url === source.url && init.method === "HEAD") {
+      return new Response(null, { status: 200, headers: { etag: '"stable"', "content-type": "text/html" } });
+    }
+    if (url === source.url && init.method === "GET") {
+      return new Response('<a href="https://drive.google.com/file/d/' + id + '/view">PDF</a>', {
+        status: 200, headers: { "content-type": "text/html" }
+      });
+    }
+    if (url.startsWith("https://drive.google.com/uc?")) {
+      return new Response(null, {
+        status: 302, headers: { location: "https://malicious.example/download?id=" + id }
+      });
+    }
+    throw new Error("Unexpected request: " + url);
+  });
+  const report = await runScheduled({ env: envFor(), fetchImpl });
+  assert.equal(report.first_check.results[0].pdf_results[0].status, "pdf_verification_error_manual_review_required");
+  assert.match(report.first_check.results[0].pdf_results[0].error, /Google Drive redirect rejected/);
+  assert.equal(dispatches.length, 0);
+});
+
+test("same-origin PDF links require a real PDF byte signature", async () => {
+  const source = approvedSource();
+  const env = envFor();
+  const { createHash } = await import("node:crypto");
+  const hex = createHash("sha256").update(`${source.id}\n${source.url}`).digest("hex");
+  await env.PEAK_WEEK.put(
+    `baseline:${hex}`,
+    JSON.stringify({ status: 200, contentType: "text/html", etag: '"v1"', lastModified: "", contentLength: "" })
+  );
+  const { fetchImpl, dispatches } = githubFetch([source], async (url, init) => {
+    if (url === source.url && init.method === "HEAD") {
+      return new Response(null, { status: 200, headers: { etag: '"v2"', "content-type": "text/html" } });
+    }
+    if (url === source.url && init.method === "GET") {
+      return new Response('<a href="/downloads/not-really-a-pdf.pdf">Download</a>', {
+        status: 200, headers: { "content-type": "text/html" }
+      });
+    }
+    if (url.endsWith("/downloads/not-really-a-pdf.pdf")) {
+      return init.method === "HEAD"
+        ? new Response(null, { status: 200, headers: { "content-type": "application/pdf" } })
+        : new Response("<html>Access denied</html>", { status: 200, headers: { "content-type": "text/html" } });
+    }
+    return new Response(null, { status: 404 });
+  });
+  const report = await runScheduled({ env, fetchImpl });
+  assert.equal(report.first_check.results[0].pdf_results[0].status, "pdf_verification_failed_manual_review_required");
+  assert.equal(dispatches.length, 0);
+});
+
 test("a PDF URL returning an HTML page is not dispatched", async () => {
   const source = approvedSource({ url: "https://csc.example.gov.ph/fake.pdf" });
   const { fetchImpl, dispatches } = githubFetch([source], async () => new Response(null, {
@@ -258,7 +327,7 @@ test("a PDF URL returning an HTML page is not dispatched", async () => {
 test("failed GitHub dispatch is not marked complete and can retry", async () => {
   const source = approvedSource({ url: "https://csc.example.gov.ph/current-list.pdf" });
   let dispatchAttempts = 0;
-  const fetchImpl = async (input) => {
+  const fetchImpl = async (input, init = {}) => {
     const url = String(input);
     if (url.includes("/contents/")) return registryResponse([source]);
     if (url.endsWith("/dispatches")) {
@@ -267,7 +336,9 @@ test("failed GitHub dispatch is not marked complete and can retry", async () => 
         ? new Response("temporary failure", { status: 500 })
         : new Response(null, { status: 204 });
     }
-    return new Response(null, { status: 200, headers: { "content-type": "application/pdf" } });
+    return init.method === "HEAD"
+      ? new Response(null, { status: 200, headers: { "content-type": "application/pdf" } })
+      : new Response("%PDF-1.7\\nverified", { status: 206 });
   };
   const env = envFor();
   const first = await runScheduled({ env, fetchImpl });
@@ -299,9 +370,11 @@ test("verified third-party fallback is checked when the configured official sour
     id: "mirror", source_type: "verified_third_party", authorized: undefined,
     verified_by_owner: true, url: "https://mirror.example.gov.ph/results.pdf"
   });
-  const { fetchImpl, dispatches } = githubFetch([official, thirdParty], async (url) => {
+  const { fetchImpl, dispatches } = githubFetch([official, thirdParty], async (url, init) => {
     if (url === official.url) return new Response(null, { status: 503 });
-    return new Response(null, { status: 200, headers: { "content-type": "application/pdf" } });
+    return init.method === "HEAD"
+      ? new Response(null, { status: 200, headers: { "content-type": "application/pdf" } })
+      : new Response("%PDF-1.7\\nverified", { status: 206 });
   });
   const report = await runScheduled({ env: envFor(), fetchImpl });
   assert.equal(report.first_check.results[0].http_status, 503);
