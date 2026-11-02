@@ -9,7 +9,7 @@
       "source_type": "official",
       "authorized": true,
       "enabled": true,
-      "url": "https://www.csc.gov.ph/regional-offices/region-v/examination/results-10072026",
+      "url": "https://www.csc.gov.ph/regional-offices/region-v/examination",
       "file_format": "pdf",
       "auto_acquire": true,
       "direct_drive_fallback": true,
@@ -17,7 +17,8 @@
       "drive_file_ids": [
         "1jQmBLSU2azhFvCgU6l8m6ljXGDmIRa1l",
         "1qYaCbxIZ_6DHyMD9FhgZdj-YtbIJh5Wf"
-      ]
+      ],
+      "allow_linked_drive_documents": true
     }
   ]
 }
