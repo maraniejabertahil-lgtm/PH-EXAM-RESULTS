@@ -130,11 +130,11 @@ jobs:
           import re, sys
           from html import unescape
           content = open(sys.argv[1], encoding="utf-8", errors="replace").read()
-          for href in re.findall(r'href\\s*=\\s*["\']([^"\']+)["\']', content, re.I):
+          for href in re.findall(r"""href\s*=\s*["']([^"']+)["']""", content, re.I):
               href = unescape(href)
               if any(term in href.lower() for term in ("drive.google", "docs.google", ".pdf", "13u_")):
                   print("PRC candidate href:", href[:500])
-          for match in re.findall(r'https?://[^\\s"<>]+', content, re.I):
+          for match in re.findall(r"""https?://[^\s"<>]+""", content, re.I):
               if any(term in match.lower() for term in ("drive.google", "docs.google", ".pdf", "13u_")):
                   print("PRC candidate text URL:", unescape(match[:500]))
           PY
