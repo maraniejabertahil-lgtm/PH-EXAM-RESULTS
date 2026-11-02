@@ -487,3 +487,72 @@ test("Peak Week safety budget counts HTTP and KV subrequests together", async ()
   assert.ok(report.outbound_subrequests_used <= 45);
   assert.ok(report.second_check.results.some((item) => item.status === "subrequest_budget_reached" || item.status === "check_error"));
 });
+
+
+test("owner-enabled official-page Drive discovery verifies and dispatches a newly linked PDF", async () => {
+  const discoveredId = "1NewlyPublishedOfficialDriveFile_2026";
+  const source = approvedSource({
+    url: "https://www.prc.gov.ph/article/official-results-announcement",
+    allow_linked_drive_documents: true,
+    scan_page_on_baseline: true,
+    drive_file_ids: []
+  });
+  const { fetchImpl, dispatches } = githubFetch([source], async (url, init) => {
+    if (url === source.url && init.method === "HEAD") {
+      return new Response(null, { status: 200, headers: { etag: '"stable"', "content-type": "text/html" } });
+    }
+    if (url === source.url && init.method === "GET") {
+      return new Response(
+        '<a href="https://drive.google.com/file/d/' + discoveredId + '/view?usp=sharing">Official list</a>' +
+        '<a href="https://evil.example/file/d/attackerfile000/view">Hostile link</a>' +
+        '<a href="https://drive.google.com/open?id=anotherfile000000">Unsupported Drive format</a>',
+        { status: 200, headers: { "content-type": "text/html" } }
+      );
+    }
+    if (url === "https://drive.google.com/uc?export=download&id=" + discoveredId) {
+      return new Response(null, {
+        status: 302,
+        headers: { location: "https://drive.usercontent.google.com/download?id=" + discoveredId + "&export=download" }
+      });
+    }
+    if (url === "https://drive.usercontent.google.com/download?id=" + discoveredId + "&export=download") {
+      return new Response("%PDF-1.7\\nverified official page PDF", { status: 206 });
+    }
+    throw new Error("Unexpected request: " + url);
+  });
+  const report = await runScheduled({ env: envFor(), fetchImpl, scheduledTime: Date.UTC(2026, 10, 2) });
+  assert.equal(report.first_check.results[0].status, "baseline_created");
+  assert.equal(dispatches.length, 1);
+  assert.equal(dispatches[0].client_payload.detection_method, "official_page_drive_link");
+  assert.equal(dispatches[0].client_payload.source_page_url, source.url);
+  assert.equal(dispatches[0].client_payload.detected_url,
+    "https://drive.google.com/uc?export=download&id=" + discoveredId);
+});
+
+test("new Drive IDs linked from official pages remain blocked unless owner enables discovery", async () => {
+  const discoveredId = "1UnapprovedDiscoveryMustNotDispatch";
+  const source = approvedSource({
+    url: "https://www.prc.gov.ph/article/official-results-announcement",
+    allow_linked_drive_documents: false,
+    scan_page_on_baseline: true,
+    drive_file_ids: []
+  });
+  let driveRequests = 0;
+  const { fetchImpl, dispatches } = githubFetch([source], async (url, init) => {
+    if (url === source.url && init.method === "HEAD") {
+      return new Response(null, { status: 200, headers: { etag: '"stable"', "content-type": "text/html" } });
+    }
+    if (url === source.url && init.method === "GET") {
+      return new Response(
+        '<a href="https://drive.google.com/file/d/' + discoveredId + '/view">Official list</a>',
+        { status: 200, headers: { "content-type": "text/html" } }
+      );
+    }
+    if (url.includes("drive.google.com")) driveRequests += 1;
+    return new Response(null, { status: 404 });
+  });
+  const report = await runScheduled({ env: envFor(), fetchImpl, scheduledTime: Date.UTC(2026, 10, 2) });
+  assert.equal(report.first_check.results[0].status, "baseline_created");
+  assert.equal(driveRequests, 0);
+  assert.equal(dispatches.length, 0);
+});
