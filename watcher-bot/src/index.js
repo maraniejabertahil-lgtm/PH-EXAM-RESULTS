@@ -380,17 +380,16 @@ async function findOfficialResultArticleLinks(pageUrl, fetchImpl, source = {}) {
   const pageCount = Number.isInteger(configuredPageCount)
     ? Math.min(3, Math.max(1, configuredPageCount))
     : 1;
-  const configuredMaxArticles = Number(source.max_result_articles_per_scan);
-  const maxArticles = Number.isInteger(configuredMaxArticles)
-    ? Math.min(3, Math.max(1, configuredMaxArticles))
+  const configuredPerPage = Number(source.max_result_articles_per_page);
+  const maxArticlesPerPage = Number.isInteger(configuredPerPage)
+    ? Math.min(10, Math.max(1, configuredPerPage))
     : 3;
-  const perPageLimit = Math.max(1, Math.ceil(maxArticles / pageCount));
   const found = [];
   const seen = new Set();
   const errors = [];
   const resultTitle = /(?:licensure|special|qualifying|civil service|career service|examination|exam).{0,100}(?:results?|passers?)|(?:results?|passers?).{0,100}(?:licensure|special|qualifying|civil service|career service|examination|exam)/i;
 
-  for (let pageIndex = 0; pageIndex < pageCount && found.length < maxArticles; pageIndex += 1) {
+  for (let pageIndex = 0; pageIndex < pageCount; pageIndex += 1) {
     const listingUrl = new URL(page.href);
     if (pageIndex > 0) listingUrl.searchParams.set("page", String(pageIndex));
     let response;
@@ -436,7 +435,7 @@ async function findOfficialResultArticleLinks(pageUrl, fetchImpl, source = {}) {
     const anchors = /<a\b[^>]*href\s*=\s*["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi;
     let pageFound = 0;
     let match;
-    while ((match = anchors.exec(html)) && found.length < maxArticles && pageFound < perPageLimit) {
+    while ((match = anchors.exec(html)) && pageFound < maxArticlesPerPage) {
       const label = match[2]
         .replace(/<[^>]*>/g, " ")
         .replace(/&nbsp;|&#160;/gi, " ")
@@ -509,6 +508,8 @@ async function scanApprovedDocuments(source, pageUrl, env, fetchImpl, now, allow
       let snapshotKey = null;
       let previousArticles = [];
       let snapshotValid = false;
+      let newArticleUrls = [];
+      const processedArticleUrls = [];
       if (trackNewArticlesOnly) {
         snapshotKey = await kvKey("article-snapshot", source.id, source.url);
         const previousRaw = await env.PEAK_WEEK.get(snapshotKey);
@@ -539,11 +540,21 @@ async function scanApprovedDocuments(source, pageUrl, env, fetchImpl, now, allow
           articlesToScan = [];
         } else {
           const previousSet = new Set(previousArticles);
-          articlesToScan = articleDiscovery.links.filter((url) => !previousSet.has(url));
+          newArticleUrls = articleDiscovery.links.filter((url) => !previousSet.has(url));
+          const configuredBatchSize = Number(source.max_new_result_articles_per_scan);
+          const batchSize = Number.isInteger(configuredBatchSize)
+            ? Math.min(3, Math.max(1, configuredBatchSize))
+            : 3;
+          articlesToScan = newArticleUrls.slice(0, batchSize);
+          if (newArticleUrls.length > articlesToScan.length) {
+            results.push({
+              status: "article_batch_pending",
+              pending_article_count: newArticleUrls.length - articlesToScan.length
+            });
+          }
         }
       }
 
-      let retryableArticleFailure = false;
       const retryableStatuses = new Set([
         "pdf_verification_failed_manual_review_required",
         "pdf_verification_error_manual_review_required",
@@ -566,8 +577,12 @@ async function scanApprovedDocuments(source, pageUrl, env, fetchImpl, now, allow
         if (trackNewArticlesOnly && articleResults.length === 0) {
           articleResults.push({ status: "article_has_no_matching_pdf_yet" });
         }
-        if (articleResults.some((item) => retryableStatuses.has(item.status))) {
-          retryableArticleFailure = true;
+        const terminalSuccess = articleResults.length > 0 &&
+          articleResults.every((item) => ["dispatched", "already_dispatched"].includes(item.status));
+        if (trackNewArticlesOnly && terminalSuccess) processedArticleUrls.push(articleUrl);
+        if (articleResults.some((item) => retryableStatuses.has(item.status)) ||
+            (trackNewArticlesOnly && !terminalSuccess)) {
+          // The article remains outside the snapshot so the next scheduled run retries it.
         }
         results.push(...articleResults.map((item) => ({ ...item, article_url: articleUrl })));
       }
@@ -582,8 +597,9 @@ async function scanApprovedDocuments(source, pageUrl, env, fetchImpl, now, allow
       }
 
       if (trackNewArticlesOnly && snapshotValid &&
-          articleDiscovery.errors.length === 0 && !retryableArticleFailure) {
-        const merged = [...new Set([...previousArticles, ...articleDiscovery.links])].slice(-500);
+          (processedArticleUrls.length > 0 ||
+           (newArticleUrls.length === 0 && articleDiscovery.errors.length === 0))) {
+        const merged = [...new Set([...previousArticles, ...processedArticleUrls])].slice(-500);
         await env.PEAK_WEEK.put(snapshotKey, JSON.stringify(merged), {
           expirationTtl: BASELINE_TTL_SECONDS
         });
@@ -746,7 +762,7 @@ async function checkTarget(target, env, fetchImpl, now, allowPageChange) {
     const results = await scanApprovedDocuments(source, target.url, env, fetchImpl, now);
     if (source.track_new_articles_only === true) {
       const retryable = results.some((item) =>
-        /(?:error|unavailable|failed|no_matching_pdf_yet|budget_reached)/.test(String(item.status))
+        /(?:error|unavailable|failed|no_matching_pdf_yet|budget_reached|batch_pending)/.test(String(item.status))
       );
       if (!retryable) {
         await env.PEAK_WEEK.put(key, current, { expirationTtl: BASELINE_TTL_SECONDS });
