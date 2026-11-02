@@ -12,7 +12,7 @@ on:
         description: One exact CSC-approved Google Drive file ID
         required: true
         type: string
-        default: 1jQmBLSU2azhFvCgUU6l8m6ljXGDmIRa1l
+        default: 1jQmBLSU2azhFvCgU6l8m6ljXGDmIRa1l
 
 permissions:
   contents: read
