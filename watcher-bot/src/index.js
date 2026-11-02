@@ -383,17 +383,17 @@ async function findOfficialResultArticleLinks(pageUrl, fetchImpl) {
   const html = new TextDecoder().decode(concatBytes(chunks, total));
   const found = [];
   const seen = new Set();
-  const anchors = /<a\\b[^>]*href\\s*=\\s*["']([^"']+)["'][^>]*>([\\s\\S]*?)<\\/a>/gi;
+  const anchors = /<a\b[^>]*href\s*=\s*["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi;
   const resultTitle = /(?:licensure|special|qualifying|civil service|career service|examination|exam).{0,100}(?:results?|passers?)|(?:results?|passers?).{0,100}(?:licensure|special|qualifying|civil service|career service|examination|exam)/i;
   let match;
   while ((match = anchors.exec(html)) && found.length < 3) {
-    const label = match[2].replace(/<[^>]*>/g, " ").replace(/&nbsp;|&#160;/gi, " ").replace(/&amp;/gi, "&").replace(/\\s+/g, " ").trim();
+    const label = match[2].replace(/<[^>]*>/g, " ").replace(/&nbsp;|&#160;/gi, " ").replace(/&amp;/gi, "&").replace(/\s+/g, " ").trim();
     if (!resultTitle.test(label)) continue;
     try {
       const link = new URL(match[1], finalUrl);
-      if (link.protocol !== "https:" || link.origin !== page.origin ||
+      if (link.protocol !== "https:" || link.origin !== new URL(finalUrl).origin ||
           link.username || link.password || link.search || link.hash ||
-          !(link.pathname.startsWith("/article/") || /^\\/node\\/[0-9]+\\/?$/.test(link.pathname))) continue;
+          !(link.pathname.startsWith("/article/") || /^\/node\/[0-9]+\/?$/.test(link.pathname))) continue;
       if (!seen.has(link.href)) {
         seen.add(link.href);
         found.push(link.href);
