@@ -4,8 +4,6 @@ on:
   push:
     branches:
       - tmp/private-nle-2026-09-extraction
-    paths:
-      - ".github/workflows/tmp-private-nle-extraction.yml"
 
 permissions:
   contents: read
