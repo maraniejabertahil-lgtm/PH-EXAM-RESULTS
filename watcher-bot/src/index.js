@@ -197,7 +197,78 @@ async function findSameOriginPdfLinks(pageUrl, fetchImpl) {
   return [...links];
 }
 
+async function findApprovedGoogleDriveLinks(pageUrl, source, fetchImpl) {
+  const allowed = new Set(Array.isArray(source.drive_file_ids) ? source.drive_file_ids : []);
+  if (allowed.size === 0) return [];
+  const page = validateHttpsUrl(pageUrl);
+  const { response, finalUrl } = await fetchSameOrigin(page.href, {
+    method: "GET", headers: { "User-Agent": USER_AGENT, Accept: "text/html" }
+  }, fetchImpl);
+  if (!response.ok) { if (response.body) await response.body.cancel(); return []; }
+  const reader = response.body?.getReader();
+  if (!reader) return [];
+  const chunks = []; let total = 0;
+  try {
+    while (total < MAX_HTML_BYTES) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      const part = value.subarray(0, MAX_HTML_BYTES - total);
+      chunks.push(part); total += part.length;
+      if (part.length !== value.length) break;
+    }
+  } finally { await reader.cancel().catch(() => {}); }
+  const html = new TextDecoder().decode(concatBytes(chunks, total));
+  const found = new Set();
+  const hrefs = /href\s*=\s*["']([^"']+)["']/gi;
+  let match;
+  while ((match = hrefs.exec(html))) {
+    try {
+      const link = new URL(match[1], finalUrl);
+      if (link.protocol !== "https:" || link.hostname.toLowerCase() !== "drive.google.com" ||
+          link.username || link.password) continue;
+      const fileMatch = link.pathname.match(/^\/file\/d\/([A-Za-z0-9_-]{10,})\/view\/?$/);
+      if (fileMatch && allowed.has(fileMatch[1])) found.add(fileMatch[1]);
+    } catch { /* Ignore malformed or non-Drive links. */ }
+  }
+  return [...found].map((id) => ({
+    id,
+    url: `https://drive.google.com/uc?export=download&id=${encodeURIComponent(id)}`
+  }));
+}
+
+async function scanApprovedDocuments(source, pageUrl, env, fetchImpl, now) {
+  const sameOriginLinks = await findSameOriginPdfLinks(pageUrl, fetchImpl);
+  const driveLinks = await findApprovedGoogleDriveLinks(pageUrl, source, fetchImpl);
+  const results = [];
+  for (const pdfUrl of sameOriginLinks.slice(0, 5)) {
+    try {
+      const pdfMetadata = await requestMetadata(pdfUrl, fetchImpl);
+      if (pdfMetadata.status >= 200 && pdfMetadata.status < 300 && isPdf(pdfUrl, pdfMetadata.contentType)) {
+        const dispatched = await dispatchDetectedPdf(env, source, pdfUrl, { ...pdfMetadata, preemptive: false }, fetchImpl, now);
+        results.push({ url: pdfUrl, status: dispatched.status });
+      }
+    } catch (error) {
+      results.push({ url: pdfUrl, status: "check_error", error: String(error.message || error).slice(0, 160) });
+    }
+  }
+  for (const item of driveLinks) {
+    try {
+      const dispatched = await dispatchDetectedPdf(env, source, item.url, {
+        status: 200, contentType: "application/pdf", preemptive: false, driveFileId: item.id
+      }, fetchImpl, now);
+      results.push({ url: item.url, drive_file_id: item.id, status: dispatched.status });
+    } catch (error) {
+      results.push({ drive_file_id: item.id, status: "dispatch_error", error: String(error.message || error).slice(0, 160) });
+    }
+  }
+  return results;
+}
+
 async function dispatchDetectedPdf(env, source, pdfUrl, metadata, fetchImpl, now) {
+  const eventType = env.GITHUB_EVENT_TYPE || "source-detected";
+  if (!["source-detected", "staging-source-detected"].includes(eventType)) {
+    throw new Error("GITHUB_EVENT_TYPE must be source-detected or staging-source-detected.");
+  }
   const key = await kvKey("dispatched", source.id, pdfUrl);
   if (await env.PEAK_WEEK.get(key)) return { status: "already_dispatched", url: pdfUrl };
   const response = await fetchImpl(`${GITHUB_API}/repos/${env.GITHUB_REPOSITORY}/dispatches`, {
@@ -210,7 +281,7 @@ async function dispatchDetectedPdf(env, source, pdfUrl, metadata, fetchImpl, now
       "User-Agent": USER_AGENT
     },
     body: JSON.stringify({
-      event_type: "source-detected",
+      event_type: eventType,
       client_payload: {
         source_id: String(source.id), authority: source.authority, exam: source.exam,
         source_type: source.source_type, detected_url: pdfUrl, detected_at: isoNow(now),
@@ -264,6 +335,14 @@ async function checkTarget(target, env, fetchImpl, now, allowPageChange) {
     } catch (error) {
       return { source_id: sourceId, url: target.url, status: "subrequest_budget_reached", error: String(error.message || error).slice(0, 200) };
     }
+    if (source.scan_page_on_baseline === true && !target.preemptive) {
+      try {
+        const pdf_results = await scanApprovedDocuments(source, target.url, env, fetchImpl, now);
+        return { source_id: sourceId, url: target.url, status: "baseline_created", pdf_results };
+      } catch (error) {
+        return { source_id: sourceId, url: target.url, status: "baseline_created_page_scan_error", error: String(error.message || error).slice(0, 240) };
+      }
+    }
     return { source_id: sourceId, url: target.url, status: "baseline_created" };
   }
   if (previous === current) return { source_id: sourceId, url: target.url, status: "unchanged" };
@@ -274,19 +353,7 @@ async function checkTarget(target, env, fetchImpl, now, allowPageChange) {
   }
   if (!allowPageChange) return { source_id: sourceId, url: target.url, status: "changed_no_page_scan" };
   try {
-    const pdfLinks = await findSameOriginPdfLinks(target.url, fetchImpl);
-    const results = [];
-    for (const pdfUrl of pdfLinks.slice(0, 5)) {
-      try {
-        const pdfMetadata = await requestMetadata(pdfUrl, fetchImpl);
-        if (pdfMetadata.status >= 200 && pdfMetadata.status < 300 && isPdf(pdfUrl, pdfMetadata.contentType)) {
-          const result = await dispatchDetectedPdf(env, source, pdfUrl, { ...pdfMetadata, preemptive: false }, fetchImpl, now);
-          results.push({ url: pdfUrl, status: result.status });
-        }
-      } catch (error) {
-        results.push({ url: pdfUrl, status: "check_error", error: String(error.message || error).slice(0, 160) });
-      }
-    }
+    const results = await scanApprovedDocuments(source, target.url, env, fetchImpl, now);
     return { source_id: sourceId, url: target.url, status: "changed", pdf_results: results };
   } catch (error) {
     return { source_id: sourceId, url: target.url, status: "page_scan_error", error: String(error.message || error).slice(0, 240) };

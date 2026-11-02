@@ -70,6 +70,19 @@ test("preemptive PDF returning HTTP 200 dispatches once and is deduplicated", as
   assert.ok(dispatches.every((item) => item.event_type === "source-detected"));
 });
 
+test("staging configuration dispatches only the staging-specific event type", async () => {
+  const source = approvedSource({ url: "https://csc.example.gov.ph/current-list.pdf" });
+  const env = envFor();
+  env.GITHUB_EVENT_TYPE = "staging-source-detected";
+  const { fetchImpl, dispatches } = githubFetch([source], async () => new Response(null, {
+    status: 200, headers: { "content-type": "application/pdf" }
+  }));
+  const report = await runScheduled({ env, fetchImpl, scheduledTime: Date.UTC(2026, 10, 2) });
+  assert.equal(report.first_check.results[0].status, "dispatched");
+  assert.equal(dispatches.length, 1);
+  assert.equal(dispatches[0].event_type, "staging-source-detected");
+});
+
 test("peak week waits 30 seconds and runs two scans", async () => {
   const source = approvedSource({ preemptive_url_templates: ["https://csc.example.gov.ph/CSE_{MM}{YYYY}_passers.pdf"] });
   const { fetchImpl } = githubFetch([source], async () => new Response(null, { status: 404 }));
@@ -147,6 +160,39 @@ test("page metadata changes discover and dispatch same-origin PDF links", async 
   assert.equal(report.first_check.results[0].status, "changed");
   assert.equal(dispatches.length, 1);
   assert.equal(dispatches[0].client_payload.detected_url, "https://csc.example.gov.ph/downloads/CSE-list.pdf");
+});
+
+test("baseline scan dispatches only the two exact owner-approved Google Drive IDs", async () => {
+  const ids = [
+    "1jQmBLSU2azhFvCgU6l8m6ljXGDmIRa1l",
+    "1qYaCbxIZ_6DHyMD9FhgZdj-YtbIJh5Wf"
+  ];
+  const source = approvedSource({
+    drive_file_ids: ids,
+    scan_page_on_baseline: true,
+    url: "https://www.csc.gov.ph/regional-offices/region-v/examination/results-10072026"
+  });
+  const { fetchImpl, dispatches } = githubFetch([source], async (url, init) => {
+    if (url === source.url && init.method === "HEAD") {
+      return new Response(null, { status: 200, headers: { etag: '"stable"', "content-type": "text/html" } });
+    }
+    if (url === source.url && init.method === "GET") {
+      return new Response(
+        ids.map((id) => '<a href="https://drive.google.com/file/d/' + id + '/view?usp=drive_link">PDF</a>').join("") +
+        '<a href="https://drive.google.com/file/d/not-approved-000000/view">Ignore</a>',
+        { status: 200, headers: { "content-type": "text/html" } }
+      );
+    }
+    throw new Error("Unexpected external request: " + url);
+  });
+  const report = await runScheduled({ env: envFor(), fetchImpl, scheduledTime: Date.UTC(2026, 10, 2) });
+  assert.equal(report.first_check.results[0].status, "baseline_created");
+  assert.equal(dispatches.length, 2);
+  assert.deepEqual(
+    dispatches.map((item) => new URL(item.client_payload.detected_url).searchParams.get("id")).sort(),
+    ids.slice().sort()
+  );
+  assert.ok(dispatches.every((item) => item.client_payload.content_type === "application/pdf"));
 });
 
 test("a PDF URL returning an HTML page is not dispatched", async () => {
