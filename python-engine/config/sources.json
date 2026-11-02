@@ -21,6 +21,20 @@
       "allow_linked_drive_documents": true,
       "manual_drop_required": true,
       "disable_reason": "Official CSC source returns HTTP 403 security verification to direct requests; automated monitoring is paused per Master Technical Blueprint. Use manual-drop until official access is available."
+    },
+    {
+      "id": "PRC-EXAM-RESULTS-HOMEPAGE",
+      "authority": "PRC",
+      "exam": "LICENSURE-EXAM-RESULTS",
+      "source_type": "official",
+      "authorized": true,
+      "enabled": true,
+      "url": "https://www.prc.gov.ph/",
+      "direct_drive_fallback": false,
+      "drive_file_ids": [],
+      "allow_linked_drive_documents": false,
+      "scan_page_on_baseline": false,
+      "preemptive_url_templates": []
     }
   ]
 }
