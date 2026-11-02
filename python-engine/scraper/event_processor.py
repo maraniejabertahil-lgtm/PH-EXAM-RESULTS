@@ -52,10 +52,27 @@ def process_detected_pdf(payload: dict, registry_path: str | Path, output_path: 
     if source.get("authority") != payload["authority"] or source.get("exam") != payload["exam"]:
         raise DetectedSourceError("Watcher authority/exam does not match the approved source.")
     detected_url = payload["detected_url"]
-    if not _same_origin(str(source.get("url", "")), detected_url):
-        raise DetectedSourceError("Detected PDF is outside the exact approved HTTPS origin.")
     parsed = urlsplit(detected_url)
-    if not (parsed.path.lower().endswith(".pdf") or str(payload.get("content_type", "")).lower() == "application/pdf"):
+    drive_mode = False
+    if (parsed.hostname or "").lower() == "drive.google.com":
+        from urllib.parse import parse_qs
+        query = parse_qs(parsed.query)
+        file_id = query.get("id", [""])[0]
+        allowed_ids = source.get("drive_file_ids", [])
+        if (
+            parsed.scheme != "https" or parsed.path != "/uc"
+            or query.get("export") != ["download"]
+            or not isinstance(allowed_ids, list) or file_id not in allowed_ids
+            or parsed.username or parsed.password
+        ):
+            raise DetectedSourceError("Google Drive URL does not match an exact owner-approved file ID.")
+        drive_mode = True
+    elif not _same_origin(str(source.get("url", "")), detected_url):
+        raise DetectedSourceError("Detected PDF is outside the exact approved HTTPS origin.")
+    if not drive_mode and not (
+        parsed.path.lower().endswith(".pdf")
+        or str(payload.get("content_type", "")).lower() == "application/pdf"
+    ):
         raise DetectedSourceError("Detected resource is not identified as a PDF.")
 
     if source.get("file_format") != "pdf":
