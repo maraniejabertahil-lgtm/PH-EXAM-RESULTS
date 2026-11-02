@@ -33,7 +33,9 @@ test("allows only HTTPS Drive download URLs retaining the exact file ID", () => 
   const wrongId = new URL("https://drive.google.com/uc?id=another-file-id");
   const http = new URL("http://drive.google.com/uc?id=" + approved.drive_file_id);
   const wrongPath = new URL("https://drive.google.com/file/d/" + approved.drive_file_id);
-  for (const url of [alternateHost, wrongId, http, wrongPath]) {
+  const credentials = new URL("https://user:pass@drive.google.com/uc?id=" + approved.drive_file_id);
+  const nonstandardPort = new URL("https://drive.google.com:8443/uc?id=" + approved.drive_file_id);
+  for (const url of [alternateHost, wrongId, http, wrongPath, credentials, nonstandardPort]) {
     assert.throws(() => validateDriveUrl(url, approved.drive_file_id), /Blocked Google Drive redirect/);
   }
 });
