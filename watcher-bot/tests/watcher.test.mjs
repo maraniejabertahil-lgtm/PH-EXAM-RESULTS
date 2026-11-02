@@ -568,6 +568,48 @@ test("owner-enabled official-page Drive discovery verifies and dispatches a newl
 });
 
 
+
+test("owner-configured Drive link labels select only the successful-examinees document", async () => {
+  const targetId = "1SuccessfulExamineesList_2026";
+  const source = approvedSource({
+    url: "https://www.prc.gov.ph/article/official-exam-results",
+    allow_linked_drive_documents: true,
+    drive_link_text_patterns: ["list of successful examinees"],
+    scan_page_on_baseline: true,
+    drive_file_ids: []
+  });
+  const html = [
+    '<a href="https://drive.google.com/file/d/1FullOfficialResultDocument_2026/view">Full text of the Official Result</a>',
+    '<a href="https://drive.google.com/file/d/1PerformanceOfSchoolsDoc_2026/view">Performance of Schools</a>',
+    '<a href="https://drive.google.com/file/d/1TopTenHighestPlacesDoc_2026/view">Successful Examinees who garnered the top 10 highest places</a>',
+    '<a href="https://drive.google.com/file/d/' + targetId + '/view">List of Successful Examinees</a>'
+  ].join("");
+  const { fetchImpl, dispatches } = githubFetch([source], async (url, init) => {
+    if (url === source.url && init.method === "HEAD") {
+      return new Response(null, { status: 200, headers: { etag: '"prc-results"', "content-type": "text/html" } });
+    }
+    if (url === source.url && init.method === "GET") {
+      return new Response(html, { status: 200, headers: { "content-type": "text/html" } });
+    }
+    if (url === "https://drive.google.com/uc?export=download&id=" + targetId) {
+      return new Response(null, {
+        status: 302,
+        headers: { location: "https://drive.usercontent.google.com/download?id=" + targetId + "&export=download" }
+      });
+    }
+    if (url === "https://drive.usercontent.google.com/download?id=" + targetId + "&export=download") {
+      return new Response("%PDF-1.7\\nsuccessful examinees only", { status: 206 });
+    }
+    if (url.includes("drive.google.com")) throw new Error("Non-target PRC attachment must not be fetched");
+    throw new Error("Unexpected request: " + url);
+  });
+  const report = await runScheduled({ env: envFor(), fetchImpl, scheduledTime: Date.UTC(2026, 10, 2) });
+  assert.equal(report.first_check.results[0].status, "baseline_created");
+  assert.equal(dispatches.length, 1);
+  assert.equal(dispatches[0].client_payload.detected_url,
+    "https://drive.google.com/uc?export=download&id=" + targetId);
+});
+
 test("owner-enabled official-page discovery finds plain-text Drive URLs without accepting lookalike hosts", async () => {
   const discoveredId = "1PlainTextOfficialDriveFile_2026";
   const source = approvedSource({
