@@ -72,7 +72,8 @@ test("PRC source monitors the official exam-results listing without importing hi
   assert.equal(source.scan_page_on_baseline, false);
   assert.equal(source.track_new_articles_only, true);
   assert.equal(source.result_listing_page_count, 3);
-  assert.equal(source.max_result_articles_per_scan, 3);
+  assert.equal(source.max_result_articles_per_page, 10);
+  assert.equal(source.max_new_result_articles_per_scan, 3);
   assert.equal(source.allow_linked_drive_documents, true);
   assert.equal(source.discover_official_result_articles, true);
   assert.deepEqual(source.drive_link_text_patterns, ["list of successful examinees"]);
