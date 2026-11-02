@@ -374,50 +374,90 @@ async function scanApprovedDriveFiles(source, env, fetchImpl, now) {
   return results;
 }
 
-async function findOfficialResultArticleLinks(pageUrl, fetchImpl) {
+async function findOfficialResultArticleLinks(pageUrl, fetchImpl, source = {}) {
   const page = validateHttpsUrl(pageUrl);
-  const { response, finalUrl } = await fetchSameOrigin(page.href, {
-    method: "GET", headers: { "User-Agent": USER_AGENT, Accept: "text/html" }
-  }, fetchImpl);
-  if (!response.ok) {
-    if (response.body) await response.body.cancel();
-    return [];
-  }
-  const reader = response.body?.getReader();
-  if (!reader) return [];
-  const chunks = [];
-  let total = 0;
-  try {
-    while (total < MAX_HTML_BYTES) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      const part = value.subarray(0, MAX_HTML_BYTES - total);
-      chunks.push(part);
-      total += part.length;
-      if (part.length !== value.length) break;
-    }
-  } finally { await reader.cancel().catch(() => {}); }
-  const html = new TextDecoder().decode(concatBytes(chunks, total));
+  const configuredPageCount = Number(source.result_listing_page_count);
+  const pageCount = Number.isInteger(configuredPageCount)
+    ? Math.min(3, Math.max(1, configuredPageCount))
+    : 1;
+  const configuredMaxArticles = Number(source.max_result_articles_per_scan);
+  const maxArticles = Number.isInteger(configuredMaxArticles)
+    ? Math.min(3, Math.max(1, configuredMaxArticles))
+    : 3;
+  const perPageLimit = Math.max(1, Math.ceil(maxArticles / pageCount));
   const found = [];
   const seen = new Set();
-  const anchors = /<a\b[^>]*href\s*=\s*["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi;
+  const errors = [];
   const resultTitle = /(?:licensure|special|qualifying|civil service|career service|examination|exam).{0,100}(?:results?|passers?)|(?:results?|passers?).{0,100}(?:licensure|special|qualifying|civil service|career service|examination|exam)/i;
-  let match;
-  while ((match = anchors.exec(html)) && found.length < 3) {
-    const label = match[2].replace(/<[^>]*>/g, " ").replace(/&nbsp;|&#160;/gi, " ").replace(/&amp;/gi, "&").replace(/\s+/g, " ").trim();
-    if (!resultTitle.test(label)) continue;
+
+  for (let pageIndex = 0; pageIndex < pageCount && found.length < maxArticles; pageIndex += 1) {
+    const listingUrl = new URL(page.href);
+    if (pageIndex > 0) listingUrl.searchParams.set("page", String(pageIndex));
+    let response;
+    let finalUrl;
     try {
-      const link = new URL(match[1], finalUrl);
-      if (link.protocol !== "https:" || link.origin !== new URL(finalUrl).origin ||
-          link.username || link.password || link.search || link.hash ||
-          !(link.pathname.startsWith("/article/") || /^\/node\/[0-9]+\/?$/.test(link.pathname))) continue;
-      if (!seen.has(link.href)) {
-        seen.add(link.href);
-        found.push(link.href);
+      const fetched = await fetchSameOrigin(listingUrl.href, {
+        method: "GET", headers: { "User-Agent": USER_AGENT, Accept: "text/html" }
+      }, fetchImpl);
+      response = fetched.response;
+      finalUrl = fetched.finalUrl;
+    } catch (error) {
+      errors.push({ url: listingUrl.href, error: String(error.message || error).slice(0, 160) });
+      continue;
+    }
+    if (!response.ok) {
+      if (response.body) await response.body.cancel();
+      errors.push({ url: listingUrl.href, http_status: response.status });
+      continue;
+    }
+    const reader = response.body?.getReader();
+    if (!reader) {
+      errors.push({ url: listingUrl.href, error: "Listing response had no readable body." });
+      continue;
+    }
+    const chunks = [];
+    let total = 0;
+    try {
+      while (total < MAX_HTML_BYTES) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        const part = value.subarray(0, MAX_HTML_BYTES - total);
+        chunks.push(part);
+        total += part.length;
+        if (part.length !== value.length) break;
       }
-    } catch { /* Ignore malformed or non-official article links. */ }
+    } catch (error) {
+      errors.push({ url: listingUrl.href, error: String(error.message || error).slice(0, 160) });
+      continue;
+    } finally {
+      await reader.cancel().catch(() => {});
+    }
+    const html = new TextDecoder().decode(concatBytes(chunks, total));
+    const anchors = /<a\b[^>]*href\s*=\s*["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi;
+    let pageFound = 0;
+    let match;
+    while ((match = anchors.exec(html)) && found.length < maxArticles && pageFound < perPageLimit) {
+      const label = match[2]
+        .replace(/<[^>]*>/g, " ")
+        .replace(/&nbsp;|&#160;/gi, " ")
+        .replace(/&amp;/gi, "&")
+        .replace(/\s+/g, " ")
+        .trim();
+      if (!resultTitle.test(label)) continue;
+      try {
+        const link = new URL(match[1], finalUrl);
+        if (link.protocol !== "https:" || link.origin !== new URL(finalUrl).origin ||
+            link.username || link.password || link.search || link.hash ||
+            !(link.pathname.startsWith("/article/") || /^\/node\/[0-9]+\/?$/.test(link.pathname))) continue;
+        if (!seen.has(link.href)) {
+          seen.add(link.href);
+          found.push(link.href);
+          pageFound += 1;
+        }
+      } catch { /* Ignore malformed or non-official article links. */ }
+    }
   }
-  return found;
+  return { links: found, errors };
 }
 
 async function scanApprovedDocuments(source, pageUrl, env, fetchImpl, now, allowArticleDiscovery = true) {
@@ -462,10 +502,18 @@ async function scanApprovedDocuments(source, pageUrl, env, fetchImpl, now, allow
   }
   if (allowArticleDiscovery && source.discover_official_result_articles === true) {
     try {
-      const articlePages = await findOfficialResultArticleLinks(pageUrl, fetchImpl);
-      for (const articleUrl of articlePages) {
+      const articleDiscovery = await findOfficialResultArticleLinks(pageUrl, fetchImpl, source);
+      for (const articleUrl of articleDiscovery.links) {
         const articleResults = await scanApprovedDocuments(source, articleUrl, env, fetchImpl, now, false);
         results.push(...articleResults.map((item) => ({ ...item, article_url: articleUrl })));
+      }
+      for (const issue of articleDiscovery.errors) {
+        results.push({
+          status: "official_listing_page_unavailable",
+          listing_page_url: issue.url,
+          http_status: issue.http_status ?? null,
+          error: issue.error ?? null
+        });
       }
     } catch (error) {
       results.push({
