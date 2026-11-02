@@ -156,3 +156,31 @@ The registry now contains two source records:
 - No preemptive URL template has been proven against a genuine official PDF appearing before its announcement page changes.
 
 **Updated decision: PHASE 1 REMAINS NOT ACCEPTED.** The PRC source path is now configured and safely gated, but acceptance still requires a genuine live detection-to-receiver event, duplicate-prevention evidence for that event, complete approved source coverage, and an operational CSC fallback path.
+
+
+## 13. Phase-boundary clarification and latest live-cron evidence — 2026-11-03
+
+This section clarifies acceptance scope against the approved `Master_Technical_Blueprint.md` and supersedes any interpretation that treats manual-drop extraction as a Phase 1 Watcher acceptance blocker.
+
+### Phase 1 scope
+
+Phase 1 is the Watcher: its one-minute scheduled invocation, standard-mode source checks, Peak Week KV mode selection and two-scan 30-second Peak Week behavior, preemptive URL HEAD checks, and safe GitHub event dispatch. The Phase 1 receiver validates provenance and owner authorization without acquiring PDFs, extracting passer data, or publishing results.
+
+Manual-drop extraction and processing are processing/worker integration responsibilities. The existing `manual-drop/` push acknowledgement is not a completed operational fallback, but it must be tracked as a later processing/integration dependency rather than incorrectly counted as a standalone Phase 1 Watcher failure. It remains required before the overall system can claim a usable manual fallback.
+
+### Latest live scheduled evidence
+
+The latest main-branch audit update records a post-PR #32 live scheduled Worker event. It confirms that the production cron ran, read the production registry, observed two configured sources and one enabled source, and checked the enabled PRC homepage baseline without runtime exceptions. This is genuine scheduled-runtime evidence for the configured baseline check; it is **not** evidence of a newly published result article, a detected official PDF, a successful production event dispatch, or a genuine preemptive PDF hit.
+
+### Corrected outstanding Phase 1 acceptance items
+
+1. **Source coverage:** Expand the owner-approved official PRC/CSC monitoring registry to the intended examination coverage. The current PRC homepage discovery path is enabled but bounded to up to three same-origin result articles when its homepage fingerprint changes. CSC Region V remains paused due to HTTP 403. Do not infer coverage of all PRC examinations or CSC regions from these two records.
+2. **Genuine detection-to-receiver proof:** Observe a real newly available official result article/PDF through the production Watcher and verify that the resulting owner-authorized event is accepted by the production receiver. Preserve evidence of duplicate suppression on repeat observation and rejection of unapproved events.
+3. **Genuine preemptive proof:** Establish a documented, official URL pattern from sufficient historical evidence, then demonstrate a real official PDF is found by the preemptive HEAD path before the relevant announcement page changes. No guessed template may be enabled merely to satisfy a test.
+4. **Peak Week behavior evidence:** Verify the production mode-selection behavior and the configured two-scan 30-second Peak Week path using safe, controlled test evidence. Do not modify production KV without explicit owner authorization for a real Peak Week activation.
+
+### Separate downstream dependency — not Phase 1 acceptance
+
+The owner-triggered manual-drop processing route remains unimplemented: the current push workflow only acknowledges a file change and explicitly performs no acquisition, extraction, or publication. Track this under the processing/worker integration phase and keep publication disabled until its own validation and approval gates pass.
+
+**Corrected Phase 1 decision: NOT ACCEPTED.** The live cron and PRC baseline check are verified, but full owner-approved source coverage, a genuine live detection-to-receiver event with duplicate evidence, and genuine preemptive URL detection remain unproven. Peak Week behavior also requires explicit evidence before final acceptance.
