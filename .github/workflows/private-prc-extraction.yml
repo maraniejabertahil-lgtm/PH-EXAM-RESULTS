@@ -1,6 +1,13 @@
 name: Private PRC Staging Extraction
 
 on:
+  push:
+    branches:
+      - fix/prc-private-layout-extraction
+    paths:
+      - .github/workflows/private-prc-extraction.yml
+      - python-engine/config/prc-sources.json
+      - tools/extract-prc-pdf.mjs
   workflow_dispatch:
     inputs:
       source_id:
@@ -19,7 +26,7 @@ jobs:
       - name: Checkout PRC staging source registry and extractor
         uses: actions/checkout@v5
         with:
-          ref: staging/prc-let-support
+          ref: fix/prc-private-layout-extraction
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
@@ -44,11 +51,34 @@ jobs:
           OUTPUT_DIR: private-prc-extraction
         run: node tools/extract-prc-pdf.mjs
 
-      - name: Upload sanitized extraction metadata only
+      - name: Inspect original PDF layout with independent Poppler outputs
+        run: |
+          set -euo pipefail
+          pdf="private-prc-extraction/${{ inputs.source_id }}.pdf"
+          test -s "$pdf"
+          pdfinfo "$pdf" > private-prc-extraction/pdfinfo.txt
+          pdftotext -layout "$pdf" private-prc-extraction/poppler-layout.txt
+          pdftotext -bbox-layout "$pdf" private-prc-extraction/poppler-bbox.html
+          python - <<'PY'
+          import json, pathlib, re
+          root = pathlib.Path("private-prc-extraction")
+          report = json.loads((root / "extraction-report.json").read_text())
+          layout = (root / "poppler-layout.txt").read_text(errors="replace")
+          bbox = (root / "poppler-bbox.html").read_text(errors="replace")
+          report["poppler_layout_characters"] = len(layout)
+          report["poppler_bbox_characters"] = len(bbox)
+          report["poppler_sequence_like_tokens"] = len(re.findall(r"(?m)^\\s*\\d{1,6}\\s+", layout))
+          report["layout_probe_only"] = True
+          report["sequence_name_pairs_verified"] = False
+          report["published"] = False
+          (root / "extraction-report.json").write_text(json.dumps(report, indent=2) + "\\n")
+          PY
+
+      - name: Upload private extraction evidence for inspection
         uses: actions/upload-artifact@v4
         with:
-          name: prc-extraction-metadata-${{ github.run_id }}
-          path: private-prc-extraction/extraction-report.json
+          name: private-prc-extraction-evidence-${{ github.run_id }}
+          path: private-prc-extraction/
           if-no-files-found: error
           retention-days: 1
 
