@@ -191,7 +191,7 @@ def main():
     # combining accents), digits, whitespace, and ordinary name punctuation.
     rows = {}
     conflicts = []
-    pattern = re.compile(r"^\\s*(\\d{1,5})[.)]?\\s+(.+?)\\s*$")
+    pattern = re.compile(r"^\s*(\d{1,5})[.)]?\s+(.+?)\s*$")
 
     def valid_name(value):
         if len(value) < 5:
