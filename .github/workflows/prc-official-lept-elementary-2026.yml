@@ -9,6 +9,10 @@ on:
       - "tools/prototypes/prc_preview_ocr_probe.py"
       - ".github/workflows/prc-official-lept-elementary-2026.yml"
 
+concurrency:
+  group: prc-official-lept-elementary-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
 
