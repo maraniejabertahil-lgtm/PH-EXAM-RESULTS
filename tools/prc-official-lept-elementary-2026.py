@@ -7,9 +7,11 @@ from pathlib import Path
 from urllib.request import Request, build_opener, HTTPCookieProcessor
 from http.cookiejar import CookieJar
 from urllib.parse import urljoin, urlparse
+from playwright.sync_api import sync_playwright
 
 ARTICLES = [
-    "https://www.prc.gov.ph/article/march-2026-licensure-examination-professional-teachers-results-released-thirty-nine-39",
+    "https://www.prc.gov.ph/index.php/article/march-2026-licensure-examination-professional-teachers-results-released-thirty-nine-39",
+    "https://www.prc.gov.ph/index.php/article/top-10-march-2026-lept-elementary-level-announced",
     "https://prc.gov.ph/article/march-2026-licensure-examination-professional-teachers-results-released-thirty-nine-39",
 ]
 DRIVE_ID = "1kY0CTSuwdxDwnf1UEvWe27HDEXU3rolE"
@@ -60,6 +62,27 @@ def fetch_with_retries(url, limit):
                 time.sleep(attempt * 4)
     raise last
 
+def browser_fetch(url):
+    """Render an official public page in ordinary Chromium; never solve access challenges."""
+    with sync_playwright() as p:
+        browser = p.chromium.launch(headless=True)
+        page = browser.new_page(user_agent=UA)
+        response = page.goto(url, wait_until="domcontentloaded", timeout=45000)
+        page.wait_for_timeout(1000)
+        final_url = page.url
+        status = response.status if response else None
+        body_text = page.locator("body").inner_text(timeout=10000)
+        html = page.content().encode("utf-8")
+        browser.close()
+        if not (urlparse(final_url).hostname or "").endswith("prc.gov.ph"):
+            raise RuntimeError("Unexpected official-page redirect host")
+        low = body_text.lower()
+        if any(x in low for x in ("captcha", "verify you are human", "request access", "sign in to continue", "access denied")):
+            raise RuntimeError("Official page requires human verification or access")
+        if status and status >= 400:
+            raise RuntimeError("Official page HTTP " + str(status))
+        return html, {"status": status, "content_type": "text/html; browser=chromium", "final_url": final_url}
+
 def main():
     article = None
     article_url = None
@@ -72,7 +95,16 @@ def main():
         except Exception as error:
             last_error = error
     if article is None:
-        raise RuntimeError("Official PRC article unavailable after bounded retries: " + repr(last_error))
+        for candidate in ARTICLES:
+            try:
+                article, meta = browser_fetch(candidate)
+                article_url = candidate
+                log("official_browser_fetch", url=candidate, **meta)
+                break
+            except Exception as error:
+                log("official_browser_retry", url=candidate, error=repr(error))
+    if article is None:
+        raise RuntimeError("Official PRC article unavailable after HTTP and browser attempts: " + repr(last_error))
     (OUT / "official-article.html").write_bytes(article)
     page = article.decode("utf-8", "replace")
     parser = Links()
