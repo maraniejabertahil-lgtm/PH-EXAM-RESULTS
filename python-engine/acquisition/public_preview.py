@@ -83,7 +83,7 @@ def load_public_preview_capture(
     if (
         isinstance(page_count, bool) or not isinstance(page_count, int) or page_count < 1
         or manifest.get("viewer_pages_navigated") != page_count
-        or manifest.get("snapshots_retained") != 1
+        or manifest.get("snapshots_retained") != page_count
     ):
         raise PublicPreviewCaptureError("Public-preview page navigation evidence is incomplete.")
 
@@ -136,7 +136,7 @@ def load_public_preview_capture(
             raise PublicPreviewCaptureError("Visual screenshot hash does not match the visual report.")
         sequence = str(item.get("sequence", ""))
         record = visual_records.get(sequence)
-        if not isinstance(record, dict) or record.get("name") != item.get("expected_visible_text", "").split(" ", 1)[-1]:
+        if not isinstance(record, dict) or record.get("name") != item.get("name"):
             raise PublicPreviewCaptureError("Visual screenshot evidence does not match the extraction report's expected record.")
         if record.get("screenshot_sha256") != item.get("screenshot_sha256"):
             raise PublicPreviewCaptureError("Extraction and visual reports reference different screenshot hashes.")
