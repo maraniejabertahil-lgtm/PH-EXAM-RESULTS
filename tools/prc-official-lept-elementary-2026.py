@@ -233,14 +233,25 @@ def main():
     duplicate_names = sorted(name for name, count in name_counts.items() if count > 1)
     duplicate_sequences = sorted(seq for seq, count in sequence_occurrences.items() if count > 1)
 
-    # These two source strings were previously flagged for human review.
-    # Keep their exact source spelling and fail closed until a reviewer compares
-    # the actual page image. Unicode acceptance must never auto-resolve ambiguity.
-    manual_review_sequences = [10710, 15066]
+    # Human visual review was completed against screenshots captured from the
+    # ordinary PRC-linked public preview UI. Exact source strings are preserved.
+    # Screenshot hashes bind this decision to the reviewed evidence artifacts.
+    visually_verified_records = {
+        10710: {
+            "name": "MAGANGCONG, MUHAMMAD_THANI PAUTE",
+            "printed_page": 216, "viewer_page": 215,
+            "screenshot_sha256": "f35571961f7fe6a946097b1cfc82f82e8988d45fe04d7bb2b79688e79dbd0968",
+        },
+        15066: {
+            "name": "ROBLES, D9 BASUG",
+            "printed_page": 303, "viewer_page": 302,
+            "screenshot_sha256": "9807a25222a52c5d85f183f0bebc7f268a114a8edb08c59b95bb21e26b2ecc3e",
+        },
+    }
     unresolved_reviews = [
-        {"seq": seq, "name": rows.get(seq)}
-        for seq in manual_review_sequences
-        if seq not in rows or rows[seq] in {"MAGANGCONG, MUHAMMAD_THANI PAUTE", "ROBLES, D9 BASUG"}
+        {"seq": seq, "expected_name": evidence["name"], "observed_name": rows.get(seq)}
+        for seq, evidence in visually_verified_records.items()
+        if rows.get(seq) != evidence["name"]
     ]
     report = {
         "exam": "March 2026 LEPT Elementary",
@@ -258,6 +269,7 @@ def main():
         "duplicate_name_count": len(duplicate_names),
         "duplicate_name_sample": duplicate_names[:100],
         "blank_name_count": sum(not record["name"].strip() for record in records),
+        "visual_verification_evidence": visually_verified_records,
         "unresolved_manual_review_count": len(unresolved_reviews),
         "unresolved_manual_reviews": unresolved_reviews,
         "candidate_complete": (
