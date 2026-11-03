@@ -12,7 +12,7 @@ on:
       - ".github/workflows/prc-official-lept-secondary-2026.yml"
 
 concurrency:
-  group: prc-official-lept-secondary-\${{ github.ref }}
+  group: prc-official-lept-secondary-${{ github.ref }}
   cancel-in-progress: true
 
 permissions:
@@ -23,7 +23,7 @@ env:
 
 jobs:
   capture:
-    name: capture-shard-\${{ matrix.shard }}
+    name: capture-shard-${{ matrix.shard }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     strategy:
@@ -40,12 +40,12 @@ jobs:
           python -m pip install playwright
           python -m playwright install --with-deps chromium
       - name: Capture this shard of the official public preview
-        run: python tools/prc-official-lept-secondary-2026.py --shard \${{ matrix.shard }} --shards \${{ env.SHARDS }}
+        run: python tools/prc-official-lept-secondary-2026.py --shard ${{ matrix.shard }} --shards ${{ env.SHARDS }}
       - name: Upload shard capture
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: prc-shard-\${{ matrix.shard }}
+          name: prc-shard-${{ matrix.shard }}
           path: shard-output/
           if-no-files-found: warn
           retention-days: 2
@@ -74,7 +74,7 @@ jobs:
           python -m pip install -r python-engine/requirements.txt playwright pillow
           python -m playwright install --with-deps chromium
       - name: Merge shards, parse and validate official public preview
-        run: python tools/prc-official-lept-secondary-2026.py --merge --shards \${{ env.SHARDS }}
+        run: python tools/prc-official-lept-secondary-2026.py --merge --shards ${{ env.SHARDS }}
       - name: Capture first and last records from the official viewer
         run: python tools/prototypes/prc_secondary_preview_ocr_probe.py
       - name: Run Python Engine Greenlight and local dataset generation
