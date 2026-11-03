@@ -280,7 +280,7 @@ def main():
     def valid_name(value):
         if len(value) < 5:
             return False
-        allowed_punctuation = set(" ,.'’‘-‐‑‒–—_")
+        allowed_punctuation = set(" ,.'’‘-‐‑‒–—_()/\\\"")
         for char in value:
             category = unicodedata.category(char)
             if category[0] in {"L", "M", "N"} or char.isspace():
