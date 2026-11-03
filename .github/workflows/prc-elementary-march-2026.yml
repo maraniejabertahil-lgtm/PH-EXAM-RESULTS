@@ -1,0 +1,39 @@
+name: PRC March 2026 Elementary Extraction Proof
+
+on:
+  push:
+    branches:
+      - run/prc-elementary-march-2026
+    paths:
+      - tools/prc-elementary-march-2026.py
+      - .github/workflows/prc-elementary-march-2026.yml
+
+permissions:
+  contents: read
+
+jobs:
+  elementary-extraction:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout isolated extraction branch
+        uses: actions/checkout@v5
+        with:
+          ref: run/prc-elementary-march-2026
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Run official-first, two-source Elementary extraction
+        run: python tools/prc-elementary-march-2026.py
+
+      - name: Preserve extraction evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: prc-elementary-march-2026-evidence-${{ github.run_id }}
+          path: elementary-evidence/
+          if-no-files-found: warn
+          retention-days: 7
