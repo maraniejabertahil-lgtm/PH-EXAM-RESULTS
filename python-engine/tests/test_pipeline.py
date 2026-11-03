@@ -77,9 +77,9 @@ class ProcessingPipelineTests(unittest.TestCase):
         batch["record_mapping_reviewed"] = True
         self.batch.write_text(json.dumps(batch), encoding="utf-8")
         evidence = self.root / "python-engine/artifacts/official-content-evidence.json"
-        with patch("main.verify_official_content_link", side_effect=lambda **kwargs: (kwargs["evidence_path"].parent.mkdir(parents=True, exist_ok=True), kwargs["evidence_path"].write_text("{}"), {"provenance": "official_direct"})[-1])
-            "main.acquire_official_pdf"
-        ) as acquire, patch("main.extract_pdf") as extract:
+        evidence.parent.mkdir(parents=True, exist_ok=True)
+        with patch("main.verify_official_content_link") as verify, patch("main.acquire_official_pdf") as acquire, patch("main.extract_pdf") as extract:
+            verify.return_value = {"provenance": "official_direct"}
             result = process_batch("batch.json", root=self.root)
         verify.assert_called_once()
         acquire.assert_not_called()
