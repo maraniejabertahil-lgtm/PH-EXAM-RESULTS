@@ -2,6 +2,7 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from main import PipelineError, process_batch
 
@@ -28,7 +29,11 @@ class ProcessingPipelineTests(unittest.TestCase):
 
     def run_batch(self, data):
         self.batch.write_text(json.dumps(data), encoding="utf-8")
-        return process_batch("batch.json", root=self.root)
+        with patch("main.extract_pdf", return_value={
+            "source_file_sha256": "a" * 64,
+            "extraction_status": "raw_extraction_complete",
+        }):
+            return process_batch("batch.json", root=self.root)
 
     def test_clean_official_batch_builds_manifest(self):
         result = self.run_batch(self.base)
