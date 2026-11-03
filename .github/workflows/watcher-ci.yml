@@ -10,6 +10,8 @@ on:
       - ".github/workflows/watcher-ci.yml"
       - "python-engine/config/sources.json"
       - "python-engine/retrieval/**"
+      - "python-engine/extractor/**"
+      - "python-engine/requirements.txt"
       - "python-engine/tests/**"
   pull_request:
     branches:
@@ -45,6 +47,9 @@ jobs:
         uses: actions/setup-python@v6
         with:
           python-version: "3.12"
-      - name: Run approved Drive retrieval unit tests
+      - name: Install Python engine dependencies
+        working-directory: python-engine
+        run: python -m pip install -r requirements.txt
+      - name: Run Python engine unit tests
         working-directory: python-engine
         run: PYTHONPATH=retrieval python -m unittest discover -s tests -v
