@@ -39,12 +39,12 @@ Extract each officially printed sequence number and its corresponding passer nam
 - Download only through the existing allow-listed HTTPS Drive path and exact file ID checks.
 - Verify PDF signature, byte limit, page count, and SHA-256.
 - Keep the source PDF unchanged for the duration of the run.
-- Render pages at a fixed 300 DPI for visual/OCR evidence; render at 400 DPI only for flagged difficult regions.
+- Choose rendering resolution experimentally from the actual document. Record the resolution and prove that it is sufficient without wasting CI time or memory.
 
 ### B. Layout and column segmentation
-- First extract native PDF words/spans with coordinates; do not flatten the page to a text string.
+- Inspect whether each page contains selectable text, embedded images, vector glyphs, or a mixture. Any prototype must retain word-level or region-level coordinates; do not flatten the page to a text string.
 - Detect page content bounds and exclude repeated headers/footers only when confirmed by page-position and repetition analysis. Keep excluded text in diagnostics.
-- Segment physical columns using x-coordinate whitespace valleys / stable left-edge clusters, validated against rendered page previews. Do not use a single global x threshold as the final decision.
+- Identify physical columns from measurable page geometry and validate the result against rendered page evidence. Do not rely on one global threshold unless real-page tests prove it is reliable.
 - Assign every word/block a page ID, column ID, bounding box, baseline, and source-engine ID.
 - Preserve physical layout. Reading order is page ascending, then columns left-to-right, then rows top-to-bottom, unless visual inspection proves the PDF's actual order differs. Record the selected rule in the report.
 
@@ -58,9 +58,9 @@ Extract each officially printed sequence number and its corresponding passer nam
 - A sequence token without a name and a name without a sequence token are separate unresolved records, not silently dropped.
 
 ### D. Independent recognition and reconciliation
-- For native-text pages, compare native tokens with PaddleOCR and/or Surya on the same rendered regions.
-- For image-only pages, require at least two independent OCR readings for sequence and name, then compare normalized token text and geometry. Agreement is supporting evidence, not proof.
-- Re-run flagged crops at higher DPI and with a second OCR configuration; retain original and revised outputs.
+- Compare independently produced readings of the same source regions wherever the page structure or recognition quality makes cross-checking necessary. The independent methods must not merely repeat the same underlying recognition pass.
+- For image-only pages, require at least two genuinely independent readings for sequence and name, then compare normalized token text and geometry. Agreement is supporting evidence, not proof.
+- Re-run flagged regions using a separately tested capture/recognition configuration; retain original and revised outputs.
 - Never autocorrect a name using a dictionary, internet lookup, expected sequence, or another person's record.
 - Keep raw text exactly as extracted; normalized comparison fields are additional fields only.
 
@@ -71,7 +71,7 @@ Each candidate record must contain:
 - printed_sequence_raw, printed_sequence_normalized (string; preserve leading zeroes)
 - passer_name_raw, passer_name_normalized
 - sequence_bbox, name_bbox, row_bbox (PDF-point coordinates)
-- extraction_engine(s), OCR_confidence(s), native_text_available
+- extraction_method(s), recognition_confidence(s), source_text_availability
 - pairing_method, pairing_confidence, review_flags
 - source_snippet / crop reference (private artifact only)
 
@@ -110,7 +110,7 @@ Count equality alone is insufficient: a missing record and an extra record can c
 - no publication-ready dataset unless every gate passes and the normal project Greenlight process approves it
 
 ## Benchmark and acceptance
-Use the same representative pages for each candidate engine: a typical page, a two-column page, a page with tight spacing, a page with long/wrapped names, and a difficult/scanned page if present.
+Use the same representative pages for every experimental approach: a typical page, a two-column page, a page with tight spacing, a page with long/wrapped names, and a difficult/scanned page if present.
 Measure:
 - exact sequence recognition rate
 - exact full-name recognition rate
