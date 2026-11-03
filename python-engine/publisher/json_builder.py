@@ -102,7 +102,7 @@ def _partition_rows(rows: list[list[Any]], max_bytes: int) -> list[list[list[Any
     for row in rows:
         candidate = current + [row]
         candidate_size = len(_json_bytes({"columns": COLUMNS, "data": candidate}))
-        if candidate_size <= max_bytes:
+        if candidate_size < max_bytes:
             current = candidate
             continue
         if not current:
@@ -112,7 +112,7 @@ def _partition_rows(rows: list[list[Any]], max_bytes: int) -> list[list[list[Any
         chunks.append(current)
         current = [row]
         single_size = len(_json_bytes({"columns": COLUMNS, "data": current}))
-        if single_size > max_bytes:
+        if single_size >= max_bytes:
             raise DatasetBuildError(
                 f"A single record requires {single_size} bytes, exceeding the {max_bytes}-byte shard limit."
             )
@@ -184,8 +184,8 @@ def build_dataset(
     for index, chunk in enumerate(chunks, start=1):
         payload = {"columns": COLUMNS, "data": chunk}
         content = _json_bytes(payload)
-        if len(content) > max_shard_bytes:
-            raise DatasetBuildError("Internal shard sizing check failed; refusing to write oversized JSON.")
+        if len(content) >= max_shard_bytes:
+            raise DatasetBuildError("Internal shard sizing check failed; refusing to write a shard at or above the byte limit.")
         digest = hashlib.sha256(content).hexdigest()
         first_initial = _initial(chunk[0][0]) if chunk else "OTHER"
         last_initial = _initial(chunk[-1][0]) if chunk else "OTHER"
