@@ -209,7 +209,8 @@ def process_batch(batch_path: str | Path, *, root: str | Path | None = None) -> 
     )
     report["source_id"] = batch.get("source_id")
     report["official_source_url"] = batch.get("official_source_url")
-    report["official_document_url"] = batch.get("official_document_url") or batch.get("official_content_url")\n    report["official_content_mode"] = batch.get("official_content_mode")
+    report["official_document_url"] = batch.get("official_document_url") or batch.get("official_content_url")
+    report["official_content_mode"] = batch.get("official_content_mode")
     report["source_pdf_sha256"] = source_pdf_sha256
     report["official_article_url"] = batch.get("official_article_url")
     report["official_attempt_log"] = acquisition_log_path if provenance == "official_direct" else batch.get("official_attempt_log")
