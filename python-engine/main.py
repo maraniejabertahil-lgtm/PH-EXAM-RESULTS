@@ -1,0 +1,178 @@
+"""Python processing-to-GitOps entry point for pre-structured result batches.
+
+The PDF parser deliberately remains raw-only. This pipeline therefore accepts
+an explicitly reviewed records JSON file; it does not infer table columns or
+pretend that raw PDF text has been normalized automatically.
+"""
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import re
+import sys
+from pathlib import Path
+from typing import Any
+
+ENGINE_DIR = Path(__file__).resolve().parent
+if str(ENGINE_DIR) not in sys.path:
+    sys.path.insert(0, str(ENGINE_DIR))
+
+from acquisition.official_first_policy import third_party_fallback_gate
+from extractor.pdf_parser import extract_pdf
+from processor.greenlight import validate_records, write_validation_report
+from publisher.gitops_manager import GitHubGitOps, GitOpsError
+from publisher.json_builder import build_dataset
+
+
+class PipelineError(RuntimeError):
+    """Raised when a batch cannot safely proceed to publication."""
+
+
+def _repo_path(value: str, root: Path) -> Path:
+    candidate = (root / value).resolve()
+    try:
+        candidate.relative_to(root.resolve())
+    except ValueError as exc:
+        raise PipelineError("Input paths must remain inside the checked-out repository.") from exc
+    if not candidate.is_file():
+        raise PipelineError(f"Required input file does not exist: {value}")
+    return candidate
+
+
+def _https_url(value: Any, field: str) -> str:
+    from urllib.parse import urlsplit
+
+    if not isinstance(value, str) or not value.strip():
+        raise PipelineError(f"{field} is required.")
+    parsed = urlsplit(value)
+    if parsed.scheme != "https" or not parsed.hostname or parsed.username or parsed.password:
+        raise PipelineError(f"{field} must be a credential-free HTTPS URL.")
+    return value
+
+
+def process_batch(batch_path: str | Path, *, root: str | Path | None = None) -> dict[str, Any]:
+    """Validate a reviewed batch and build local, non-published dataset artifacts."""
+    repository_root = Path(root or Path.cwd()).resolve()
+    input_path = _repo_path(str(batch_path), repository_root)
+    try:
+        batch = json.loads(input_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise PipelineError(f"Unable to read batch JSON: {exc}") from exc
+    if not isinstance(batch, dict):
+        raise PipelineError("Batch input must be a JSON object.")
+
+    required = ("authority", "exam", "year", "announced_count", "provenance", "records")
+    missing = [key for key in required if key not in batch]
+    if missing:
+        raise PipelineError("Batch is missing required fields: " + ", ".join(missing))
+
+    provenance = batch["provenance"]
+    if provenance == "official_direct":
+        _https_url(batch.get("official_source_url"), "official_source_url")
+        _https_url(batch.get("official_document_url"), "official_document_url")
+        if batch.get("record_mapping_reviewed") is not True:
+            raise PipelineError(
+                "Official records must be explicitly marked record_mapping_reviewed=true. "
+                "The current PDF parser extracts raw text/tables only."
+            )
+        pdf_path = _repo_path(batch.get("source_pdf", ""), repository_root)
+        extraction = extract_pdf(pdf_path)
+        expected_hash = batch.get("source_pdf_sha256")
+        if expected_hash and expected_hash != extraction["source_file_sha256"]:
+            raise PipelineError("Source PDF SHA-256 does not match the batch metadata.")
+        source_pdf_sha256 = extraction["source_file_sha256"]
+    elif provenance == "third_party_fallback":
+        attempt_log = _repo_path(batch.get("official_attempt_log", ""), repository_root)
+        gate = third_party_fallback_gate(attempt_log)
+        if gate.get("allowed") is not True:
+            raise PipelineError("Third-party fallback is not authorized: " + gate.get("reason", "unknown"))
+        source_pdf_sha256 = None
+    else:
+        raise PipelineError("provenance must be official_direct or third_party_fallback.")
+
+    records = batch["records"]
+    report = validate_records(
+        records,
+        announced_count=batch["announced_count"],
+        provenance=provenance,
+        comparison_records=batch.get("comparison_records"),
+        source_a_id=batch.get("source_a_id"),
+        source_b_id=batch.get("source_b_id"),
+    )
+    report["source_id"] = batch.get("source_id")
+    report["official_source_url"] = batch.get("official_source_url")
+    report["official_document_url"] = batch.get("official_document_url")
+    report["source_pdf_sha256"] = source_pdf_sha256
+    report["source_a_url"] = batch.get("source_a_url") if provenance == "third_party_fallback" else None
+    report["source_b_url"] = batch.get("source_b_url") if provenance == "third_party_fallback" else None
+
+    report_path = repository_root / "python-engine" / "artifacts" / "validation-report.json"
+    write_validation_report(report, report_path)
+    if report["publication_allowed"] is not True or report["greenlight_score"] != 100:
+        raise PipelineError(
+            f"Greenlight rejected this batch (score {report['greenlight_score']}/100); no dataset PR was created. "
+            f"See {report_path.relative_to(repository_root)}."
+        )
+
+    output_dir = repository_root / "python-engine" / "artifacts" / "dataset"
+    manifest = build_dataset(
+        records,
+        authority=batch["authority"],
+        exam=batch["exam"],
+        year=batch["year"],
+        output_dir=output_dir,
+        greenlight_report=report,
+        provenance=provenance,
+    )
+    return {
+        "report": report,
+        "report_path": report_path,
+        "manifest": manifest,
+        "dataset_dir": output_dir,
+        "authority": batch["authority"],
+        "exam": batch["exam"],
+        "year": batch["year"],
+    }
+
+
+def publish_batch(batch_path: str | Path, *, root: str | Path | None = None) -> dict[str, Any]:
+    """Run Greenlight, build data artifacts, open a PR, dispatch CI, then merge."""
+    repository_root = Path(root or Path.cwd()).resolve()
+    processed = process_batch(batch_path, root=repository_root)
+    authority, exam, year = processed["authority"], processed["exam"], processed["year"]
+    prefix = f"public/data/{authority}/{exam}/{year}"
+    artifacts = {
+        f"{prefix}/{path.name}": path.read_bytes()
+        for path in sorted(processed["dataset_dir"].iterdir())
+        if path.is_file()
+    }
+    client = GitHubGitOps(os.environ.get("GITHUB_REPOSITORY", ""))
+    opened = client.open_dataset_pr(
+        artifacts=artifacts,
+        greenlight_report=processed["report"],
+        title=f"Publish {authority} {exam} {year} examination results",
+    )
+    merged = client.dispatch_ci_and_merge(
+        pull_request_number=opened["pull_request_number"],
+        greenlight_report=processed["report"],
+        workflow_file="watcher-ci.yml",
+    )
+    return {"pull_request": opened, "publication": merged, "manifest": processed["manifest"]}
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description="Validate and publish a reviewed examination result batch.")
+    parser.add_argument("batch", help="Repository-relative JSON file containing reviewed normalized records.")
+    args = parser.parse_args()
+    try:
+        result = publish_batch(args.batch)
+    except (PipelineError, GitOpsError, ValueError, TypeError) as exc:
+        print(f"PUBLICATION STOPPED: {exc}", file=sys.stderr)
+        return 1
+    print(json.dumps(result, ensure_ascii=False, indent=2))
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
