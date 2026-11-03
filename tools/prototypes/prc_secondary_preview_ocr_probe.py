@@ -35,13 +35,13 @@ def blocked(text):
 
 def target_line_present(text, sequence, name):
     """Match a complete visible sequence/name line, tolerating whitespace only."""
-    pattern = re.compile(rf"(?m)^\\s*{sequence}\\s+{re.escape(name)}\\s*$")
+    pattern = re.compile(rf"(?m)^\s*{sequence}\s+{re.escape(name)}\s*$")
     return bool(pattern.search(text))
 
 
 def viewer_page_confirmed(text, page_number, page_count):
     return bool(re.search(
-        rf"\\bPage\\s+{page_number}\\s+of\\s+{page_count}\\b", text
+        rf"\bPage\s+{page_number}\s+of\s+{page_count}\b", text
     ))
 
 
@@ -119,7 +119,7 @@ def main():
         initial = body.inner_text(timeout=15000)
         if blocked(initial + page.content()[:100000]):
             raise RuntimeError("Public preview requires permission or human verification")
-        page_count_match = re.search(r"Page\\s+1\\s+of\\s+(\\d+)", initial)
+        page_count_match = re.search(r"Page\s+1\s+of\s+(\d+)", initial)
         if not page_count_match:
             raise RuntimeError("Could not read Secondary viewer page count")
         page_count = int(page_count_match.group(1))
