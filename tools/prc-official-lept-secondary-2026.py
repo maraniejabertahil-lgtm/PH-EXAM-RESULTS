@@ -22,6 +22,17 @@ UA = "PH-EXAM-RESULTS-official-content-research/1.0 (GitHub Actions)"
 opener = build_opener(HTTPCookieProcessor(CookieJar()))
 events = []
 
+# Speed tuning for the viewer loop.
+POLL_MS = 150                 # was 500 ms between stability samples
+STABLE_REQUIRED = 2           # unchanged: identical text on 2 consecutive samples
+PER_PAGE_DEADLINE_S = 35      # unchanged
+CHALLENGE_TERMS = (
+    "request access", "sign in to continue", "verify you are human",
+    "captcha", "access denied",
+)
+DEEP_CHALLENGE_CHECK_EVERY = 100   # full-DOM challenge scan every N pages
+PROGRESS_EVERY = 50
+
 class Links(HTMLParser):
     def __init__(self):
         super().__init__()
@@ -166,6 +177,7 @@ def main():
             # Capture each rendered page after its text has stabilized. The input
             # value alone is not proof that the PDF text layer has finished rendering.
             page_snapshots = []
+            loop_started = time.monotonic()
             for page_no in range(1, page_count + 1):
                 if page_no > 1:
                     # Focus and submit the ordinary viewer control. Allow the
@@ -173,27 +185,25 @@ def main():
                     page_input.click()
                     page_input.fill(str(page_no))
                     page_input.press("Enter")
-                    page.wait_for_timeout(1000)
-                deadline = time.monotonic() + 35
+                marker = f"Page {page_no} of {page_count}"
+                deadline = time.monotonic() + PER_PAGE_DEADLINE_S
                 stable_samples = 0
                 previous_text = None
                 visible = ""
                 while time.monotonic() < deadline:
-                    current_value = page_input.input_value(timeout=3000)
                     visible = body.inner_text(timeout=10000)
-                    marker_present = f"Page {page_no} of {page_count}" in visible
-                    if current_value == str(page_no) and marker_present:
+                    if marker in visible and page_input.input_value(timeout=3000) == str(page_no):
                         if visible == previous_text:
                             stable_samples += 1
                         else:
                             stable_samples = 0
                         previous_text = visible
-                        if stable_samples >= 2:
+                        if stable_samples >= STABLE_REQUIRED:
                             break
                     else:
                         stable_samples = 0
                         previous_text = visible
-                    page.wait_for_timeout(500)
+                    page.wait_for_timeout(POLL_MS)
                 else:
                     diagnostic = {
                         "requested_page": page_no,
@@ -212,12 +222,13 @@ def main():
                         + str(page_no) + ": "
                         + json.dumps(diagnostic, ensure_ascii=False)
                     )
-                low_visible = (visible + page.content()[:100000]).lower()
-                if any(term in low_visible for term in (
-                    "request access", "sign in to continue", "verify you are human",
-                    "captcha", "access denied"
-                )):
+                low_visible = visible.lower()
+                if any(term in low_visible for term in CHALLENGE_TERMS):
                     raise RuntimeError("Access challenge appeared during public-preview navigation")
+                if page_no % DEEP_CHALLENGE_CHECK_EVERY == 0:
+                    deep = page.content()[:100000].lower()
+                    if any(term in deep for term in CHALLENGE_TERMS):
+                        raise RuntimeError("Access challenge appeared during public-preview navigation")
                 page_snapshots.append({
                     "viewer_page": page_no,
                     "text": visible,
@@ -239,6 +250,13 @@ def main():
                                 "printed_page": page_no + 1,
                             }
                 final_visible_text = visible
+                if page_no % PROGRESS_EVERY == 0 or page_no == page_count:
+                    elapsed = time.monotonic() - loop_started
+                    print(
+                        f"[viewer] page {page_no}/{page_count} "
+                        f"elapsed {elapsed:.0f}s ({elapsed / page_no:.2f}s/page)",
+                        flush=True,
+                    )
             # Union distinct lines from each stable snapshot. This retains text
             # exposed incrementally by the viewer while deduplicating cumulative DOM.
             merged_lines = list(dict.fromkeys(
@@ -264,6 +282,7 @@ def main():
             status=response.status if response else None, viewer_pages=page_count,
             pages_navigated=len(page_snapshots), snapshots_retained=len(page_snapshots),
             final_document_text_characters=len(text),
+            viewer_loop_seconds=round(time.monotonic() - loop_started, 1),
             page_snapshot_index_sha256=hashlib.sha256((OUT / "page-capture-index.json").read_bytes()).hexdigest())
         (OUT / "official-preview-page-count.json").write_text(json.dumps({
             "viewer_pages_expected": page_count, "viewer_pages_navigated": len(page_snapshots),
