@@ -65,3 +65,33 @@ A failed Greenlight report is written in the runner workspace for that run; no d
 ## Important current boundary
 
 This is the safe handoff from **reviewed normalized records** to Greenlight, JSON generation, GitOps PR creation, CI, and merge. It does not claim automatic PDF acquisition or automatic table-to-record normalization. Those remain separate processing work and must be validated against real, authorized result PDFs before being automated.
+
+
+## CSC official portal handoff (no PDF required)
+
+The CSC portal source is registered as `CSC-CSE-PORTAL`. Its official public search page is:
+
+`https://exam.csc.gov.ph/list_passers?type_id=1`
+
+This route is intentionally owner-reviewed and makes **no automated request** to the CSC portal. The owner must use the official portal through ordinary authorized browser access, confirm the result is publicly released, review the complete applicable result, and verify every exact name/sequence pair. Do not automate CAPTCHA, login, or other interactive controls.
+
+For this route, create a JSON batch with:
+
+- `authority`: `CSC`
+- `exam`: a specific examination identifier, e.g. `CSE-PPT-2026-03`
+- `source_id`: `CSC-CSE-PORTAL`
+- `official_source_url`: exact registry URL, including `?type_id=1`
+- `official_portal_url`: the official portal page URL used for the reviewed result; same approved HTTPS host and `/list_passers` path
+- `provenance`: `official_direct`
+- `official_content_mode`: `owner_reviewed_portal_handoff`
+- `publicly_released`, `official_content_reviewed`, and `record_mapping_reviewed`: Boolean `true`
+- `announced_count`: the exact official announced passer count for the batch scope
+- `records`: reviewed objects with exact `name` and `sequence_number` values copied from the official result; never infer or renumber them
+
+The current dedicated command validates source identity, owner-review attestations, record integrity, and Greenlight, then creates local dataset artifacts only:
+
+```bash
+python python-engine/run_portal_validation.py path/to/csc-portal-batch.json
+```
+
+This dedicated portal route is a validation-only handoff. It does not fetch the portal, solve interactive checks, create a GitOps PR, or publish a dataset. The regular PDF/Drive processing route remains unchanged. A representative official batch is still required before the access path and extraction mapping can be marked accepted.
