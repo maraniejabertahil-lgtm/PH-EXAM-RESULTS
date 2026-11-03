@@ -25,6 +25,25 @@
 
 This document contains the implementation roadmap and current delivery position for PH-EXAM-RESULTS. The task checklist in `PROGRESS_TRACKER.md` is the operational source of truth for completed and remaining tasks. This document summarizes the phase objectives and current delivery state; it is not a historical activity log.
 
+
+## Cross-document communication protocol
+
+The three project records are connected by references, not synchronized copies. Their authority is deliberately separate:
+
+| Record | Owns | Does not replace |
+|---|---|---|
+| `PROGRESS_TRACKER.md` | Operational task checklist, checkbox completion, and first unchecked task | Acceptance evidence or the full Owner decision history |
+| Part 16 — this roadmap | Phase-level delivery context and the authoritative Owner decision register | Individual task checkbox status or detailed test evidence |
+| Part 17 — `LIVE_ACCEPTANCE_TEST_REGISTER.md` | Acceptance conditions, test outcomes, and supporting evidence | Implementation task completion or Owner decision history |
+
+**Communication rules**
+1. Use the exact task wording in `PROGRESS_TRACKER.md` when identifying implementation work. Part 16 summarizes its effect on the phase; it does not independently declare a checklist task complete.
+2. Link relevant Part 17 test IDs to the implementation task(s) they verify. A task may have several tests, and a test may verify behavior implemented by more than one task.
+3. Record explicit Owner approvals, rejections, skips, deferrals, and direction changes in the Owner decision register below. Part 17 references the decision ID; the tracker is changed only if the decision changes the actual task scope or completion state.
+4. A completed implementation task does not imply acceptance PASS. Likewise, a passing test does not automatically complete an implementation task unless that task's own completion condition is met.
+5. If a discrepancy appears, do not force statuses to match. Resolve it using the record that owns the information: tracker for task status, Part 16 for Owner decisions and phase summary, Part 17 for acceptance outcomes and evidence.
+6. Keep links and decision/test references current when records change. Never modify the Master Technical Blueprint without explicit Owner authorization.
+
 ## Phase roadmap
 
 ### Phase 1 — The Watcher (Cloudflare Worker)
