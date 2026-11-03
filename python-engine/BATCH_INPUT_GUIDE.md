@@ -21,9 +21,14 @@ For `official_direct`, also provide:
 
 - `official_source_url`: must exactly match the approved registry URL.
 - `official_document_url`: credential-free HTTPS URL on the approved source host, or an allowed Google Drive link.
-- `source_pdf`: repository-relative path to the already-acquired official PDF.
-- `record_mapping_reviewed`: Boolean `true`, confirming that the normalized rows were checked against the PDF.
+- `source_pdf`: optional repository-relative path to an already-acquired official PDF. If omitted, the pipeline attempts a bounded official download.
+- `official_article_url`: required when `source_pdf` is omitted; the PDF URL must be an actual link on this official article.
+- `record_mapping_reviewed`: Boolean `true` when supplying pre-normalized `records`.
+- `table_mapping`: alternatively, an explicit mapping with `table_indexes`, `header_rows`, `name_column`, `sequence_column`, and optional `rating_column` / `region_column`.
+- `table_mapping_reviewed`: Boolean `true` when supplying `table_mapping`.
 - `source_pdf_sha256`: optional expected SHA-256 fingerprint.
+
+Automatic official acquisition is currently limited to same-origin HTTPS PDF links. External Google Drive links are recorded as requiring manual drop/review until public-download and access policy is separately verified. The acquisition code does not sign in, use cookies, or bypass human verification. It checks robots.txt, verifies that the PDF link appears on the supplied official article, and records bounded HEAD/GET evidence.
 
 ## Third-party fallback fields
 
