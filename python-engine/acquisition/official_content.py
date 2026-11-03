@@ -96,6 +96,7 @@ def verify_official_content_link(
     article_url: str,
     content_url: str,
     evidence_path: str | Path,
+    owner_reviewed: bool = False,
     timeout: int = 20,
 ) -> dict[str, Any]:
     """Verify the exact official article link; never fetch the linked content."""
@@ -156,7 +157,7 @@ def verify_official_content_link(
         "official_article_url": article_url,
         "official_content_url": content_url,
         "official_article_link_verified": True,
-        "official_content_reviewed_by_owner": True,
+        "official_content_reviewed_by_owner": owner_reviewed,
         "content_body_downloaded_by_automation": False,
         "pdf_downloaded": False,
         "verified_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
