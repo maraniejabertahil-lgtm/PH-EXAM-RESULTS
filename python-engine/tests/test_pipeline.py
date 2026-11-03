@@ -4,7 +4,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from main import PipelineError, _approved_source, process_batch
+from main import PipelineError, _approved_source, process_batch, publish_batch
 
 
 class ProcessingPipelineTests(unittest.TestCase):
@@ -148,6 +148,40 @@ class ProcessingPipelineTests(unittest.TestCase):
         ]
         with self.assertRaises(PipelineError):
             self.run_batch(broken)
+        self.assertFalse((self.root / "python-engine/artifacts/dataset/manifest.json").exists())
+
+    def test_pdf_missing_sequence_coverage_aborts_auto_publication(self):
+        batch = dict(self.base)
+        batch.pop("records")
+        batch.pop("record_mapping_reviewed")
+        batch["table_mapping_reviewed"] = True
+        batch["table_mapping"] = {
+            "table_indexes": [0], "header_rows": 1,
+            "name_column": 0, "sequence_column": 1,
+        }
+        self.batch.write_text(json.dumps(batch), encoding="utf-8")
+        # This represents the table data extracted from a PDF with sequence 002 missing.
+        extraction = {
+            "source_file_sha256": "a" * 64,
+            "pages": [{
+                "page_number": 1,
+                "tables": [[
+                    ["NAME", "SEQ"],
+                    ["DOE, JANE A", "001"],
+                    ["SMITH, JOHN B", "003"],
+                ]],
+            }],
+        }
+        with patch("main.extract_pdf", return_value=extraction), patch("main.GitHubGitOps") as gitops:
+            with self.assertRaises(PipelineError):
+                publish_batch("batch.json", root=self.root)
+
+        gitops.assert_not_called()
+        report_path = self.root / "python-engine/artifacts/validation-report.json"
+        report = json.loads(report_path.read_text(encoding="utf-8"))
+        self.assertEqual(report["greenlight_score"], 0)
+        self.assertFalse(report["checks"]["complete_sequence_coverage"])
+        self.assertEqual(report["issues"][-1]["missing_sequences"], [2])
         self.assertFalse((self.root / "python-engine/artifacts/dataset/manifest.json").exists())
 
     def test_unreviewed_mapping_is_rejected(self):
