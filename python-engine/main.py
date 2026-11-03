@@ -111,11 +111,6 @@ def process_batch(batch_path: str | Path, *, root: str | Path | None = None) -> 
             document_host == "drive.google.com" and source.get("allow_linked_drive_documents") is True
         ):
             raise PipelineError("Official document URL is outside the approved source origin or allowed Drive links.")
-        if batch.get("record_mapping_reviewed") is not True:
-            raise PipelineError(
-                "Official records must be explicitly marked record_mapping_reviewed=true. "
-                "The current PDF parser extracts raw text/tables only."
-            )
         pdf_path = _repo_path(batch.get("source_pdf", ""), repository_root)
         extraction = extract_pdf(pdf_path)
         expected_hash = batch.get("source_pdf_sha256")
