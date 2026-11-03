@@ -252,7 +252,8 @@ def main():
         log("official_public_preview_pages", url=preview_url, final_url=final_url,
             status=response.status if response else None, viewer_pages=page_count,
             pages_navigated=len(page_snapshots), snapshots_retained=len(page_snapshots),
-            final_document_text_characters=len(text),\n            page_snapshot_index_sha256=hashlib.sha256((OUT / "page-capture-index.json").read_bytes()).hexdigest())
+            final_document_text_characters=len(text),
+            page_snapshot_index_sha256=hashlib.sha256((OUT / "page-capture-index.json").read_bytes()).hexdigest())
         (OUT / "official-preview-page-count.json").write_text(json.dumps({
             "viewer_pages_expected": page_count, "viewer_pages_navigated": len(page_snapshots),
             "snapshots_retained": len(page_snapshots), "final_document_text_characters": len(text)
