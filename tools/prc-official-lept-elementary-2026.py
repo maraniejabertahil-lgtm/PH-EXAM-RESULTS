@@ -37,7 +37,7 @@ def fetch(url, limit=50 * 1024 * 1024):
     with opener.open(req, timeout=35) as response:
         final = response.geturl()
         host = urlparse(final).hostname or ""
-        allowed = host == "prc.gov.ph" or host.endswith(".prc.gov.ph") or host == "drive.google.com" or host.endswith(".googleusercontent.com")
+        allowed = host == "prc.gov.ph" or host.endswith(".prc.gov.ph") or host == "drive.google.com" or host == "drive.usercontent.google.com" or host.endswith(".googleusercontent.com")
         if not allowed:
             raise RuntimeError("Unexpected redirect host: " + host)
         data = response.read(limit + 1)
