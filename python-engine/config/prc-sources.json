@@ -58,6 +58,24 @@
       ],
       "scan_page_on_baseline": true,
       "direct_drive_fallback": true
+    },
+    {
+      "id": "PRC-NLE-2026-08-09",
+      "authority": "PRC",
+      "exam": "NLE",
+      "year": 2026,
+      "source_type": "official",
+      "authorized": true,
+      "enabled": true,
+      "announcement_url": "https://www.prc.gov.ph/article/august-and-september-2026-nurses-licensure-examination-results-released-five-5-working-days",
+      "drive_file_id": "13u_FOsF3DxS7RvMOdMqsg4Q1HF2rKtvU",
+      "expected_passers": 28652,
+      "url": "https://www.prc.gov.ph/article/august-and-september-2026-nurses-licensure-examination-results-released-five-5-working-days",
+      "drive_file_ids": [
+        "13u_FOsF3DxS7RvMOdMqsg4Q1HF2rKtvU"
+      ],
+      "scan_page_on_baseline": false,
+      "direct_drive_fallback": true
     }
   ]
 }
