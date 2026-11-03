@@ -189,8 +189,22 @@ def capture(shard, shards):
             marker = f"Page {page_no} of {page_count}"
             deadline = time.monotonic() + PER_PAGE_DEADLINE_S
             stable_samples, previous_text, visible = 0, None, ""
+            navigation_retry_at = time.monotonic() + 8
+            navigation_retried = False
             while time.monotonic() < deadline:
                 visible = body.inner_text(timeout=10000)
+                if (
+                    not navigation_retried
+                    and time.monotonic() >= navigation_retry_at
+                    and (marker not in visible or page_input.input_value(timeout=3000) != str(page_no))
+                ):
+                    # Retry the ordinary viewer page control once after a slow
+                    # transition. This is not an access-control workaround.
+                    page_input.click()
+                    page_input.fill(str(page_no))
+                    page_input.press("Enter")
+                    navigation_retried = True
+                    print(f"[shard {shard}] retried viewer navigation to page {page_no}", flush=True)
                 if marker in visible and page_input.input_value(timeout=3000) == str(page_no):
                     if visible == previous_text:
                         stable_samples += 1
