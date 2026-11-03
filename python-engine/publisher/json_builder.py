@@ -15,6 +15,8 @@ import re
 from pathlib import Path
 from typing import Any, Iterable
 
+from processor.greenlight import records_sha256
+
 COLUMNS = ["name", "rating", "region", "seq"]
 DEFAULT_MAX_SHARD_BYTES = 10 * 1024 * 1024
 _EXAM_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,79}$")
@@ -47,8 +49,9 @@ def _validate_record(record: dict[str, Any], index: int) -> list[Any]:
     sequence = record.get("sequence_number")
     if isinstance(sequence, bool) or not isinstance(sequence, (str, int)):
         raise DatasetBuildError(f"Record {index} has an invalid sequence number.")
-    sequence_text = str(sequence).strip()
-    if not _SEQUENCE_PATTERN.fullmatch(sequence_text) or int(sequence_text) < 1:
+    sequence_text = str(sequence)
+    sequence_check = sequence_text.strip()
+    if not _SEQUENCE_PATTERN.fullmatch(sequence_check) or int(sequence_check) < 1:
         raise DatasetBuildError(f"Record {index} sequence number must be a positive integer string.")
 
     rating = record.get("rating")
@@ -64,7 +67,7 @@ def _validate_record(record: dict[str, Any], index: int) -> list[Any]:
         raise DatasetBuildError(f"Record {index} region must be text or null.")
     # Only the public schema fields are emitted. Sequence text remains a string
     # so values such as 001 are not converted to 1.
-    return [name.strip(), rating, region, sequence_text]
+    return [name, rating, region, sequence_text]
 
 
 def _initial(name: str) -> str:
@@ -164,6 +167,9 @@ def build_dataset(
     if len(source_rows) != greenlight_report.get("announced_count"):
         raise DatasetBuildError("Record count does not match the authority's announced count.")
 
+    if greenlight_report.get("records_sha256") != records_sha256(source_rows):
+        raise DatasetBuildError("The supplied records do not match the exact rows evaluated by Greenlight.")
+
     rows = [_validate_record(record, index) for index, record in enumerate(source_rows, start=1)]
     # Alphabetical ordering supports predictable name-range shards. Sequence
     # values are retained in the output and can still be searched/displayed.
@@ -213,6 +219,10 @@ def build_dataset(
         "record_count": len(rows),
         "announced_count": greenlight_report["announced_count"],
         "greenlight_score": 100,
+        "records_sha256": greenlight_report["records_sha256"],
+        "source_a_id": greenlight_report.get("source_a_id") if provenance == "third_party_fallback" else None,
+        "source_b_id": greenlight_report.get("source_b_id") if provenance == "third_party_fallback" else None,
+        "comparison_records_sha256": greenlight_report.get("comparison_records_sha256") if provenance == "third_party_fallback" else None,
         "shard_count": len(shard_entries),
         "max_shard_bytes": max_shard_bytes,
         "shards": shard_entries,
