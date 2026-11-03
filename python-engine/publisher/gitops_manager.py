@@ -181,6 +181,59 @@ class GitHubGitOps:
             "auto_merge_ready": False,
         }
 
+    def dispatch_ci_and_merge(
+        self, *, pull_request_number: int, greenlight_report: dict,
+        workflow_file: str = "watcher-ci.yml", timeout_seconds: int = 900,
+        poll_seconds: int = 10,
+    ) -> dict:
+        """Explicitly dispatch CI (GITHUB_TOKEN-created PRs do not trigger PR workflows).
+
+        The workflow must run against the exact PR head branch. Merge is allowed
+        only after that run succeeds and the commit's complete check/status set
+        is successful. A timeout or failed check leaves the PR open.
+        """
+        validate_greenlight(greenlight_report)
+        if not re.fullmatch(r"[A-Za-z0-9_.-]+\\.yml", workflow_file):
+            raise GitOpsError("Invalid validation workflow filename.")
+        if timeout_seconds < 1 or poll_seconds < 1:
+            raise GitOpsError("CI timeout and polling interval must be positive.")
+        pr = self._request("GET", f"/pulls/{pull_request_number}")
+        if pr.get("state") != "open" or pr.get("merged") is True:
+            raise GitOpsError("Pull request must be open and not already merged.")
+        branch = pr.get("head", {}).get("ref")
+        head_sha = pr.get("head", {}).get("sha")
+        if not branch or not head_sha:
+            raise GitOpsError("Pull request head branch and SHA are required.")
+
+        self._request("POST", f"/actions/workflows/{workflow_file}/dispatches", {
+            "ref": branch,
+        })
+        deadline = time.monotonic() + timeout_seconds
+        while time.monotonic() < deadline:
+            runs = self._request(
+                "GET",
+                f"/actions/workflows/{workflow_file}/runs?branch={branch}&event=workflow_dispatch&per_page=20",
+            ).get("workflow_runs", [])
+            matching = [
+                run for run in runs
+                if run.get("head_sha") == head_sha and run.get("event") == "workflow_dispatch"
+            ]
+            if matching:
+                run = max(matching, key=lambda item: item.get("id", 0))
+                if run.get("status") == "completed":
+                    if run.get("conclusion") != "success":
+                        raise GitOpsError(
+                            f"Validation workflow failed ({run.get('conclusion')}); PR remains open."
+                        )
+                    return self.merge_when_checks_pass(
+                        pull_request_number=pull_request_number,
+                        greenlight_report=greenlight_report,
+                    )
+            time.sleep(poll_seconds)
+        raise GitOpsError(
+            "Timed out waiting for the exact-commit validation workflow; PR remains open and unmerged."
+        )
+
     def merge_when_checks_pass(self, *, pull_request_number: int, greenlight_report: dict) -> dict:
         """Merge only when the same validated report and all GitHub checks pass."""
         validate_greenlight(greenlight_report)
