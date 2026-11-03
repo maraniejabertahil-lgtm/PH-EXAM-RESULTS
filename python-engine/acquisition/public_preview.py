@@ -128,6 +128,11 @@ def load_public_preview_capture(
     visual_records = extraction.get("visual_verification_evidence")
     if not isinstance(visual_records, dict):
         raise PublicPreviewCaptureError("Extraction report is missing visual-record evidence.")
+    visual_sequences = {
+        str(item.get("sequence")) for item in results if isinstance(item, dict)
+    }
+    if visual_sequences != set(visual_records):
+        raise PublicPreviewCaptureError("Visual screenshots must cover every flagged record exactly once.")
     for item in results:
         if not isinstance(item, dict) or item.get("viewer_text_confirmed") is not True:
             raise PublicPreviewCaptureError("A visual source page lacks viewer-text confirmation.")
