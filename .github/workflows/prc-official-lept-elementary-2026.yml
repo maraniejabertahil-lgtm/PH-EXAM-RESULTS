@@ -6,6 +6,7 @@ on:
       - test/prc-official-lept-elementary-2026
     paths:
       - "tools/prc-official-lept-elementary-2026.py"
+      - "tools/prototypes/prc_preview_ocr_probe.py"
       - ".github/workflows/prc-official-lept-elementary-2026.yml"
 
 permissions:
@@ -20,12 +21,17 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
-      - name: Install browser and independent PDF parsers
+      - name: Install browser, parsers, and OCR alternative
         run: |
+          sudo apt-get update
+          sudo apt-get install -y tesseract-ocr
           python -m pip install playwright pymupdf pdfplumber
           python -m playwright install --with-deps chromium
       - name: Run official-only extraction
         run: python tools/prc-official-lept-elementary-2026.py
+      - name: Run isolated Tesseract OCR probe
+        if: always()
+        run: python tools/prototypes/prc_preview_ocr_probe.py
       - name: Save evidence
         if: always()
         uses: actions/upload-artifact@v4
