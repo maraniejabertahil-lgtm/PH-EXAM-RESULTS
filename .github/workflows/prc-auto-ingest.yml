@@ -1,0 +1,74 @@
+name: Automated PRC Result Ingestion
+
+on:
+  workflow_dispatch:
+    inputs:
+      article_url:
+        description: Official PRC result article URL
+        required: true
+        type: string
+      level:
+        description: Result list to process
+        required: true
+        type: choice
+        options:
+          - elementary
+          - secondary
+      exam:
+        description: Stable examination identifier (for example LEPT)
+        required: true
+        type: string
+      year:
+        description: Examination year
+        required: true
+        type: string
+  repository_dispatch:
+    types:
+      - prc-result-detected
+
+permissions:
+  contents: write
+  pull-requests: write
+  actions: write
+
+concurrency:
+  group: prc-result-ingestion-${{ github.event.client_payload.exam || inputs.exam }}-${{ github.event.client_payload.year || inputs.year }}-${{ github.event.client_payload.level || inputs.level }}
+  cancel-in-progress: false
+
+jobs:
+  ingest:
+    if: github.event_name == 'workflow_dispatch' || github.event.client_payload.authority == 'PRC'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Check out approved source registry and Python engine
+        uses: actions/checkout@v5
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Install Python engine dependencies
+        working-directory: python-engine
+        run: python -m pip install -r requirements.txt
+
+      - name: Run official PRC acquisition, extraction, Greenlight, and GitOps
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          ARTICLE_URL: ${{ github.event.client_payload.source_article_url || inputs.article_url }}
+          RESULT_LEVEL: ${{ github.event.client_payload.level || inputs.level }}
+          EXAM_CODE: ${{ github.event.client_payload.exam || inputs.exam }}
+          EXAM_YEAR: ${{ github.event.client_payload.year || inputs.year }}
+        run: |
+          set -euo pipefail
+          test -n "$ARTICLE_URL"
+          test -n "$RESULT_LEVEL"
+          test -n "$EXAM_CODE"
+          test -n "$EXAM_YEAR"
+          python python-engine/prc_auto_ingest.py \
+            --article-url "$ARTICLE_URL" \
+            --level "$RESULT_LEVEL" \
+            --exam "$EXAM_CODE" \
+            --year "$EXAM_YEAR"
