@@ -62,8 +62,8 @@ Build the Python processing pipeline to acquire official result contents, extrac
 
 **Remaining Phase 2 tasks:**
 - Identify and validate a compliant PRC-only official-content access path that provides passer names and exact sequence numbers. CSC-specific source discovery, portal access, acquisition, and testing are excluded by Owner decision D-003. A downloadable PDF is not required. The PRC-linked Drive view inspected so far did not expose the records; owner-reviewed manual handoff is available.
-- Validate the extraction/normalization mapping against a representative official content sample and prove exact name/sequence pairs.
-- Process one real, publicly released result batch through acquisition, extraction, Greenlight, dataset generation, GitOps PR, CI, and merge.
+- Validate the extraction/normalization mapping against a representative PRC official content sample and prove exact name/sequence pairs.
+- Process one real, publicly released PRC result batch through acquisition, extraction, Greenlight, dataset generation, GitOps PR, CI, and merge. CSC-specific tests are excluded by D-003.
 
 ---
 
