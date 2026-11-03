@@ -4,9 +4,12 @@ on:
   push:
     branches:
       - test/prc-official-lept-elementary-2026
+      - integration/prc-public-preview-python-engine
     paths:
       - "tools/prc-official-lept-elementary-2026.py"
       - "tools/prototypes/prc_preview_ocr_probe.py"
+      - "tools/run_prc_public_preview_python_engine.py"
+      - "python-engine/**"
       - ".github/workflows/prc-official-lept-elementary-2026.yml"
 
 concurrency:
