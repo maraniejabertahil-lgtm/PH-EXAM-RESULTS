@@ -293,8 +293,22 @@ This is an execution-status snapshot, not a change to the roadmap or its accepta
 
 The live PROGRESS_TRACKER.md remains the operational source of truth for task completion. This snapshot must be reconciled when that tracker changes.
 
-⸻
+### Historical testing and verification record — 2026-11-03
 
+This record consolidates earlier evidence. It does not change phase completion checkboxes or grant acceptance where the full criterion remains unmet.
+
+- **Phase 1 automated tests:** PR #18 recorded 21 Watcher tests and 9 approved-Drive retrieval tests passed. Later source-discovery and compliance changes in PRs #22–#32 passed their required CI/preview checks before merge.
+- **Phase 1 live production:** production cron, Worker runtime, KV diagnostics, and a scheduled PRC homepage baseline check were observed. PR #18 also proved two synthetic detection events reached the production GitHub receiver; both were validation-only and did not acquire, extract, or publish a result.
+- **Peak Week:** automated simulation passed the 30-second wait/two-scan behavior. Production diagnostics later observed `PEAK_WEEK=true` and two scans, but the retained record does not include exact timestamps proving a 30-second interval in that live invocation.
+- **Official-source compliance:** PRC robots.txt and public result-page policy were checked. CSC Region V returned HTTP 403 security verification, so automated polling was disabled rather than bypassed.
+- **Phase 2 Python/GitOps tests:** recorded suite size increased from 90 tests after PR #48/#50, to 98 after PR #51, 104 after PR #52, and 112 after PR #55. PR #55 and the subsequent main-branch CI both passed.
+- **Owner verification:** the Owner confirmed personally testing Phase 1. This is owner-reported verification and is distinct from independently retained runtime evidence.
+
+These historical results must not be overstated: synthetic HEAD tests are not genuine pre-announcement official detection; synthetic receiver events are not genuine scheduled-source dispatch; staging extraction is not official-result extraction; and no real result batch has completed the full acquisition-to-publication path.
+
+Detailed test-by-test statuses are maintained in `LIVE_ACCEPTANCE_TEST_REGISTER.md`; Phase 1 live evidence is documented in `docs/PHASE_1_ACCEPTANCE_AUDIT_2026-11-03.md`.
+
+⸻
 PART 17 — TESTING, VERIFICATION & ACCEPTANCE STATUS
 
 • Extraction Safety: The Greenlight Protocol MUST fail on a test PDF missing sequence numbers. Auto-publish must abort.
