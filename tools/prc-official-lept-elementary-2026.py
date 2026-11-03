@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 import hashlib, json, re, sys
-from datetime import datetime, timezone
+from datetime import datetime, timezone\nimport time
 from html.parser import HTMLParser
 from pathlib import Path
 from urllib.request import Request, build_opener, HTTPCookieProcessor
 from http.cookiejar import CookieJar
 from urllib.parse import urljoin, urlparse
 
-ARTICLE = "https://prc.gov.ph/article/march-2026-licensure-examination-professional-teachers-results-released-thirty-nine-39"
+ARTICLES = [\n    "https://www.prc.gov.ph/article/march-2026-licensure-examination-professional-teachers-results-released-thirty-nine-39",\n    "https://prc.gov.ph/article/march-2026-licensure-examination-professional-teachers-results-released-thirty-nine-39",\n]
 DRIVE_ID = "1kY0CTSuwdxDwnf1UEvWe27HDEXU3rolE"
 EXPECTED = 18376
 OUT = Path("official-prc-evidence")
@@ -27,7 +27,7 @@ class Links(HTMLParser):
                 self.items.append(href)
 
 def fetch(url, limit=50 * 1024 * 1024):
-    req = Request(url, headers={"User-Agent": UA, "Accept": "text/html,application/pdf,*/*"})
+    req = Request(url, headers={"User-Agent": UA, "Accept": "text/html,application/pdf,*/*", "Accept-Language": "en-US,en;q=0.9", "Cache-Control": "no-cache"})
     with opener.open(req, timeout=35) as response:
         final = response.geturl()
         host = urlparse(final).hostname or ""
@@ -61,7 +61,7 @@ def main():
     pdf = None
     for index, url in enumerate(urls, 1):
         try:
-            body, info = fetch(url)
+            body, info = fetch_with_retries(url, 50 * 1024 * 1024)
             if body.startswith(b"%PDF-"):
                 pdf = body
                 log("official_pdf", attempt=index, sha256=hashlib.sha256(body).hexdigest(), bytes=len(body), **info)
