@@ -1,7 +1,7 @@
 # LIVE ACCEPTANCE TEST REGISTER
 ## PH-EXAM-RESULTS
 
-**Purpose:** A single, phase-by-phase register of current acceptance-test results and evidence derived from `Master_Technical_Blueprint.md` (Parts 1–21), with implementation progress governed by Part 16 and acceptance criteria governed by Part 17.
+**Purpose:** The Part 17 companion document: a phase-by-phase register of current acceptance-test criteria, results, and evidence. The core architecture is in `Master_Technical_Blueprint.md`; implementation roadmap and delivery status are in `IMPLEMENTATION_ROADMAP.md` (Part 16).
 
 **Important:** This document records the current strongest evidence and acceptance status. A successful unit test or synthetic event is not automatically a live acceptance PASS. A completed implementation checkbox in `PROGRESS_TRACKER.md` is not, by itself, proof of live acceptance.
 
@@ -30,7 +30,7 @@
 
 ## 2. Phase 1 — The Watcher (Cloudflare Worker)
 
-**Blueprint basis:** Parts 2, 9, 11, 16, and 17.
+**Blueprint basis:** Parts 2, 9, and 11; see also `IMPLEMENTATION_ROADMAP.md` (Part 16).
 
 | ID | Live acceptance test | Pass condition | Evidence to retain | Status |
 |---|---|---|---|---|
@@ -39,19 +39,19 @@
 | P1-03 | Peak Week activation | Peak Week starts exactly seven days before the historically predicted D1 release date, or when manually activated by the Owner. | Prediction/activation record and KV value. | NOT RUN |
 | P1-04 | Peak Week KV flag | The Watcher reads the `PEAK_WEEK` flag from Cloudflare KV and selects the correct mode. | Production KV diagnostics observed `PEAK_WEEK=true`; subsequent PR #32 live event performed two Peak Week scans. KV-read/branch selection has live evidence; retain raw invocation record for full audit. | PARTIAL |
 | P1-05 | Peak Week 30-second loop | In Peak Week, the Watcher performs its first check, waits 30 seconds, and performs the second check. | PR #18 automated Peak Week simulation passed the 30-second wait/two-scan behavior. PR #32 production event reported two scans, but retained audit does not show exact inter-scan timestamps. | PARTIAL |
-| P1-06 | Preemptive HEAD test | The Watcher identifies a candidate result resource through a lightweight HEAD request before the official HTML announcement page updates. This is the explicit Part 17 Preemptive Test. | Synthetic fixture HEAD tests verify code behavior; production `preemptive_url_templates` remain empty. No genuine official result resource was detected before its announcement changed. | BLOCKED |
+| P1-06 | Preemptive HEAD test | The Watcher identifies a candidate result resource through a lightweight HEAD request before the official HTML announcement page updates. This is the Part 17 Preemptive Test. | Synthetic fixture HEAD tests verify code behavior; production `preemptive_url_templates` remain empty. No genuine official result resource was detected before its announcement changed. | BLOCKED |
 | P1-07 | Change detection | A relevant change at an approved monitored official source is detected. | PRC homepage baseline and scheduled unchanged checks were verified live; no newly released official result article/change was observed during the audit window. | PARTIAL |
 | P1-08 | Webhook dispatch | On a qualifying detection, the Watcher sends the configured `repository_dispatch` event to GitHub Actions. | PR #18: two synthetic diagnostic `source-detected` events reached the production receiver and generated validation-only runs. No genuine scheduled production source detection dispatch has been observed. | PARTIAL |
 | P1-09 | Official-source priority | Monitoring and acquisition handoff begin with the official PRC/CSC source and its linked result destination. | PRC homepage is enabled as official baseline/discovery source; CSC Region V remains safely disabled after HTTP 403. Complete PRC/CSC coverage and result-content acquisition remain outstanding; see Phase 1 audit §12. | PARTIAL |
 | P1-10 | Compliant retrieval behavior | Requests are bounded and low-impact, respect robots.txt/rate limits/access controls, and do not attempt authentication or CAPTCHA circumvention. | PRC `robots.txt` returned HTTP 200 and public result article paths were not disallowed; CSC HTTP 403 security verification caused automated polling to be disabled rather than bypassed. See Phase 1 audit §12. | PASS |
 
-**Phase 1 acceptance note:** Part 16 explicitly calls for the 30-second loop, Peak Week KV check, preemptive HEAD requests, and webhook dispatch. Part 17 separately requires proof that the preemptive HEAD detection happens before the HTML page updates.
+**Phase 1 acceptance note:** The Part 16 roadmap calls for the 30-second loop, Peak Week KV check, preemptive HEAD requests, and webhook dispatch. Part 17 separately requires proof that the preemptive HEAD detection happens before the HTML page updates.
 
 ---
 
 ## 3. Phase 2 — The Extractor & Greenlight (Python and GitOps)
 
-**Blueprint basis:** Parts 3–7, 10, 12, 16, 17, 20, and 21.
+**Blueprint basis:** Parts 3–7, 10, 12, 20, and 21; see also `IMPLEMENTATION_ROADMAP.md` (Part 16).
 
 | ID | Live acceptance test | Pass condition | Evidence to retain | Status |
 |---|---|---|---|---|
@@ -72,7 +72,7 @@
 | P2-15 | Official failure evidence | Before fallback, the system records source/article URLs, timestamps, methods, HTTP status, content type, final URL, PDF/signature outcome where relevant, and concise failure reason/classification. | Persisted official-attempt evidence record. | NOT RUN |
 | P2-16 | Provenance | Every import and published dataset is labelled `official_direct` or `third_party_fallback`; fallback is never described as official PDF extraction. | Batch metadata, validation report, and dataset provenance. | NOT RUN |
 | P2-17 | Clean-batch Greenlight | A clean representative batch meeting every Greenlight and applicable Part 20 validation condition receives 100% and is eligible for the automated GitOps path. | Full validation report and test run. | NOT RUN |
-| P2-18 | Missing-sequence safety test | A test input with missing sequence numbers fails Greenlight and automatic publication/merge is aborted. This is the explicit Part 17 Extraction Safety criterion. | **Automated PASS:** PR #55 merged; deterministic extracted-table fixture omits sequence 002; `publish_batch` raises `PipelineError`, GitOps client is not initialized, no manifest is produced, missing sequence is reported. PR CI #41594622630 and main CI #41594733732 passed (112 Python tests). This is not a live official-PDF test. | AUTOMATED PASS |
+| P2-18 | Missing-sequence safety test | A test input with missing sequence numbers fails Greenlight and automatic publication/merge is aborted. This is the Part 17 Extraction Safety criterion. | **Automated PASS:** PR #55 merged; deterministic extracted-table fixture omits sequence 002; `publish_batch` raises `PipelineError`, GitOps client is not initialized, no manifest is produced, missing sequence is reported. PR CI #41594622630 and main CI #41594733732 passed (112 Python tests). This is not a live official-PDF test. | AUTOMATED PASS |
 | P2-19 | Messy-data safety | A batch with unresolved anomalies or uncertain records is not auto-published and is routed for Owner review. | Validation report and open PR/manual-review evidence. | NOT RUN |
 | P2-20 | Array-of-Arrays dataset | Valid records are generated in the approved compact JSON structure, including the name and sequence fields and the defined dataset columns. | Generated JSON and schema validation. | NOT RUN |
 | P2-21 | Dataset sharding | A dataset exceeding 10 MB is split into the required alphabetic shards; each generated data shard remains strictly below 10 MiB as implemented. | File sizes, shard names, and record coverage check. | NOT RUN |
@@ -89,7 +89,7 @@
 
 ## 4. Phase 3 — Automated Broadcasting
 
-**Blueprint basis:** Parts 3, 4, 16, and 19.
+**Blueprint basis:** Parts 3, 4, and 19; see also `IMPLEMENTATION_ROADMAP.md` (Part 16).
 
 | ID | Live acceptance test | Pass condition | Evidence to retain | Status |
 |---|---|---|---|---|
@@ -104,7 +104,7 @@
 
 ## 5. Phase 4 — Frontend Web Worker Search
 
-**Blueprint basis:** Parts 1–3, 7–8, 9, 13, 15, 16, and 17.
+**Blueprint basis:** Parts 1–3, 7–8, 9, 13, and 15; see also `IMPLEMENTATION_ROADMAP.md` (Part 16).
 
 | ID | Live acceptance test | Pass condition | Evidence to retain | Status |
 |---|---|---|---|---|
@@ -118,7 +118,7 @@
 | P4-08 | IndexedDB caching | A downloaded dataset is stored in IndexedDB and can be reused on a subsequent search/session as designed. | Browser storage inspection and repeat-load evidence. | NOT RUN |
 | P4-09 | Local cached search | A subsequent search can use the locally cached dataset without requesting the dataset again when cache is valid. | Browser network trace and search result. | NOT RUN |
 | P4-10 | Web Worker offloading | Large search/filter work executes in the browser Web Worker rather than blocking the UI thread. | Runtime inspection/performance trace. | NOT RUN |
-| P4-11 | 50,000-record performance | A 50,000-record dataset is searchable in the browser without dropping UI frames. This is the explicit Part 17 Performance criterion. | Reproducible device/browser, dataset, performance trace, and observed UI responsiveness. | NOT RUN |
+| P4-11 | 50,000-record performance | A 50,000-record dataset is searchable in the browser without dropping UI frames. This is the Part 17 Performance criterion. | Reproducible device/browser, dataset, performance trace, and observed UI responsiveness. | NOT RUN |
 | P4-12 | Zero backend search queries | Searching/filtering does not send search requests to a backend or query D1; data is served as static assets and searched locally. | Browser network trace during multiple searches. | NOT RUN |
 | P4-13 | Public-site read-only security | The public Pages application has no mechanism or exposed credential that can write to internal data or repositories. | Source/configuration review and browser inspection. | NOT RUN |
 
