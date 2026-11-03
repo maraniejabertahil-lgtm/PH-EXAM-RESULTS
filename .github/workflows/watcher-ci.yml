@@ -13,6 +13,7 @@ on:
       - "python-engine/extractor/**"
       - "python-engine/acquisition/**"
       - "python-engine/processor/**"
+      - "python-engine/publisher/**"
       - "python-engine/requirements.txt"
       - "python-engine/tests/**"
   pull_request:
@@ -27,6 +28,7 @@ on:
       - "python-engine/extractor/**"
       - "python-engine/acquisition/**"
       - "python-engine/processor/**"
+      - "python-engine/publisher/**"
       - "python-engine/requirements.txt"
       - "python-engine/tests/**"
   workflow_dispatch:

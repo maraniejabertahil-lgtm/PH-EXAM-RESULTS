@@ -7,7 +7,10 @@ never repairs, renumbers, fuzzy-matches, or publishes records. It returns a
 
 from __future__ import annotations
 
+import hashlib
 import json
+import math
+import numbers
 import re
 import unicodedata
 from pathlib import Path
@@ -16,6 +19,28 @@ from typing import Any, Iterable
 import pandas as pd
 
 _SEQUENCE_PATTERN = re.compile(r"^[0-9]+$")
+
+
+def _canonical_value(value: Any) -> Any:
+    if value is None or isinstance(value, (str, bool)):
+        return value
+    if isinstance(value, numbers.Integral):
+        return int(value)
+    if isinstance(value, numbers.Real):
+        numeric = float(value)
+        return numeric if math.isfinite(numeric) else str(numeric)
+    if isinstance(value, dict):
+        return {str(key): _canonical_value(item) for key, item in sorted(value.items(), key=lambda pair: str(pair[0]))}
+    if isinstance(value, (list, tuple)):
+        return [_canonical_value(item) for item in value]
+    return str(value)
+
+
+def records_sha256(records: Iterable[Any]) -> str:
+    """Hash the exact validated input rows so publication cannot reuse a stale report."""
+    canonical = [_canonical_value(row) for row in records]
+    payload = json.dumps(canonical, ensure_ascii=False, sort_keys=True, separators=(",", ":"), allow_nan=False)
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
 def _sequence_text(value: Any) -> str | None:
@@ -63,6 +88,7 @@ def validate_records(
     if not isinstance(records, Iterable) or isinstance(records, (str, bytes, dict)):
         raise TypeError("records must be an iterable of row dictionaries.")
     rows = list(records)
+    input_records_sha256 = records_sha256(rows)
     record_count = len(rows)
     count_match = record_count == announced_count
     if not count_match:
@@ -178,6 +204,7 @@ def validate_records(
         )
         checks["two_independent_sources"] = independent_sources
         comparison_rows = list(comparison_records) if comparison_records is not None else []
+        comparison_records_hash = records_sha256(comparison_rows) if comparison_rows else None
         comparison_report = validate_records(
             comparison_rows, announced_count=announced_count, provenance="official_direct"
         ) if comparison_rows else None
@@ -210,6 +237,8 @@ def validate_records(
         "status": "GREENLIGHT" if greenlight else "REJECTED",
         "greenlight_score": 100 if greenlight else 0,
         "provenance": provenance,
+        "records_sha256": input_records_sha256,
+        "comparison_records_sha256": comparison_records_hash if provenance == "third_party_fallback" else None,
         "source_a_id": source_a_id if provenance == "third_party_fallback" else None,
         "source_b_id": source_b_id if provenance == "third_party_fallback" else None,
         "record_count": record_count,
