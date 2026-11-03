@@ -90,10 +90,13 @@ def process_batch(batch_path: str | Path, *, root: str | Path | None = None) -> 
     if not isinstance(batch, dict):
         raise PipelineError("Batch input must be a JSON object.")
 
-    required = ("authority", "exam", "year", "announced_count", "provenance", "records")
+    required = ("authority", "exam", "year", "announced_count", "provenance", "records", "publicly_released")
     missing = [key for key in required if key not in batch]
     if missing:
         raise PipelineError("Batch is missing required fields: " + ", ".join(missing))
+
+    if batch.get("publicly_released") is not True:
+        raise PipelineError("Only publicly released examination results may enter the publication pipeline.")
 
     provenance = batch["provenance"]
     if provenance == "official_direct":
@@ -132,10 +135,14 @@ def process_batch(batch_path: str | Path, *, root: str | Path | None = None) -> 
             or evidence.get("official_source_url") != source.get("url")
         ):
             raise PipelineError("Official-attempt evidence does not match this approved source and examination.")
-        _https_url(batch.get("source_a_url"), "source_a_url")
-        _https_url(batch.get("source_b_url"), "source_b_url")
-        if batch["source_a_url"] == batch["source_b_url"]:
-            raise PipelineError("Fallback sources must have distinct URLs.")
+        source_a_url = _https_url(batch.get("source_a_url"), "source_a_url")
+        source_b_url = _https_url(batch.get("source_b_url"), "source_b_url")
+        from urllib.parse import urlsplit
+        if (
+            source_a_url == source_b_url
+            or urlsplit(source_a_url).hostname.lower() == urlsplit(source_b_url).hostname.lower()
+        ):
+            raise PipelineError("Fallback sources must be independently hosted, distinct HTTPS sources.")
         source_pdf_sha256 = None
     else:
         raise PipelineError("provenance must be official_direct or third_party_fallback.")
