@@ -53,8 +53,7 @@
     {
       "id": "CSC-CSE-PORTAL",
       "authority": "CSC",
-      "exam": "CSE-PPT",
-      "exam_scope": "all",
+      "exam": "CSE-PPT-2026-03",
       "year": 2026,
       "source_type": "official",
       "authorized": true,
