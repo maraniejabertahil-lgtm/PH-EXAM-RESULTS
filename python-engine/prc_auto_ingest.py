@@ -12,7 +12,7 @@ ENGINE = Path(__file__).resolve().parent
 sys.path.insert(0, str(ENGINE))
 
 from acquisition.prc_automation import (
-    PRCAutomationError, _get, acquire_public_drive_pdf, parse_official_article,
+    PRCAutomationError, _get, _robots_allow, acquire_public_drive_pdf, parse_official_article,
 )
 from extractor.pdf_parser import extract_pdf
 from acquisition.prc_automation import extract_sequence_name_pairs
@@ -28,6 +28,8 @@ def run(article_url: str, level: str, exam: str, year: int):
     if parsed.scheme != "https" or parsed.hostname != "www.prc.gov.ph" or "/article/" not in parsed.path:
         raise PRCAutomationError("Only a direct official PRC article URL is accepted.")
 
+    if not _robots_allow("https://www.prc.gov.ph/robots.txt", article_url):
+        raise PRCAutomationError("PRC robots.txt disallows this official article.")
     status, headers, final_url, html = _get(article_url, 3 * 1024 * 1024)
     if status != 200 or "text/html" not in (headers.get("Content-Type") or "").lower():
         raise PRCAutomationError(f"Official PRC article request failed (HTTP {status}).")
