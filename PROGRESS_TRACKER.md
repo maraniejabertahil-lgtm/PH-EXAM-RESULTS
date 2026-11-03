@@ -18,7 +18,9 @@
 - [x] Implement Part 20 Official-First Policy (persist official-attempt evidence before fallback; block fallback on authentication/CAPTCHA; production acquisition integration remains pending)
 - [x] Build `processor/` & Greenlight Protocol (100/0 fail-closed score; count, blanks, duplicates, anomalies, sequence coverage, and two-source fallback agreement)
 - [x] Implement Array-of-Arrays JSON builder and sharding logic (each data shard strictly below 10 MiB; Greenlight fingerprint required)
-- [ ] Integrate the GitOps Manager with the processing workflow so a 100/100 Greenlight batch opens a PR and auto-merges only after all GitHub checks pass (core manager and unit tests merged in PR #47; workflow invocation and end-to-end verification remain pending)
+- [x] Integrate the GitOps Manager with the processing workflow so a 100/100 Greenlight batch opens a PR and auto-merges only after all GitHub checks pass (reviewed-batch workflow and Python entry point merged in PRs #48 and #50; exact-commit CI dispatch and fail-closed merge; 90 Python tests passed; live result publication not yet run)
+- [ ] Integrate compliant official PDF acquisition and table-to-record normalization into the Python pipeline (current PDF parser remains raw-text/table extraction only; validate against a representative official PRC/CSC PDF before automating normalization)
+- [ ] Run a real, publicly released result batch through acquisition, extraction, Greenlight, dataset generation, GitOps PR, CI, and merge
 
 ## Phase 3: Automated Broadcasting
 - [ ] Build `broadcaster.py` inside Python Engine
