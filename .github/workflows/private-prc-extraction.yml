@@ -46,7 +46,7 @@ jobs:
 
       - name: Acquire and extract approved official PRC examination PDF
         env:
-          SOURCE_ID: ${{ inputs.source_id }}
+          SOURCE_ID: ${{ inputs.source_id || 'PRC-NLE-2026-08-09' }}
           SOURCE_REGISTRY: python-engine/config/prc-sources.json
           OUTPUT_DIR: private-prc-extraction
         run: node tools/extract-prc-pdf.mjs
@@ -67,11 +67,11 @@ jobs:
           bbox = (root / "poppler-bbox.html").read_text(errors="replace")
           report["poppler_layout_characters"] = len(layout)
           report["poppler_bbox_characters"] = len(bbox)
-          report["poppler_sequence_like_tokens"] = len(re.findall(r"(?m)^\\s*\\d{1,6}\\s+", layout))
+          report["poppler_sequence_like_tokens"] = len(re.findall(r"(?m)^\s*\d{1,6}\s+", layout))
           report["layout_probe_only"] = True
           report["sequence_name_pairs_verified"] = False
           report["published"] = False
-          (root / "extraction-report.json").write_text(json.dumps(report, indent=2) + "\\n")
+          (root / "extraction-report.json").write_text(json.dumps(report, indent=2) + "\n")
           PY
 
       - name: Upload private extraction evidence for inspection
