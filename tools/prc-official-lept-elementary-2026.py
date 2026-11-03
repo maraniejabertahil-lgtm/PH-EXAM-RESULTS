@@ -124,7 +124,7 @@ def main():
         # Content-first alternative: ordinary public Google Drive preview UI.
         # No download endpoint, private API, or access-control circumvention.
         preview_url = "https://drive.google.com/file/d/" + DRIVE_ID + "/preview"
-        page_texts = []
+        final_visible_text = ""
         page_count = 368  # Public viewer reports 368 pages; document's printed page count includes cover.
         with sync_playwright() as p:
             browser = p.chromium.launch(headless=True)
@@ -162,18 +162,19 @@ def main():
                     # repeating requests or changing the access method.
                     page.wait_for_timeout(500)
                     visible = body.inner_text(timeout=10000)
-                page_texts.append(visible)
+                final_visible_text = visible
             page.screenshot(path=str(OUT / "official-preview-page1.png"), full_page=True)
             browser.close()
-        text = "\\n\\f\\n".join(page_texts)
+        text = final_visible_text
         if len(text.strip()) < 100:
             raise RuntimeError("Public preview did not expose readable document text")
         log("official_public_preview_pages", url=preview_url, final_url=final_url,
             status=response.status if response else None, viewer_pages=page_count,
-            pages_read=len(page_texts), visible_text_characters=len(text))
+            pages_navigated=page_count, snapshots_retained=1,
+            final_document_text_characters=len(text))
         (OUT / "official-preview-page-count.json").write_text(json.dumps({
-            "viewer_pages_expected": page_count, "viewer_pages_read": len(page_texts),
-            "page_text_characters": [len(x) for x in page_texts]
+            "viewer_pages_expected": page_count, "viewer_pages_navigated": page_count,
+            "snapshots_retained": 1, "final_document_text_characters": len(text)
         }, indent=2))
         (OUT / "official-layout-text.txt").write_text(text, encoding="utf-8")
     else:
