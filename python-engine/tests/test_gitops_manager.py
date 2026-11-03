@@ -110,6 +110,33 @@ class GitOpsCheckTests(unittest.TestCase):
         self.assertFalse(result["merged"])
         self.assertEqual(result["status"], "awaiting_checks")
 
+    def test_dispatches_exact_pr_branch_and_merges_after_ci_success(self):
+        sha = "c" * 40
+        self.client._request = Mock(side_effect=[
+            {"state": "open", "merged": False, "head": {"ref": "data/test-batch", "sha": sha}},
+            {},
+            {"workflow_runs": [{
+                "id": 123, "head_sha": sha, "event": "workflow_dispatch",
+                "status": "completed", "conclusion": "success",
+            }]},
+            {"state": "open", "merged": False, "head": {"sha": sha}},
+            {"check_runs": [{
+                "name": "unit-tests", "status": "completed", "conclusion": "success",
+            }]},
+            {"state": "pending", "total_count": 0},
+            {"merged": True, "sha": "d" * 40},
+        ])
+        result = self.client.dispatch_ci_and_merge(
+            pull_request_number=7, greenlight_report=good_report(),
+            timeout_seconds=2, poll_seconds=1,
+        )
+        self.assertTrue(result["merged"])
+        self.assertEqual(result["status"], "merged")
+        self.assertEqual(self.client._request.call_args_list[1].args[1],
+                         "/actions/workflows/watcher-ci.yml/dispatches")
+        self.assertEqual(self.client._request.call_args_list[1].args[2],
+                         {"ref": "data/test-batch"})
+
     def test_invalid_validation_workflow_is_rejected(self):
         with self.assertRaises(GitOpsError):
             self.client.dispatch_ci_and_merge(
