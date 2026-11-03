@@ -42,7 +42,7 @@ class PublicPreviewCaptureTests(unittest.TestCase):
             "missing_sequence_count": 0, "conflict_count": 0,
             "duplicate_sequence_count": 0, "out_of_range_record_count": 0,
             "duplicate_name_count": 0, "blank_name_count": 0,
-            "unresolved_manual_review_count": 0,
+            "unresolved_target_record_count": 0,
             "visual_verification_evidence": {
                 "1": {"name": "DOE, JANE A", "screenshot_sha256": self.screenshot_hash},
             },
