@@ -210,6 +210,8 @@ def validate_records(
         "status": "GREENLIGHT" if greenlight else "REJECTED",
         "greenlight_score": 100 if greenlight else 0,
         "provenance": provenance,
+        "source_a_id": source_a_id if provenance == "third_party_fallback" else None,
+        "source_b_id": source_b_id if provenance == "third_party_fallback" else None,
         "record_count": record_count,
         "announced_count": announced_count,
         "checks": checks,
