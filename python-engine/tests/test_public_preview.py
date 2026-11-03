@@ -52,7 +52,7 @@ class PublicPreviewCaptureTests(unittest.TestCase):
             "pdf_downloaded": False, "access_controls_bypassed": False,
             "ocr_is_advisory_only": True, "human_visual_verification": "PENDING",
             "results": [{
-                "sequence": 1, "expected_visible_text": "1 DOE, JANE A",
+                "sequence": 1, "name": "DOE, JANE A", "expected_visible_text": "1 DOE, JANE A",
                 "viewer_text_confirmed": True, "screenshot": "capture/page.png",
                 "screenshot_sha256": self.screenshot_hash,
             }],
