@@ -16,6 +16,8 @@ on:
       - "python-engine/publisher/**"
       - "python-engine/requirements.txt"
       - "python-engine/tests/**"
+      - "public/data/**"
+      - "tools/validate_public_datasets.py"
   pull_request:
     branches:
       - main
@@ -31,6 +33,8 @@ on:
       - "python-engine/publisher/**"
       - "python-engine/requirements.txt"
       - "python-engine/tests/**"
+      - "public/data/**"
+      - "tools/validate_public_datasets.py"
   workflow_dispatch:
 
 permissions:
@@ -61,3 +65,5 @@ jobs:
       - name: Run Python engine unit tests
         working-directory: python-engine
         run: PYTHONPATH=retrieval python -m unittest discover -s tests -v
+      - name: Validate committed public datasets and hashes
+        run: python tools/validate_public_datasets.py
