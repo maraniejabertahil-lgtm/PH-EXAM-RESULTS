@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-import hashlib, json, re, sys
+import hashlib, json, re, sys, unicodedata
 from datetime import datetime, timezone
 import time
 from html.parser import HTMLParser
@@ -186,17 +186,33 @@ def main():
         (OUT / "official-layout-text.txt").write_text(text, encoding="utf-8")
         log("pdf_text_extracted_in_memory", pages=len(page_text), characters=len(text))
 
-    # Conservative explicit sequence/name parsing. Sequence values are never inferred.
+    # Unicode-aware sequence/name parsing. Sequence values are never inferred.
+    # Preserve source spelling and accept Unicode letters/marks (including Ñ and
+    # combining accents), digits, whitespace, and ordinary name punctuation.
     rows = {}
     conflicts = []
-    pattern = re.compile(r"^\s*(\d{1,5})[.)]?\s+([A-Z][A-Z ,.'’\\-]+(?:\s+[A-Z][A-Z ,.'’\\-]+)*)\s*$")
+    pattern = re.compile(r"^\\s*(\\d{1,5})[.)]?\\s+(.+?)\\s*$")
+
+    def valid_name(value):
+        if len(value) < 5:
+            return False
+        allowed_punctuation = set(" ,.'’‘-‐‑‒–—_")
+        for char in value:
+            category = unicodedata.category(char)
+            if category[0] in {"L", "M", "N"} or char.isspace():
+                continue
+            if char in allowed_punctuation:
+                continue
+            return False
+        return True
+
     for line in text.splitlines():
         match = pattern.match(line)
         if not match:
             continue
         seq = int(match.group(1))
         name = " ".join(match.group(2).split()).strip(" .")
-        if 1 <= seq <= EXPECTED and len(name) >= 5:
+        if 1 <= seq <= EXPECTED and valid_name(name):
             if seq in rows and rows[seq] != name:
                 conflicts.append({"seq": seq, "first": rows[seq], "second": name})
             else:
