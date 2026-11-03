@@ -191,6 +191,8 @@ def main():
     # combining accents), digits, whitespace, and ordinary name punctuation.
     rows = {}
     conflicts = []
+    sequence_occurrences = {}
+    out_of_range_records = []
     pattern = re.compile(r"^\s*(\d{1,5})[.)]?\s+(.+?)\s*$")
 
     def valid_name(value):
@@ -212,7 +214,11 @@ def main():
             continue
         seq = int(match.group(1))
         name = " ".join(match.group(2).split()).strip(" .")
-        if 1 <= seq <= EXPECTED and valid_name(name):
+        if valid_name(name):
+            if not 1 <= seq <= EXPECTED:
+                out_of_range_records.append({"seq": seq, "name": name})
+                continue
+            sequence_occurrences[seq] = sequence_occurrences.get(seq, 0) + 1
             if seq in rows and rows[seq] != name:
                 conflicts.append({"seq": seq, "first": rows[seq], "second": name})
             else:
@@ -224,6 +230,7 @@ def main():
     from collections import Counter
     name_counts = Counter(record["name"] for record in records)
     duplicate_names = sorted(name for name, count in name_counts.items() if count > 1)
+    duplicate_sequences = sorted(seq for seq, count in sequence_occurrences.items() if count > 1)
 
     # These two source strings were previously flagged for human review.
     # Keep their exact source spelling and fail closed until a reviewer compares
@@ -243,6 +250,10 @@ def main():
         "missing_sequence_sample": missing[:100],
         "conflict_count": len(conflicts),
         "conflict_sample": conflicts[:100],
+        "duplicate_sequence_count": len(duplicate_sequences),
+        "duplicate_sequence_sample": duplicate_sequences[:100],
+        "out_of_range_record_count": len(out_of_range_records),
+        "out_of_range_record_sample": out_of_range_records[:100],
         "duplicate_name_count": len(duplicate_names),
         "duplicate_name_sample": duplicate_names[:100],
         "blank_name_count": sum(not record["name"].strip() for record in records),
@@ -250,6 +261,7 @@ def main():
         "unresolved_manual_reviews": unresolved_reviews,
         "candidate_complete": (
             len(records) == EXPECTED and not missing and not conflicts
+            and not duplicate_sequences and not out_of_range_records
             and not duplicate_names
             and not any(not record["name"].strip() for record in records)
             and not unresolved_reviews
