@@ -63,7 +63,7 @@ def main() -> int:
         or not isinstance(viewer_pages, int)
         or preview.get("viewer_pages") != viewer_pages
         or preview.get("pages_navigated") != viewer_pages
-        or preview.get("snapshots_retained") != 1
+        or preview.get("snapshots_retained") != viewer_pages
     ):
         raise RuntimeError("Public-preview page navigation evidence is incomplete.")
 
@@ -103,7 +103,7 @@ def main() -> int:
         "captured_at_utc": datetime.now(timezone.utc).isoformat(),
         "viewer_pages_expected": viewer_pages,
         "viewer_pages_navigated": viewer_pages,
-        "snapshots_retained": 1,
+        "snapshots_retained": viewer_pages,
         "pdf_downloaded": False,
         "access_controls_bypassed": False,
         "visual_human_review_status": visual.get("human_visual_verification", "PENDING"),
