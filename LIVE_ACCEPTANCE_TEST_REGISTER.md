@@ -217,4 +217,4 @@ This section records prior evidence so earlier tests are not repeated merely bec
 
 At the time this register was created, `PROGRESS_TRACKER.md` identifies **Phase 2 — The Extractor & Greenlight** as the active phase. The first unchecked task is to identify and validate a compliant official-content access path that provides passer names with their exact sequence numbers. The tracker also lists representative official-content mapping validation and a real released-result batch as remaining Phase 2 tasks.
 
-This register does not change the progress tracker or mark implementation tasks complete. Live acceptance statuses above remain **NOT RUN** until evidence is recorded.
+This register does not change the progress tracker or mark implementation tasks complete. Each row now reflects the strongest evidence currently recorded: automated passes remain distinct from partial/live evidence and formal acceptance.
