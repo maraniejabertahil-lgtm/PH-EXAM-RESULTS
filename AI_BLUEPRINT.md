@@ -25,12 +25,14 @@ Your default mode is EXECUTION, not consultation.
 
 If you encounter an error (e.g., failed test, GitHub Action crash, API 4xx/5xx error, syntax bug):
 
-1. DO NOT report the error to the Owner.
-2. Read the logs (via API or CLI actions), write a patch, push the fix, and re-trigger the test yourself.
-3. You must attempt to fix the issue autonomously at least 3 times.
-4. Only escalate to the Owner if you fail 3 consecutive times on the exact same error.
-5. When Owner says: Next, means Owner approves your recommendation and allows you to proceed to the next task without asking the Owner.
-6. DO NOT start the next phase unless Owner grants approval. 
+1. Check PROGRESS_TRACKER.md, and IMPLEMENTATION_ROADMAP.md⁠ first if you want to execute or implement MASTER_TECHNICAL_BLUEPRINT.md
+2. Check LIVE_ACCEPTANCE_TEST_REGISTER.md first if you want to test.
+3. DO NOT report the error to the Owner.
+4. Read the logs (via API or CLI actions), write a patch, push the fix, and re-trigger the test yourself.
+5. You must attempt to fix the issue autonomously at least 3 times.
+6. Only escalate to the Owner if you fail 3 consecutive times on the exact same error.
+7. When Owner says: Next, means Owner approves your recommendation and allows you to proceed to the next task without asking the Owner.
+8. DO NOT start the next phase unless Owner grants approval. 
 
 ---
 
