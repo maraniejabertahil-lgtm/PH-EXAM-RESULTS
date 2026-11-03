@@ -30,7 +30,7 @@ CHALLENGE_TERMS = (
     "request access", "sign in to continue", "verify you are human",
     "captcha", "access denied",
 )
-DEEP_CHALLENGE_CHECK_EVERY = 100   # full-DOM challenge scan every N pages
+DEEP_CHALLENGE_CHECK_EVERY = 100   # full-DOM challenge scan every N pages (was every page)
 PROGRESS_EVERY = 50
 
 class Links(HTMLParser):
@@ -137,6 +137,7 @@ def main():
         preview_url = "https://drive.google.com/file/d/" + DRIVE_ID + "/preview"
         final_visible_text = ""
         target_pages = {}
+        loop_started = None
         with sync_playwright() as p:
             browser = p.chromium.launch(headless=True)
             page = browser.new_page(user_agent=UA, viewport={"width": 1600, "height": 1200})
@@ -166,7 +167,7 @@ def main():
                     for char in value
                 )
             low = initial.lower() + page.content()[:100000].lower()
-            if any(term in low for term in ("request access", "sign in to continue", "verify you are human", "captcha", "access denied")):
+            if any(term in low for term in CHALLENGE_TERMS):
                 browser.close()
                 raise RuntimeError("Official public preview requires permission or human verification; manual handoff required")
             page_input = page.locator('input[aria-label^="Page is"]')
@@ -180,8 +181,10 @@ def main():
             loop_started = time.monotonic()
             for page_no in range(1, page_count + 1):
                 if page_no > 1:
-                    # Focus and submit the ordinary viewer control. Allow the
-                    # viewer to commit the new page before sampling its text layer.
+                    # Focus and submit the ordinary viewer control. The stability
+                    # loop below (page marker + input value + identical text on
+                    # consecutive samples) confirms the page committed, so no
+                    # fixed sleep is needed here.
                     page_input.click()
                     page_input.fill(str(page_no))
                     page_input.press("Enter")
@@ -222,6 +225,8 @@ def main():
                         + str(page_no) + ": "
                         + json.dumps(diagnostic, ensure_ascii=False)
                     )
+                # Cheap check on every page using text already in hand; the
+                # expensive full-DOM serialization runs only periodically.
                 low_visible = visible.lower()
                 if any(term in low_visible for term in CHALLENGE_TERMS):
                     raise RuntimeError("Access challenge appeared during public-preview navigation")
