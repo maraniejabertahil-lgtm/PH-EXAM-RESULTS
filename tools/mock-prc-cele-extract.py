@@ -135,6 +135,10 @@ def parse_records(text: str, source_url: str) -> list[dict]:
         name = match.group(2).strip()
         if not name or len(name) > 180:
             continue
+        # Exclude WordPress comment counters/widgets (e.g. "3 Comments",
+        # "comments… add one") so they cannot be mistaken for passer rows.
+        if re.search(r"\bcomments?\b", name, re.I):
+            continue
         if re.match(r"^(page\b|roll of\b|held on\b|released on\b|seq\.?\s|n\s*a\s*m\s*e\b)", name, re.I):
             continue
         if not re.search(r"[A-Za-zÀ-ÖØ-öø-ÿ]", name):
