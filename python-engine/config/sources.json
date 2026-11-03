@@ -49,6 +49,21 @@
       "track_new_articles_only": true,
       "max_result_articles_per_page": 10,
       "max_new_result_articles_per_scan": 3
+    },
+    {
+      "id": "CSC-CSE-PORTAL",
+      "authority": "CSC",
+      "exam": "CSE-PPT",
+      "exam_scope": "all",
+      "year": 2026,
+      "source_type": "official",
+      "authorized": true,
+      "enabled": true,
+      "url": "https://exam.csc.gov.ph/list_passers?type_id=1",
+      "content_access_mode": "owner_reviewed_portal_handoff",
+      "auto_acquire": false,
+      "manual_handoff_required": true,
+      "notes": "Official CSC passers portal. Owner must use the portal through normal authorized browser access, review the complete released result and exact sequence values, then provide a reviewed normalized batch. Automation must not interact with CAPTCHA or authentication."
     }
   ]
 }
