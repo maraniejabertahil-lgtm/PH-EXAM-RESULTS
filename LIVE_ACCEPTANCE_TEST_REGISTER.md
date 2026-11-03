@@ -149,9 +149,9 @@
 
 ---
 
-## 7. The three acceptance criteria explicitly named in Blueprint Part 17
+## 7. Part 17 — The three required acceptance criteria
 
-These are the blueprint's expressly stated required testing criteria. The other phase checks above are derived from the Part 16 roadmap and the governing requirements in the other blueprint parts.
+These are the three required acceptance criteria for this Part 17 register. The other phase checks above are derived from the Part 16 roadmap and the governing requirements in the other blueprint parts.
 
 1. **Extraction Safety — P2-18 / P5-08:** Greenlight fails on a test input missing sequence numbers; automatic publication/merge aborts.
 2. **Performance — P4-11:** A 50,000-record dataset is searchable in the browser without dropping UI frames.
