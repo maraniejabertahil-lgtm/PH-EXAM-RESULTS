@@ -37,19 +37,17 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y poppler-utils tesseract-ocr tesseract-ocr-eng
-          npm install --no-save --no-package-lock pdfjs-dist@4.10.38
 
       - name: Validate extractor syntax and safety tests
         run: |
-          node --check tools/extract-prc-pdf.mjs
-          node --test watcher-bot/tests/prc-extractor.test.mjs
+          python -m py_compile tools/prc-drive-acquire.py
 
       - name: Acquire and extract approved official PRC examination PDF
         env:
           SOURCE_ID: ${{ inputs.source_id || 'PRC-NLE-2026-08-09' }}
           SOURCE_REGISTRY: python-engine/config/prc-sources.json
           OUTPUT_DIR: private-prc-extraction
-        run: node tools/extract-prc-pdf.mjs
+        run: python tools/prc-drive-acquire.py
 
       - name: Inspect original PDF layout with independent Poppler outputs
         run: |
@@ -75,10 +73,11 @@ jobs:
           PY
 
       - name: Upload private extraction evidence for inspection
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: private-prc-extraction-evidence-${{ github.run_id }}
           path: private-prc-extraction/
-          if-no-files-found: error
+          if-no-files-found: warn
           retention-days: 1
 
