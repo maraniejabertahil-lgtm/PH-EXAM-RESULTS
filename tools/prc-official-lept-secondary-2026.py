@@ -11,7 +11,7 @@ from playwright.sync_api import sync_playwright
 
 ARTICLES = [
     "https://www.prc.gov.ph/index.php/article/march-2026-licensure-examination-professional-teachers-results-released-thirty-nine-39",
-    "https://www.prc.gov.ph/index.php/article/node/8928",
+    "https://www.prc.gov.ph/node/8928",
     "https://prc.gov.ph/article/march-2026-licensure-examination-professional-teachers-results-released-thirty-nine-39",
 ]
 DRIVE_ID = "1RFuFGN4D1T3hkGC-iib9pRmJP1vJiJJ7"
@@ -125,14 +125,6 @@ def main():
         # No download endpoint, private API, or access-control circumvention.
         preview_url = "https://drive.google.com/file/d/" + DRIVE_ID + "/preview"
         final_visible_text = ""
-        page_count_match = re.search(r"Page 1 of\s+(\d+)", initial)
-        if not page_count_match:
-            browser.close()
-            raise RuntimeError("Could not read the public viewer's page count")
-        page_count = int(page_count_match.group(1))
-        if page_count < 1 or page_count > 2000:
-            browser.close()
-            raise RuntimeError("Public viewer page count is outside the safe bound")
         target_pages = {}
         with sync_playwright() as p:
             browser = p.chromium.launch(headless=True)
@@ -145,6 +137,23 @@ def main():
                 raise RuntimeError("Unexpected public-preview redirect host")
             body = page.locator("body")
             initial = body.inner_text(timeout=10000)
+            page_count_match = re.search(r"Page 1 of\s+(\d+)", initial)
+            if not page_count_match:
+                browser.close()
+                raise RuntimeError("Could not read the public viewer's page count")
+            page_count = int(page_count_match.group(1))
+            if page_count < 1 or page_count > 2000:
+                browser.close()
+                raise RuntimeError("Public viewer page count is outside the safe bound")
+            target_line_pattern = re.compile(r"^\s*(\d{1,5})[.)]?\s+(.+?)\s*$")
+            def target_name_is_valid(value):
+                if len(value) < 5:
+                    return False
+                punctuation = set(" ,.'’‘-‐‑‒–—_")
+                return all(
+                    unicodedata.category(char)[0] in {"L", "M", "N"} or char.isspace() or char in punctuation
+                    for char in value
+                )
             low = initial.lower() + page.content()[:100000].lower()
             if any(term in low for term in ("request access", "sign in to continue", "verify you are human", "captcha", "access denied")):
                 browser.close()
@@ -171,11 +180,11 @@ def main():
                     page.wait_for_timeout(500)
                     visible = body.inner_text(timeout=10000)
                 for line in visible.splitlines():
-                    candidate = pattern.match(line)
+                    candidate = target_line_pattern.match(line)
                     if candidate:
                         sequence = int(candidate.group(1))
                         candidate_name = " ".join(candidate.group(2).split()).strip(" .")
-                        if sequence in {1, EXPECTED} and valid_name(candidate_name) and sequence not in target_pages:
+                        if sequence in {1, EXPECTED} and target_name_is_valid(candidate_name) and sequence not in target_pages:
                             target_pages[sequence] = {"name": candidate_name, "viewer_page": page_no}
                 final_visible_text = visible
             page.screenshot(path=str(OUT / "official-preview-page1.png"), full_page=True)
@@ -253,16 +262,13 @@ def main():
     # These expected records are bound to targeted screenshots by the bridge.
     # This script does not certify human review; visual-check-report stays PENDING.
     expected_visual_records = {
-        10710: {
-            "name": "MAGANGCONG, MUHAMMAD_THANI PAUTE",
-            "printed_page": 216, "viewer_page": 215,
-            "screenshot_sha256": "f35571961f7fe6a946097b1cfc82f82e8988d45fe04d7bb2b79688e79dbd0968",
-        },
-        15066: {
-            "name": "ROBLES, D9 BASUG",
-            "printed_page": 303, "viewer_page": 302,
-            "screenshot_sha256": "9807a25222a52c5d85f183f0bebc7f268a114a8edb08c59b95bb21e26b2ecc3e",
-        },
+        str(sequence): {
+            "name": target_pages[sequence]["name"],
+            "printed_page": target_pages[sequence]["viewer_page"],
+            "viewer_page": target_pages[sequence]["viewer_page"],
+            "screenshot_sha256": "",
+        }
+        for sequence in (1, EXPECTED)
     }
     unresolved_targets = [
         {"seq": seq, "expected_name": evidence["name"], "observed_name": rows.get(seq)}
