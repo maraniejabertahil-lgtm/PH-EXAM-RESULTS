@@ -275,38 +275,12 @@ PH-EXAM-RESULTS/
 
 ⸻
 
-PART 16 — IMPLEMENTATION ROADMAP & DELIVERY STATUS
-
-1. Phase 1: The Watcher - Build watcher-bot/. Test the 30-sec loop, Peak Week KV check, Preemptive HEAD requests, and Webhook dispatch to GitHub.
-2. Phase 2: The Extractor & Greenlight - Build Python logic. Must successfully grade messy vs clean PDFs. Build the GitOps PR creation and Auto-Merge logic.
-3. Phase 3: Automated Broadcasting - Connect Python to Facebook Graph API and Telegram Bot API.
-4. Phase 4: Frontend Web Worker Search - Build UI, IndexedDB caching, and Web Worker search processing Array-of-Arrays JSON.
-5. Phase 5: End-to-End Simulation - Drop a dummy PDF on a target URL. Verify Worker detects it in <30s, wakes Python, auto-grades 100%, auto-merges, broadcasts, and deploys.
-
-### Implementation status recorded from PROGRESS_TRACKER.md — 2026-11-03
-
-This is an execution-status snapshot, not a change to the roadmap or its acceptance requirements.
-
-- **Phase 1 — Watcher:** All six Phase 1 implementation items are checked in PROGRESS_TRACKER.md. The Owner confirms personally testing the completed Phase 1 work. The tracker still distinguishes implementation tests from genuine production acceptance: genuine PRC result-release detection/dispatch acceptance remains to be revisited when an official release is available, and production preemptive URL templates remain unverified.
-- **Phase 2 — Extractor & Greenlight:** The tracker records the Python extractor, fail-closed Greenlight checks, Array-of-Arrays builder/sharding, GitOps integration, reviewed PDF normalization, and bounded same-origin PDF acquisition as implemented. PR #55 adds the missing-sequence publication-abort regression test; its merged main-branch CI run passed with 112 Python tests. Official-content access validation, representative official-content mapping validation, and a real released-result batch remain open.
-- **Phases 3–5:** Remain unchecked in the progress tracker and are not represented as implemented or accepted here.
-
-The live PROGRESS_TRACKER.md remains the operational source of truth for task completion. This snapshot must be reconciled when that tracker changes.
-
 ⸻
-PART 17 — TESTING, VERIFICATION & ACCEPTANCE STATUS
 
-• Extraction Safety: The Greenlight Protocol MUST fail on a test PDF missing sequence numbers. Auto-publish must abort.
-• Performance: 50,000-record dataset searchable in browser without dropping UI frames.
-• Preemptive Test: Worker successfully identifies a PDF via HEAD request before the HTML page updates.
+COMPANION DELIVERY DOCUMENTS
 
-### Recorded test status — 2026-11-03
-
-- **Extraction Safety:** Automated regression test added in PR #55 and merged to main. It supplies a simulated extracted-PDF-table fixture with a missing sequence (002), invokes the publication pipeline, and verifies Greenlight fails, GitOps is not initialized, no dataset manifest is produced, and the missing sequence is reported. Main-branch CI passed with 112 Python tests. **Status: AUTOMATED PASS for the extracted-table safety test.** A real official PDF/layout validation remains separate and pending.
-- **Performance:** No qualifying browser/Web Worker performance trace demonstrates that 50,000 records are searchable without dropping UI frames. **Status: NOT RUN.**
-- **Preemptive Test:** Phase 1 implementation work is checked in the progress tracker and the Owner confirms personally testing the Phase 1 work. Synthetic fixture HEAD tests verify implementation logic, but production `preemptive_url_templates` remain empty and the Phase 1 audit does not record a genuine official result-resource HEAD success before the HTML announcement changed. **Status: implementation/owner-tested; formal Part 17 acceptance remains pending live evidence.**
-
-These are the current acceptance results. Automated evidence is identified as such; implementation completion or owner testing does not substitute for the required live acceptance evidence.
+• Part 16 — Implementation roadmap and current delivery status: `IMPLEMENTATION_ROADMAP.md`.
+• Part 17 — Testing, verification, and acceptance evidence: `LIVE_ACCEPTANCE_TEST_REGISTER.md`.
 
 ⸻
 
