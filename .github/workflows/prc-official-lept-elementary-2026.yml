@@ -29,13 +29,15 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y tesseract-ocr
-          python -m pip install playwright pymupdf pdfplumber
+          python -m pip install -r python-engine/requirements.txt playwright pymupdf pdfplumber
           python -m playwright install --with-deps chromium
       - name: Run official-only extraction
         run: python tools/prc-official-lept-elementary-2026.py
       - name: Capture official source pages for visual review
         if: always()
         run: python tools/prototypes/prc_preview_ocr_probe.py
+      - name: Run Python Engine capture verification, Greenlight, and dataset generation
+        run: python tools/run_prc_public_preview_python_engine.py
       - name: Save evidence
         if: always()
         uses: actions/upload-artifact@v4
