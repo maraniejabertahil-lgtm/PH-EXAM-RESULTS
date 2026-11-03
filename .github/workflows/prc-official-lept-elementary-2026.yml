@@ -17,12 +17,14 @@ concurrency:
   cancel-in-progress: true
 
 permissions:
-  contents: read
+  contents: write
+  pull-requests: write
+  actions: write
 
 jobs:
   official-only:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-python@v6
@@ -39,7 +41,10 @@ jobs:
       - name: Capture official source pages for visual review
         if: always()
         run: python tools/prototypes/prc_preview_ocr_probe.py
-      - name: Run Python Engine capture verification, Greenlight, and dataset generation
+      - name: Run Python Engine, Greenlight, dataset generation, and GitOps publication
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
         run: python tools/run_prc_public_preview_python_engine.py
       - name: Save evidence
         if: always()
