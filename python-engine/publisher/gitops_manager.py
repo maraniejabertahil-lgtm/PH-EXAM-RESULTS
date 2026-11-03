@@ -193,7 +193,7 @@ class GitHubGitOps:
         is successful. A timeout or failed check leaves the PR open.
         """
         validate_greenlight(greenlight_report)
-        if not re.fullmatch(r"[A-Za-z0-9_.-]+\\.yml", workflow_file):
+        if not re.fullmatch(r"[A-Za-z0-9_.-]+\.yml", workflow_file):
             raise GitOpsError("Invalid validation workflow filename.")
         if timeout_seconds < 1 or poll_seconds < 1:
             raise GitOpsError("CI timeout and polling interval must be positive.")
