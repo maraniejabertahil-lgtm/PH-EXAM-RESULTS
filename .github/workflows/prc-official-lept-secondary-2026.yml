@@ -12,7 +12,7 @@ on:
       - ".github/workflows/prc-official-lept-secondary-2026.yml"
 
 concurrency:
-  group: prc-official-lept-secondary-\${{ github.ref }}
+  group: prc-official-lept-secondary-${{ github.ref }}
   cancel-in-progress: true
 
 permissions:
