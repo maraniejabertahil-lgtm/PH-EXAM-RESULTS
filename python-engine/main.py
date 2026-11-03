@@ -18,7 +18,8 @@ if str(ENGINE_DIR) not in sys.path:
     sys.path.insert(0, str(ENGINE_DIR))
 
 from acquisition.official_first_policy import third_party_fallback_gate
-from acquisition.official_pdf import AcquisitionError, acquire_official_pdf\nfrom acquisition.official_content import OfficialContentError, verify_official_content_link
+from acquisition.official_pdf import AcquisitionError, acquire_official_pdf
+from acquisition.official_content import OfficialContentError, verify_official_content_link
 from extractor.pdf_parser import extract_pdf
 from processor.greenlight import validate_records, write_validation_report
 from processor.normalizer import NormalizationError, normalize_extracted_tables
