@@ -163,50 +163,63 @@ def main():
                 browser.close()
                 raise RuntimeError("Public viewer page navigation control not found")
             # Navigate only through the viewer's visible page-number control.
-            # No undocumented endpoints, file export, or hidden API calls.
+            # Capture each rendered page after its text has stabilized. The input
+            # value alone is not proof that the PDF text layer has finished rendering.
+            page_snapshots = []
             for page_no in range(1, page_count + 1):
                 if page_no > 1:
                     page_input.fill(str(page_no))
                     page_input.press("Enter")
-                    # Google Drive's accessible label is not a reliable navigation
-                    # completion signal across viewer versions. Wait for the visible
-                    # page indicator or the input's actual value, not its aria-label.
-                    deadline = time.monotonic() + 30
-                    navigated = False
-                    last_visible = ""
-                    while time.monotonic() < deadline:
-                        current_value = page_input.input_value(timeout=3000)
-                        last_visible = body.inner_text(timeout=10000)
-                        if current_value == str(page_no) and (
-                            f"Page {page_no} of " in last_visible
-                            or f"Page {page_no} of" in last_visible
-                        ):
-                            navigated = True
-                            break
-                        page.wait_for_timeout(500)
-                    if not navigated:
-                        diagnostic = {
-                            "requested_page": page_no,
-                            "input_value": page_input.input_value(timeout=3000),
-                            "aria_label": page_input.get_attribute("aria-label"),
-                            "visible_text_excerpt": last_visible[:1200],
-                            "url": page.url,
-                        }
-                        (OUT / "navigation-failure.json").write_text(
-                            json.dumps(diagnostic, indent=2), encoding="utf-8"
-                        )
-                        page.screenshot(path=str(OUT / "navigation-failure.png"), full_page=True)
-                        raise RuntimeError(
-                            "Public viewer did not confirm requested page navigation: "
-                            + json.dumps(diagnostic, ensure_ascii=False)
-                        )
-                    page.wait_for_timeout(250)
-                visible = body.inner_text(timeout=10000)
-                if "Page " + str(page_no) + " of " not in visible:
-                    # A second short wait handles viewer page-render latency without
-                    # repeating requests or changing the access method.
-                    page.wait_for_timeout(500)
+                deadline = time.monotonic() + 35
+                stable_samples = 0
+                previous_text = None
+                visible = ""
+                while time.monotonic() < deadline:
+                    current_value = page_input.input_value(timeout=3000)
                     visible = body.inner_text(timeout=10000)
+                    marker_present = f"Page {page_no} of {page_count}" in visible
+                    if current_value == str(page_no) and marker_present:
+                        if visible == previous_text:
+                            stable_samples += 1
+                        else:
+                            stable_samples = 0
+                        previous_text = visible
+                        if stable_samples >= 2:
+                            break
+                    else:
+                        stable_samples = 0
+                        previous_text = visible
+                    page.wait_for_timeout(500)
+                else:
+                    diagnostic = {
+                        "requested_page": page_no,
+                        "input_value": page_input.input_value(timeout=3000),
+                        "aria_label": page_input.get_attribute("aria-label"),
+                        "visible_text_excerpt": visible[:1600],
+                        "url": page.url,
+                        "stable_samples": stable_samples,
+                    }
+                    (OUT / "navigation-failure.json").write_text(
+                        json.dumps(diagnostic, indent=2), encoding="utf-8"
+                    )
+                    page.screenshot(path=str(OUT / "navigation-failure.png"), full_page=True)
+                    raise RuntimeError(
+                        "Public viewer page text did not stabilize for page "
+                        + str(page_no) + ": "
+                        + json.dumps(diagnostic, ensure_ascii=False)
+                    )
+                low_visible = (visible + page.content()[:100000]).lower()
+                if any(term in low_visible for term in (
+                    "request access", "sign in to continue", "verify you are human",
+                    "captcha", "access denied"
+                )):
+                    raise RuntimeError("Access challenge appeared during public-preview navigation")
+                page_snapshots.append({
+                    "viewer_page": page_no,
+                    "text": visible,
+                    "sha256": hashlib.sha256(visible.encode("utf-8")).hexdigest(),
+                    "characters": len(visible),
+                })
                 for line in visible.splitlines():
                     candidate = target_line_pattern.match(line)
                     if candidate:
@@ -215,6 +228,20 @@ def main():
                         if sequence in {1, EXPECTED} and target_name_is_valid(candidate_name) and sequence not in target_pages:
                             target_pages[sequence] = {"name": candidate_name, "viewer_page": page_no}
                 final_visible_text = visible
+            # Union distinct lines from each stable snapshot. This retains text
+            # exposed incrementally by the viewer while deduplicating cumulative DOM.
+            merged_lines = list(dict.fromkeys(
+                line for snapshot in page_snapshots for line in snapshot["text"].splitlines()
+            ))
+            final_visible_text = "\\n".join(merged_lines)
+            (OUT / "page-capture-index.json").write_text(json.dumps([
+                {key: value for key, value in snapshot.items() if key != "text"}
+                for snapshot in page_snapshots
+            ], indent=2), encoding="utf-8")
+            (OUT / "page-text-snapshots.jsonl").write_text("".join(
+                json.dumps({"viewer_page": item["viewer_page"], "text": item["text"]},
+                           ensure_ascii=False) + "\\n" for item in page_snapshots
+            ), encoding="utf-8")
             page.screenshot(path=str(OUT / "official-preview-page1.png"), full_page=True)
             browser.close()
         if set(target_pages) != {1, EXPECTED}:
@@ -224,8 +251,8 @@ def main():
             raise RuntimeError("Public preview did not expose readable document text")
         log("official_public_preview_pages", url=preview_url, final_url=final_url,
             status=response.status if response else None, viewer_pages=page_count,
-            pages_navigated=page_count, snapshots_retained=1,
-            final_document_text_characters=len(text))
+            pages_navigated=len(page_snapshots), snapshots_retained=len(page_snapshots),
+            final_document_text_characters=len(text),\n            page_snapshot_index_sha256=hashlib.sha256((OUT / "page-capture-index.json").read_bytes()).hexdigest())
         (OUT / "official-preview-page-count.json").write_text(json.dumps({
             "viewer_pages_expected": page_count, "viewer_pages_navigated": page_count,
             "snapshots_retained": 1, "final_document_text_characters": len(text)
@@ -301,7 +328,7 @@ def main():
     unresolved_targets = [
         {"seq": seq, "expected_name": evidence["name"], "observed_name": rows.get(seq)}
         for seq, evidence in expected_visual_records.items()
-        if rows.get(seq) != evidence["name"]
+        if rows.get(int(seq)) != evidence["name"]
     ]
     report = {
         "exam": "March 2026 LEPT Secondary",
