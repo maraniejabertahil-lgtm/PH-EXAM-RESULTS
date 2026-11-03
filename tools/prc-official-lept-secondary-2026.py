@@ -171,9 +171,16 @@ def main():
                 diagnostic["after_fill"] = page_input.input_value()
                 diagnostic["after_fill_outerHTML"] = page_input.evaluate("(e) => e.outerHTML")
                 page_input.press("Enter")
-                page.wait_for_timeout(2500)
+                page.wait_for_timeout(1000)
                 diagnostic["after_enter"] = page_input.input_value()
-                diagnostic["after_enter_body"] = body.inner_text(timeout=10000)[:1800]
+                diagnostic["after_enter_body"] = body.inner_text(timeout=10000)[:1000]
+                diagnostic["role_buttons"] = page.locator("[role=button]").evaluate_all("(els) => els.map(e => ({aria:e.getAttribute('aria-label'), title:e.getAttribute('title'), text:e.innerText, html:e.outerHTML.slice(0,300)}))")
+                diagnostic["scrollables"] = page.locator("*").evaluate_all("(els) => els.filter(e => e.scrollHeight > e.clientHeight + 100).slice(0,20).map(e => ({tag:e.tagName, cls:String(e.className).slice(0,120), scrollTop:e.scrollTop, scrollHeight:e.scrollHeight, clientHeight:e.clientHeight}))")
+                page.mouse.move(900, 1100)
+                page.mouse.wheel(0, 900)
+                page.wait_for_timeout(1500)
+                diagnostic["after_wheel_900"] = page_input.input_value()
+                diagnostic["after_wheel_body"] = body.inner_text(timeout=10000)[:1000]
                 print("VIEWER_NAVIGATION_AFTER_ENTER " + json.dumps(diagnostic, ensure_ascii=False))
                 browser.close()
                 return
