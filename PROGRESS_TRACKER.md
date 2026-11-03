@@ -5,6 +5,23 @@
 
 ---
 
+
+## Connected project records
+
+These documents are connected by references, not synchronized copies. Each has a separate responsibility:
+
+- **This file — operational task checklist:** authoritative checkbox status and the active implementation task.
+- **[Part 16 — Implementation Roadmap](IMPLEMENTATION_ROADMAP.md):** phase-level delivery context and the authoritative Owner decision register.
+- **[Part 17 — Live Acceptance Test Register](LIVE_ACCEPTANCE_TEST_REGISTER.md):** acceptance conditions, observed test outcomes, and evidence.
+
+**How the records communicate**
+1. When an implementation task changes, update its checkbox here. Update Part 16 only when the phase-level delivery summary or an Owner decision is affected.
+2. When acceptance evidence changes, update the relevant Part 17 test record. Do not mark an implementation checkbox complete solely because an automated test passed.
+3. Use Part 16 decision IDs (for example, `D-001`) in relevant Part 17 test records. Keep the full decision wording only in Part 16.
+4. Where a tracker task and acceptance test concern the same feature, cross-reference the exact task wording and test ID; do not copy one status into the other.
+5. If records disagree, preserve each record's own meaning and reconcile against its authority: task completion from this tracker, Owner decisions from Part 16, and test outcomes from Part 17. Do not silently overwrite evidence or infer a PASS.
+6. Keep the Master Technical Blueprint and AI Blueprint governing. This connection protocol does not authorize changing either blueprint.
+
 ## Phase 1: The Watcher (Cloudflare Worker)
 - [x] Initialize `watcher-bot/` directory and `wrangler.toml` config
 - [x] Implement standard 1-minute cron check against approved official PRC/CSC sources (PRC monitored; CSC safely paused pending compliant access)
