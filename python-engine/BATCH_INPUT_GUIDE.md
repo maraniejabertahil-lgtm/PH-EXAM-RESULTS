@@ -45,7 +45,7 @@ The official-first gate must allow fallback, and Greenlight must confirm exact s
 5. The Python pipeline validates the batch and creates a data-only pull request only when Greenlight is exactly 100/100.
 6. GitOps explicitly dispatches `watcher-ci.yml` against that exact PR commit. It merges only after the workflow and all commit checks succeed. Failure or timeout leaves the PR open.
 
-A failed Greenlight report is retained as a workflow artifact when available; no dataset PR is created.
+A failed Greenlight report is written in the runner workspace for that run; no dataset PR is created. The current workflow does not yet upload that report as a retained artifact.
 
 ## Important current boundary
 
