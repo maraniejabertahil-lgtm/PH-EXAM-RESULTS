@@ -113,7 +113,7 @@ def load_public_preview_capture(
     if any(extraction.get(key) != 0 for key in (
         "missing_sequence_count", "conflict_count", "duplicate_sequence_count",
         "out_of_range_record_count", "duplicate_name_count", "blank_name_count",
-        "unresolved_manual_review_count",
+        "unresolved_target_record_count",
     )):
         raise PublicPreviewCaptureError("Extraction report contains unresolved integrity issues.")
 
