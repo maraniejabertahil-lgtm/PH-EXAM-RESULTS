@@ -92,10 +92,10 @@ def _classify_attempt(
         return "document_not_found", "Official document URL returned HTTP 404."
     if status_code >= 500:
         return "official_server_error", f"Official endpoint returned HTTP {status_code}."
+    if status_code == 200 and method == "GET" and pdf_signature_valid:
+        return "official_pdf_verified", "Full HTTP 200 GET returned a verified PDF signature."
     if 200 <= status_code < 300 and pdf_signature_valid:
-        if method == "GET":
-            return "official_pdf_verified", "Full GET returned a verified PDF signature."
-        return "pdf_signature_seen_partial_or_metadata", "PDF signature observed, but a full GET is still required for acquisition."
+        return "pdf_signature_seen_partial_or_metadata", "PDF signature observed, but a complete HTTP 200 GET is still required for acquisition."
     if 200 <= status_code < 300 and content_type == "text/html":
         return "html_or_interstitial_not_pdf", "Official URL returned HTML rather than a verified PDF."
     if status_code >= 400:
@@ -180,8 +180,8 @@ def third_party_fallback_gate(attempt_log_path: str | Path) -> dict[str, Any]:
     if not isinstance(attempts, list) or len(attempts) < 2:
         return {"allowed": False, "reason": "insufficient_official_retrieval_attempts"}
     methods = {item.get("method") for item in attempts if isinstance(item, dict)}
-    if "HEAD" not in methods or not methods.intersection({"GET_RANGE", "GET"}):
-        return {"allowed": False, "reason": "official_attempts_lack_head_and_get_methods"}
+    if "HEAD" not in methods or "GET" not in methods:
+        return {"allowed": False, "reason": "official_attempts_lack_head_and_full_get_methods"}
     if any(
         isinstance(item, dict)
         and item.get("failure_class") in {"human_verification_required", "authentication_required"}
