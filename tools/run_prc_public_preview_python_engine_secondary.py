@@ -135,7 +135,7 @@ def main() -> int:
     public_preview_url = f"https://drive.google.com/file/d/{DRIVE_ID}/preview"
     content_parts = urlsplit(content_url)
     preview_parts = urlsplit(public_preview_url)
-    if content_parts.path.rstrip("/") + "/preview" != preview_parts.path:
+    if content_parts.path.rsplit("/", 1)[0] + "/preview" != preview_parts.path:
         raise RuntimeError("Official Drive link does not match the captured public-preview path.")
 
     if (
