@@ -38,6 +38,20 @@
 - **Free-only architecture:** Tests must not introduce paid services, paid APIs, or a server that violates the $0/static-first architecture (Parts 1, 14, 19).
 - **Evidence:** Record the test ID, date/time, environment, input/source, observed result, logs or run/commit/PR URL, and PASS/FAIL/BLOCKED. Do not record secrets, cookies, or unnecessary personal data.
 
+### Owner decisions linked to acceptance tests
+
+Owner decisions that affect a task, source, test scope, or pass condition are recorded in the **Owner decision register in Part 16**. That register is the single authoritative record, so full decision wording is not duplicated here.
+
+For each affected test or test execution:
+- Include the relevant decision ID (for example, `D-001`) in the test record.
+- Apply the decision only within its stated scope. A decision to skip one source path must not be interpreted as excluding an entire authority or all of its sources.
+- Do not treat a decision to defer or skip a source as a test PASS. Keep the test status based on its actual pass condition and evidence.
+- If an Owner decision changes an acceptance condition, record the new decision in Part 16 first; do not silently rewrite the test's pass condition or the Master Technical Blueprint.
+
+**Currently applicable decisions**
+- `D-001` — Phase 2 content-first requirement: capture exact passer-name/sequence-number pairs; PDF download is optional.
+- `D-002` — Phase 2 CSC source-path decision: skip the specific CSC-side PDF-release path and assess the relevant portal instead, subject to compliant public access.
+
 ### Status legend
 
 - `NOT RUN` — no relevant test evidence has been recorded.
@@ -283,6 +297,8 @@
 - **Pass condition:** Acquisition, extraction, comparison, or validation failure leaves the currently published dataset unchanged.
 - **Evidence to retain:** Before/after deployed dataset version/hash.
 - **Status:** `NOT RUN`
+
+**Related Owner decisions:** `D-001` and `D-002` in Part 16.
 
 **Phase 2 acceptance note:** The active project task is to find and validate a compliant official-content access path yielding exact passer-name/sequence-number pairs. A downloadable PDF is not a pass condition. Representative official-content mapping validation and a real released batch are separate acceptance milestones.
 
@@ -531,6 +547,7 @@ These are the three required acceptance criteria for this Part 17 register. The 
 Copy this block for each test execution:
 
 ```text
+Related Owner decision ID(s):
 Test ID:
 Date/time (include timezone):
 Environment:
