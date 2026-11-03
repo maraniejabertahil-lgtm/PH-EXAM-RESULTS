@@ -66,6 +66,40 @@ class ProcessingPipelineTests(unittest.TestCase):
         self.assertEqual(result["report"]["greenlight_score"], 100)
         self.assertEqual(result["report"]["official_attempt_log"], acquired["attempt_log_path"])
 
+    def test_owner_reviewed_official_content_handoff_needs_no_pdf(self):
+        batch = dict(self.base)
+        batch.pop("source_pdf")
+        batch.pop("official_document_url")
+        batch["official_content_mode"] = "manual_handoff"
+        batch["official_content_url"] = "https://drive.google.com/file/d/approved-file-id/view?usp=sharing"
+        batch["official_article_url"] = "https://www.prc.gov.ph/article/example-results"
+        batch["official_content_reviewed"] = True
+        batch["record_mapping_reviewed"] = True
+        self.batch.write_text(json.dumps(batch), encoding="utf-8")
+        evidence = self.root / "python-engine/artifacts/official-content-evidence.json"
+        with patch("main.verify_official_content_link", return_value={"provenance": "official_direct"}) as verify, patch(
+            "main.acquire_official_pdf"
+        ) as acquire, patch("main.extract_pdf") as extract:
+            result = process_batch("batch.json", root=self.root)
+        verify.assert_called_once()
+        acquire.assert_not_called()
+        extract.assert_not_called()
+        self.assertEqual(result["report"]["greenlight_score"], 100)
+        self.assertIsNone(result["report"]["source_pdf_sha256"])
+        self.assertTrue(evidence.parent.exists())
+
+    def test_manual_official_content_handoff_requires_owner_review(self):
+        batch = dict(self.base)
+        batch.pop("source_pdf")
+        batch.pop("official_document_url")
+        batch["official_content_mode"] = "manual_handoff"
+        batch["official_content_url"] = "https://drive.google.com/file/d/approved-file-id/view"
+        batch["official_article_url"] = "https://www.prc.gov.ph/article/example-results"
+        batch["official_content_reviewed"] = False
+        self.batch.write_text(json.dumps(batch), encoding="utf-8")
+        with self.assertRaises(PipelineError):
+            process_batch("batch.json", root=self.root)
+
     def test_reviewed_pdf_table_mapping_flows_into_greenlight(self):
         batch = dict(self.base)
         batch.pop("records")
