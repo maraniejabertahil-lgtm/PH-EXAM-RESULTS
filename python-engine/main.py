@@ -9,7 +9,6 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import re
 import sys
 from pathlib import Path
 from typing import Any
@@ -51,6 +50,35 @@ def _https_url(value: Any, field: str) -> str:
     return value
 
 
+def _approved_source(batch: dict[str, Any], root: Path) -> dict[str, Any]:
+    registry_path = root / "python-engine" / "config" / "sources.json"
+    try:
+        registry = json.loads(registry_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise PipelineError(f"Cannot read approved source registry: {exc}") from exc
+    sources = registry.get("sources") if isinstance(registry, dict) else None
+    if not isinstance(sources, list):
+        raise PipelineError("Approved source registry has an invalid schema.")
+    matches = [
+        item for item in sources
+        if isinstance(item, dict) and item.get("id") == batch.get("source_id")
+    ]
+    if len(matches) != 1:
+        raise PipelineError("source_id must match exactly one approved registry entry.")
+    source = matches[0]
+    if (
+        source.get("enabled") is not True
+        or source.get("source_type") != "official"
+        or source.get("authorized") is not True
+        or source.get("authority") != batch.get("authority")
+        or source.get("exam") != batch.get("exam")
+    ):
+        raise PipelineError("Batch identity does not match an enabled, authorized official source.")
+    if batch.get("official_source_url") != source.get("url"):
+        raise PipelineError("official_source_url must exactly match the approved registry URL.")
+    return source
+
+
 def process_batch(batch_path: str | Path, *, root: str | Path | None = None) -> dict[str, Any]:
     """Validate a reviewed batch and build local, non-published dataset artifacts."""
     repository_root = Path(root or Path.cwd()).resolve()
@@ -69,8 +97,16 @@ def process_batch(batch_path: str | Path, *, root: str | Path | None = None) -> 
 
     provenance = batch["provenance"]
     if provenance == "official_direct":
+        source = _approved_source(batch, repository_root)
         _https_url(batch.get("official_source_url"), "official_source_url")
-        _https_url(batch.get("official_document_url"), "official_document_url")
+        document_url = _https_url(batch.get("official_document_url"), "official_document_url")
+        from urllib.parse import urlsplit
+        document_host = urlsplit(document_url).hostname.lower()
+        approved_host = urlsplit(source["url"]).hostname.lower()
+        if document_host != approved_host and not (
+            document_host == "drive.google.com" and source.get("allow_linked_drive_documents") is True
+        ):
+            raise PipelineError("Official document URL is outside the approved source origin or allowed Drive links.")
         if batch.get("record_mapping_reviewed") is not True:
             raise PipelineError(
                 "Official records must be explicitly marked record_mapping_reviewed=true. "
@@ -83,10 +119,23 @@ def process_batch(batch_path: str | Path, *, root: str | Path | None = None) -> 
             raise PipelineError("Source PDF SHA-256 does not match the batch metadata.")
         source_pdf_sha256 = extraction["source_file_sha256"]
     elif provenance == "third_party_fallback":
+        source = _approved_source(batch, repository_root)
         attempt_log = _repo_path(batch.get("official_attempt_log", ""), repository_root)
         gate = third_party_fallback_gate(attempt_log)
         if gate.get("allowed") is not True:
             raise PipelineError("Third-party fallback is not authorized: " + gate.get("reason", "unknown"))
+        evidence = json.loads(attempt_log.read_text(encoding="utf-8"))
+        if (
+            evidence.get("source_id") != source.get("id")
+            or evidence.get("authority") != batch.get("authority")
+            or evidence.get("exam") != batch.get("exam")
+            or evidence.get("official_source_url") != source.get("url")
+        ):
+            raise PipelineError("Official-attempt evidence does not match this approved source and examination.")
+        _https_url(batch.get("source_a_url"), "source_a_url")
+        _https_url(batch.get("source_b_url"), "source_b_url")
+        if batch["source_a_url"] == batch["source_b_url"]:
+            raise PipelineError("Fallback sources must have distinct URLs.")
         source_pdf_sha256 = None
     else:
         raise PipelineError("provenance must be official_direct or third_party_fallback.")
