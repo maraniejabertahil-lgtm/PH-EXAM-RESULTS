@@ -61,15 +61,16 @@ def stamp() -> str:
 def sha256(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 
-def fetch_bytes(url: str, limit: int) -> tuple[int, bytes, str, str]:
+def fetch_bytes(url: str, limit: int, allowed_redirect_hosts: set[str] | None = None) -> tuple[int, bytes, str, str]:
     req = Request(url, headers={
         "User-Agent": USER_AGENT,
         "Accept": "text/html,application/pdf,application/octet-stream,*/*",
     })
     with urlopen(req, timeout=40) as response:
         final_url = response.geturl()
-        if urlparse(final_url).hostname != urlparse(url).hostname:
-            raise RuntimeError("Cross-host redirect rejected for public source page")
+        allowed_hosts = allowed_redirect_hosts or {urlparse(url).hostname}
+        if urlparse(final_url).hostname not in allowed_hosts:
+            raise RuntimeError("Redirect host is not on the explicit allowlist")
         data = response.read(limit + 1)
         if len(data) > limit:
             raise RuntimeError("Response exceeded configured size limit")
@@ -178,7 +179,10 @@ def try_official_pdf() -> dict:
         "downloaded": False,
     }
     try:
-        status, data, ctype, final_url = fetch_bytes(url, MAX_PDF_BYTES)
+        status, data, ctype, final_url = fetch_bytes(
+            url, MAX_PDF_BYTES,
+            {"drive.google.com", "drive.usercontent.google.com"},
+        )
         final = urlparse(final_url)
         if final.scheme != "https" or final.hostname not in {"drive.google.com", "drive.usercontent.google.com"}:
             raise RuntimeError("Official PDF redirect host was not on the Google Drive allowlist")
