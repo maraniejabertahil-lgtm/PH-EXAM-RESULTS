@@ -49,6 +49,9 @@ def validate_records(
     *,
     announced_count: int,
     provenance: str = "official_direct",
+    comparison_records: Iterable[dict[str, Any]] | None = None,
+    source_a_id: str | None = None,
+    source_b_id: str | None = None,
 ) -> dict[str, Any]:
     """Validate extracted rows against the announced count and sequence coverage."""
     issues: list[dict[str, Any]] = []
@@ -167,6 +170,40 @@ def validate_records(
         "zero_anomalies": zero_anomalies,
         "complete_sequence_coverage": sequence_coverage,
     }
+    if provenance == "third_party_fallback":
+        independent_sources = bool(
+            isinstance(source_a_id, str) and source_a_id.strip()
+            and isinstance(source_b_id, str) and source_b_id.strip()
+            and source_a_id.strip() != source_b_id.strip()
+        )
+        checks["two_independent_sources"] = independent_sources
+        comparison_rows = list(comparison_records) if comparison_records is not None else []
+        comparison_report = validate_records(
+            comparison_rows, announced_count=announced_count, provenance="official_direct"
+        ) if comparison_rows else None
+        def exact_pairs(items: list[Any]) -> list[tuple[str, str]]:
+            pairs: list[tuple[str, str]] = []
+            for item in items:
+                if not isinstance(item, dict) or not isinstance(item.get("name"), str):
+                    continue
+                sequence = _sequence_text(item.get("sequence_number"))
+                if sequence is not None:
+                    pairs.append((sequence, item["name"].strip()))
+            return sorted(pairs, key=lambda pair: (int(pair[0]) if pair[0].isdigit() else -1, pair[0]))
+        pair_agreement = bool(
+            independent_sources and comparison_report is not None
+            and comparison_report["publication_allowed"]
+            and len(exact_pairs(rows)) == announced_count
+            and len(exact_pairs(comparison_rows)) == announced_count
+            and exact_pairs(rows) == exact_pairs(comparison_rows)
+        )
+        checks["exact_sequence_name_pair_agreement"] = pair_agreement
+        if not pair_agreement:
+            issues.append({
+                "code": "THIRD_PARTY_PAIR_MISMATCH",
+                "record_indices": [],
+                "message": "Third-party fallback requires two independent sources with 100% exact sequence-number/name-pair agreement.",
+            })
     greenlight = all(checks.values())
     return {
         "schema_version": 1,
@@ -197,6 +234,9 @@ def validate_dataframe(
     name_column: str,
     sequence_column: str,
     provenance: str = "official_direct",
+    comparison_frame: pd.DataFrame | None = None,
+    source_a_id: str | None = None,
+    source_b_id: str | None = None,
 ) -> dict[str, Any]:
     """Validate a pandas table without coercing leading-zero sequence strings."""
     if not isinstance(frame, pd.DataFrame):
@@ -208,7 +248,24 @@ def validate_dataframe(
         {"name": row[name_column], "sequence_number": row[sequence_column]}
         for row in frame.to_dict(orient="records")
     ]
-    return validate_records(records, announced_count=announced_count, provenance=provenance)
+    comparison_records = None
+    if comparison_frame is not None:
+        if not isinstance(comparison_frame, pd.DataFrame):
+            raise TypeError("comparison_frame must be a pandas DataFrame.")
+        missing_comparison = [
+            column for column in (name_column, sequence_column)
+            if column not in comparison_frame.columns
+        ]
+        if missing_comparison:
+            raise ValueError("Missing comparison DataFrame columns: " + ", ".join(missing_comparison))
+        comparison_records = [
+            {"name": row[name_column], "sequence_number": row[sequence_column]}
+            for row in comparison_frame.to_dict(orient="records")
+        ]
+    return validate_records(
+        records, announced_count=announced_count, provenance=provenance,
+        comparison_records=comparison_records, source_a_id=source_a_id, source_b_id=source_b_id
+    )
 
 
 def write_validation_report(report: dict[str, Any], output_path: str | Path) -> Path:
