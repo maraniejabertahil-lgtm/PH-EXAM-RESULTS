@@ -100,6 +100,20 @@ jobs:
           else
             echo "::warning::Could not read active deployment list (HTTP $code); compare remains unresolved. No production settings were changed."
           fi
+      - name: Verify GitHub dispatch secret binding exists without reading its value
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
+        run: |
+          set -euo pipefail
+          endpoint="https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/workers/scripts/ph-exam-results-watcher/secrets/GITHUB_TOKEN"
+          code="$(curl -sS -o /dev/null -w '%{http_code}' -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" "$endpoint")"
+          echo "Worker GITHUB_TOKEN secret-binding metadata: HTTP $code"
+          if [ "$code" = "200" ]; then
+            echo "The Worker GitHub dispatch credential binding exists; its value was not retrieved or displayed."
+          else
+            echo "::warning::The Worker GitHub dispatch credential binding could not be confirmed (HTTP $code)."
+          fi
       - name: Verify deployed production Worker Cron schedule
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
