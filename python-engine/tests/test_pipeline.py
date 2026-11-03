@@ -48,6 +48,24 @@ class ProcessingPipelineTests(unittest.TestCase):
         self.assertEqual(result["report"]["greenlight_score"], 100)
         self.assertTrue((result["dataset_dir"] / "manifest.json").is_file())
 
+    def test_pipeline_acquires_official_pdf_when_no_local_pdf_is_supplied(self):
+        batch = dict(self.base)
+        batch.pop("source_pdf")
+        batch["official_article_url"] = "https://www.prc.gov.ph/article/example-results"
+        self.batch.write_text(json.dumps(batch), encoding="utf-8")
+        acquired = {
+            "path": str(self.root / "official.pdf"),
+            "sha256": "a" * 64,
+            "attempt_log_path": str(self.root / "attempts.json"),
+        }
+        with patch("main.acquire_official_pdf", return_value=acquired) as acquire, patch(
+            "main.extract_pdf", return_value={"source_file_sha256": "a" * 64}
+        ):
+            result = process_batch("batch.json", root=self.root)
+        acquire.assert_called_once()
+        self.assertEqual(result["report"]["greenlight_score"], 100)
+        self.assertEqual(result["report"]["official_attempt_log"], acquired["attempt_log_path"])
+
     def test_reviewed_pdf_table_mapping_flows_into_greenlight(self):
         batch = dict(self.base)
         batch.pop("records")
