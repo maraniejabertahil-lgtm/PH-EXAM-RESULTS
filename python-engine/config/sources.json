@@ -62,7 +62,8 @@
       "content_access_mode": "owner_reviewed_portal_handoff",
       "auto_acquire": false,
       "manual_handoff_required": true,
-      "notes": "Official CSC passers portal. Owner must use the portal through normal authorized browser access, review the complete released result and exact sequence values, then provide a reviewed normalized batch. Automation must not interact with CAPTCHA or authentication."
+      "notes": "Official CSC passers portal. Owner must use the portal through normal authorized browser access, review the complete released result and exact sequence values, then provide a reviewed normalized batch. Automation must not interact with CAPTCHA or authentication.",
+      "official_announcement_url": "https://csc.gov.ph/csc-releases-results-of-8-march-2026-civil-service-exam"
     }
   ]
 }
