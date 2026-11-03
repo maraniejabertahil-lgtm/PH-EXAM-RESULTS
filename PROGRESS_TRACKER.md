@@ -15,7 +15,7 @@
 ## Phase 2: The Extractor & Greenlight (Python & GitOps)
 - [x] Build Python `extractor/` using `pdfplumber` and `pandas` (local raw extraction only; no OCR, normalization, Greenlight, or publication)
 - [x] Implement Part 20 Official-First Policy (persist official-attempt evidence before fallback; block fallback on authentication/CAPTCHA; production acquisition integration remains pending)
-- [ ] Build `processor/` & Greenlight Protocol (Score 100% = Count match, 0 blanks, 0 dupes, 0 anomalies)
+- [x] Build `processor/` & Greenlight Protocol (100/0 fail-closed score; count, blanks, duplicates, anomalies, sequence coverage, and two-source fallback agreement)
 - [ ] Implement Array-of-Arrays JSON builder and sharding logic (files < 10MB)
 - [ ] Set up GitOps Manager to open PRs and Auto-Merge if Score == 100%
 
