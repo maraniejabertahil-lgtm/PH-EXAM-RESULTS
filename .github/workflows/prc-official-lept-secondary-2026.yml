@@ -19,6 +19,7 @@ permissions:
   contents: read
 
 env:
+  # Six-way capture matrix; matrix expressions below are native GitHub Actions expressions.
   SHARDS: 6
 
 jobs:
