@@ -8,6 +8,7 @@ records a SHA-256 digest. OCR is advisory only; human review remains pending.
 import hashlib
 import json
 import re
+import shutil
 import subprocess
 import time
 from pathlib import Path
@@ -163,12 +164,22 @@ def main():
             digest = hashlib.sha256(screenshot_bytes).hexdigest()
 
             # OCR is an advisory cross-check, never a substitute for visible text.
-            ocr = subprocess.run(
-                ["tesseract", str(screenshot), "stdout", "--psm", "6"],
-                check=True, capture_output=True, text=True, timeout=60
-            ).stdout
+            # OCR is optional and advisory. It must never be a dependency for
+            # successful visible-text verification or Greenlight.
+            ocr_available = shutil.which("tesseract") is not None
+            ocr = ""
             ocr_path = OUT / f"official-secondary-source-page-{target['printed_page']:04}-ocr.txt"
-            ocr_path.write_text(ocr, encoding="utf-8")
+            if ocr_available:
+                ocr = subprocess.run(
+                    ["tesseract", str(screenshot), "stdout", "--psm", "6"],
+                    check=True, capture_output=True, text=True, timeout=60
+                ).stdout
+                ocr_path.write_text(ocr, encoding="utf-8")
+            else:
+                ocr_path.write_text(
+                    "OCR skipped: Tesseract is not installed; visible text remains primary evidence.\n",
+                    encoding="utf-8"
+                )
             visible_path = OUT / f"official-secondary-source-page-{target['printed_page']:04}-viewer.txt"
             visible_path.write_text(visible, encoding="utf-8")
             results.append({
@@ -183,7 +194,8 @@ def main():
                 "screenshot_sha256": digest,
                 "screenshot_bytes": len(screenshot_bytes),
                 "ocr_text_file": str(ocr_path),
-                "ocr_contains_expected_name": target["name"] in ocr,
+                "ocr_available": ocr_available,
+                "ocr_contains_expected_name": (target["name"] in ocr) if ocr_available else None,
                 "human_visual_verification": "PENDING",
             })
         context.close()
