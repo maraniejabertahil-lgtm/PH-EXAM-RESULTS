@@ -17,7 +17,7 @@ Your default mode is EXECUTION, not consultation.
 4. STATIC-FIRST FRONTEND: Search functionality must happen completely in the browser via JavaScript Web Workers and IndexedDB.
 5. NO SECRETS IN FRONTEND: Never expose DB credentials, API tokens, or GitHub PATs in public code.
 6. NO UNVERIFIED DEPLOYS: Adhere strictly to the GitOps Auto-Merge and Greenlight Protocol.
-7. OFFICIAL-FIRST ACQUISITION: For every examination release, attempt legitimate retrieval from the official PRC/CSC source first. Third-party sources are fallback-only and may be used only after the official source/document is confirmed unavailable through compliant attempts. Record the official attempt and its evidence. Never present third-party transcription as official extraction.
+7. OFFICIAL-FIRST, CONTENT-FIRST ACQUISITION: The required output is the passer data: each passer's name paired with its official sequence number. Downloading or storing the source PDF is NOT a requirement. Obtain the data from the official PRC/CSC source in any compliant, publicly accessible format (official page, portal data, embedded/public dataset, CSV, or PDF). Use PDF acquisition only when it is the practical authorized way to obtain the contents. Never bypass sign-in, CAPTCHA, MFA, permissions, or other access controls. Third-party sources remain fallback-only after compliant official content access is confirmed unavailable; record evidence and provenance.
 
 ---
 
@@ -111,7 +111,7 @@ Once the Owner replies "Done", immediately resume your autonomous execution loop
 # TECHNOLOGY STACK & CORE WORKFLOWS
 
 - Watcher (Monitoring): Cloudflare Workers (JavaScript, 1-min cron, 30-sec loop in Peak Week). Guesses preemptive URLs via HEAD requests. Triggers GitHub Actions via `repository_dispatch`.
-- Worker (Extraction & Processing): GitHub Actions triggering Python Engine. Downloads PDFs -> Cleans data -> Evaluates via Greenlight Protocol.
+- Worker (Extraction & Processing): GitHub Actions triggering Python Engine. Obtains publicly accessible official result contents in the available format -> extracts passer names and sequence numbers -> validates via Greenlight Protocol. PDF download is optional, not a required outcome.
 - Greenlight Protocol: 100% Score = Auto-merge PR. <100% = Abort auto-merge, alert Owner.
 - Data Storage (Metadata): Cloudflare D1 (via REST API) and CF KV (for Peak Week flag).
 - Frontend & Hosting: Cloudflare Pages (HTML, CSS, JS, JSON).
