@@ -72,6 +72,25 @@ Run end-to-end dummy and safety tests, verify secrets are not exposed, and valid
 
 ---
 
+## Owner decision register
+
+This register records explicit decisions made by the Owner that affect a phase, task, source, implementation approach, or acceptance condition. It is a decision record, not a general conversation history.
+
+**Recording rules**
+- Add a decision when the Owner explicitly approves, rejects, skips, defers, or changes the direction of a task or phase.
+- Record the decision under the affected phase/task and assign a stable ID (`D-001`, `D-002`, ...).
+- State the exact scope. Do not turn a decision about one source or release into a blanket rule for an entire authority or phase.
+- Record the reason and practical effect, including any acceptance-condition change. Do not silently change the Master Technical Blueprint.
+- Part 16 is the authoritative decision register. Part 17 records the related decision ID beside affected acceptance tests; it does not duplicate the full decision history.
+- A later change must be added as a new decision entry that supersedes the earlier one; do not erase the earlier record.
+
+| Decision ID | Date | Phase / task | Owner decision | Reason / effect | Status |
+|---|---|---|---|---|---|
+| D-001 | 2026-11-03 | Phase 2 — official result-content acquisition | The required result is the passer's name paired with its official sequence number. Downloading or storing a PDF is not required. | Pursue compliant official content in any available format, including an official portal/page or structured data. PDF acquisition is optional and only used when it is a practical authorized way to obtain the contents. | Active |
+| D-002 | 2026-11-03 | Phase 2 — CSC-side release/source assessment | Skip the specific CSC-side PDF-release path because passer details are provided through a portal rather than a passer-list PDF; assess the portal as the relevant content source instead. | This is a source/path decision only. It does not mean all CSC sources or portal access are permanently excluded. Continue only through compliant, publicly accessible access; never bypass authentication or human verification. | Active |
+
+---
+
 ## Delivery governance
 
 - Do not mark a task complete without evidence that the task's actual acceptance condition has been met.
