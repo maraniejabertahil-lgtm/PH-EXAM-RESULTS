@@ -27,11 +27,11 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
+          cache: "pip"
+          cache-dependency-path: python-engine/requirements.txt
       - name: Install browser, parsers, and OCR alternative
         run: |
-          sudo apt-get update
-          sudo apt-get install -y tesseract-ocr
-          python -m pip install -r python-engine/requirements.txt playwright pymupdf pdfplumber pillow
+          python -m pip install -r python-engine/requirements.txt playwright pillow
           python -m playwright install --with-deps chromium
       - name: Capture and parse official Secondary public preview
         run: python tools/prc-official-lept-secondary-2026.py
