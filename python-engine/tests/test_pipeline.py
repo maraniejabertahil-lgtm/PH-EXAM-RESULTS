@@ -24,7 +24,7 @@ class ProcessingPipelineTests(unittest.TestCase):
         (self.root / "official.pdf").write_bytes(b"%PDF-1.4\\nfixture\\n")
         self.base = {
             "authority": "PRC", "exam": "LET", "year": 2026,
-            "announced_count": 2, "provenance": "official_direct", "source_id": "PRC-LET-TEST",
+            "announced_count": 2, "provenance": "official_direct", "source_id": "PRC-LET-TEST", "publicly_released": True,
             "official_source_url": "https://www.prc.gov.ph/articles/exam-results",
             "official_document_url": "https://www.prc.gov.ph/files/example.pdf",
             "source_pdf": "official.pdf", "record_mapping_reviewed": True,
