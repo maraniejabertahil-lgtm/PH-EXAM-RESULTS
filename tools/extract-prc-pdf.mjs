@@ -63,21 +63,21 @@ async function downloadApprovedPdf(fileId) {
     const type = (response.headers.get("content-type") || "").split(";")[0].toLowerCase();
     if (type === "text/html") {
       const html = await response.text();
-      if (/captcha|recaptcha|accounts\\.google\\.com|sign.?in/i.test(html)) {
+      if (/captcha|recaptcha|accounts\.google\.com|sign.?in/i.test(html)) {
         fail("Google Drive requires human verification or sign-in; no access control was bypassed.");
       }
-      const form = html.match(/<form\\b([^>]*)>([\\s\\S]*?)<\\/form>/i);
+      const form = html.match(/<form\b([^>]*)>([\s\S]*?)<\/form>/i);
       if (!form) {
-        const title = (html.match(/<title[^>]*>([\\s\\S]*?)<\\/title>/i)?.[1] || "unknown").replace(/<[^>]+>/g," ").trim().slice(0,120);
+        const title = (html.match(/<title[^>]*>([\s\S]*?)<\\/title>/i)?.[1] || "unknown").replace(/<[^>]+>/g," ").trim().slice(0,120);
         fail(`Google Drive returned a non-download HTML page (title: ${title}); no verification bypass attempted.`);
       }
       const attrs = form[1];
-      const method = (attrs.match(/method=["']?([^"'\\s>]+)/i)?.[1] || "get").toLowerCase();
+      const method = (attrs.match(/method=["']?([^"'\s>]+)/i)?.[1] || "get").toLowerCase();
       if (method !== "get") fail("Google Drive download confirmation requires an unsupported form method.");
       const action = attrs.match(/action=["']([^"']+)["']/i)?.[1];
       if (!action) fail("Google Drive confirmation form has no action.");
       const next = new URL(action, current);
-      for (const input of form[2].matchAll(/<input\\b([^>]*)>/gi)) {
+      for (const input of form[2].matchAll(/<input\b([^>]*)>/gi)) {
         const a = input[1];
         const name = a.match(/name=["']([^"']+)["']/i)?.[1];
         const value = a.match(/value=["']([^"']*)["']/i)?.[1] ?? "";
