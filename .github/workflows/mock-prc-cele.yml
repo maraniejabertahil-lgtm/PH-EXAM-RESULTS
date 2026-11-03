@@ -90,8 +90,9 @@ jobs:
           PY
 
       - name: Run website Python tests
+        working-directory: python-engine
         run: |
-          python -m unittest discover -s python-engine/tests -v
+          python -m unittest discover -s tests -v
 
       - name: Run actual website browser-search and loader validation tests
         run: |
