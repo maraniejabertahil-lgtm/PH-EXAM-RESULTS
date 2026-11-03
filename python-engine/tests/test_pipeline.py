@@ -77,7 +77,7 @@ class ProcessingPipelineTests(unittest.TestCase):
         batch["record_mapping_reviewed"] = True
         self.batch.write_text(json.dumps(batch), encoding="utf-8")
         evidence = self.root / "python-engine/artifacts/official-content-evidence.json"
-        with patch("main.verify_official_content_link", return_value={"provenance": "official_direct"}) as verify, patch(
+        with patch("main.verify_official_content_link", side_effect=lambda **kwargs: (kwargs["evidence_path"].parent.mkdir(parents=True, exist_ok=True), kwargs["evidence_path"].write_text("{}")) and {"provenance": "official_direct"}) as verify, patch(
             "main.acquire_official_pdf"
         ) as acquire, patch("main.extract_pdf") as extract:
             result = process_batch("batch.json", root=self.root)
@@ -147,3 +147,59 @@ class ProcessingPipelineTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class OfficialContentHandoffUnitTests(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.evidence = Path(self.temp.name) / "content-evidence.json"
+        self.source = {
+            "id": "PRC-TEST", "authority": "PRC", "exam": "LET",
+            "source_type": "official", "authorized": True, "enabled": True,
+            "url": "https://www.prc.gov.ph/articles/exam-results",
+            "robots_policy_verified": True,
+            "robots_policy_url": "https://www.prc.gov.ph/robots.txt",
+            "allow_linked_drive_documents": True,
+        }
+        self.article = "https://www.prc.gov.ph/article/sample-results"
+        self.content = "https://drive.google.com/file/d/public-file/view?usp=sharing"
+
+    def test_verifies_official_article_link_without_fetching_drive(self):
+        from acquisition.official_content import verify_official_content_link
+        html = f'<html><a href="{self.content}">List of Successful Examinees</a></html>'.encode()
+        with patch("acquisition.official_content._robots_allowed", return_value=True), patch(
+            "acquisition.official_content._request",
+            return_value=(200, {"Content-Type": "text/html; charset=utf-8"}, self.article, html),
+        ) as request:
+            evidence = verify_official_content_link(
+                source=self.source, article_url=self.article,
+                content_url=self.content, evidence_path=self.evidence,
+            )
+        self.assertTrue(evidence["official_article_link_verified"])
+        self.assertFalse(evidence["content_body_downloaded_by_automation"])
+        self.assertFalse(evidence["pdf_downloaded"])
+        self.assertTrue(self.evidence.is_file())
+        request.assert_called_once()
+
+    def test_rejects_content_url_not_linked_by_official_article(self):
+        from acquisition.official_content import OfficialContentError, verify_official_content_link
+        html = b'<html><a href="https://drive.google.com/file/d/other/view">Other</a></html>'
+        with patch("acquisition.official_content._robots_allowed", return_value=True), patch(
+            "acquisition.official_content._request",
+            return_value=(200, {"Content-Type": "text/html"}, self.article, html),
+        ):
+            with self.assertRaises(OfficialContentError):
+                verify_official_content_link(
+                    source=self.source, article_url=self.article,
+                    content_url=self.content, evidence_path=self.evidence,
+                )
+
+    def test_rejects_drive_link_when_registry_opt_in_is_disabled(self):
+        from acquisition.official_content import OfficialContentError, verify_official_content_link
+        source = dict(self.source, allow_linked_drive_documents=False)
+        with self.assertRaises(OfficialContentError):
+            verify_official_content_link(
+                source=source, article_url=self.article,
+                content_url=self.content, evidence_path=self.evidence,
+            )
