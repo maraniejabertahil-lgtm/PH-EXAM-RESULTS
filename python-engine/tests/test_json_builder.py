@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import tempfile
 import unittest
@@ -131,7 +132,7 @@ class ArrayJsonBuilderTests(unittest.TestCase):
         for entry in manifest["shards"]:
             path = self.output / entry["file"]
             self.assertEqual(path.stat().st_size, entry["size_bytes"])
-            self.assertEqual(path.stat().st_size, entry["sha256"] and len(path.read_bytes()))
+            self.assertEqual(hashlib.sha256(path.read_bytes()).hexdigest(), entry["sha256"])
             self.assertLessEqual(path.stat().st_size, limit)
             total += entry["record_count"]
         self.assertEqual(total, len(records))
