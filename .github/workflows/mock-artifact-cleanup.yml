@@ -1,0 +1,26 @@
+name: Clean Up Completed CELE Mock Artifacts
+
+on:
+  push:
+    branches:
+      - mock/prc-cele-sep2026-0335
+    paths:
+      - .github/workflows/mock-artifact-cleanup.yml
+
+permissions:
+  actions: write
+  contents: read
+
+jobs:
+  delete-temporary-artifacts:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Delete temporary result artifacts after local evidence capture
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          for artifact_id in 13193930731 13192594166 13194375218; do
+            gh api --method DELETE "repos/${GITHUB_REPOSITORY}/actions/artifacts/${artifact_id}"
+            echo "Deleted temporary artifact ${artifact_id}"
+          done
