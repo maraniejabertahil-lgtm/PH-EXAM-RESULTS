@@ -20,6 +20,7 @@ if str(ENGINE_DIR) not in sys.path:
 from acquisition.official_first_policy import third_party_fallback_gate
 from extractor.pdf_parser import extract_pdf
 from processor.greenlight import validate_records, write_validation_report
+from processor.normalizer import NormalizationError, normalize_extracted_tables
 from publisher.gitops_manager import GitHubGitOps, GitOpsError
 from publisher.json_builder import build_dataset
 
@@ -90,7 +91,7 @@ def process_batch(batch_path: str | Path, *, root: str | Path | None = None) -> 
     if not isinstance(batch, dict):
         raise PipelineError("Batch input must be a JSON object.")
 
-    required = ("authority", "exam", "year", "announced_count", "provenance", "records", "publicly_released")
+    required = ("authority", "exam", "year", "announced_count", "provenance", "publicly_released")
     missing = [key for key in required if key not in batch]
     if missing:
         raise PipelineError("Batch is missing required fields: " + ", ".join(missing))
@@ -110,17 +111,25 @@ def process_batch(batch_path: str | Path, *, root: str | Path | None = None) -> 
             document_host == "drive.google.com" and source.get("allow_linked_drive_documents") is True
         ):
             raise PipelineError("Official document URL is outside the approved source origin or allowed Drive links.")
-        if batch.get("record_mapping_reviewed") is not True:
-            raise PipelineError(
-                "Official records must be explicitly marked record_mapping_reviewed=true. "
-                "The current PDF parser extracts raw text/tables only."
-            )
         pdf_path = _repo_path(batch.get("source_pdf", ""), repository_root)
         extraction = extract_pdf(pdf_path)
         expected_hash = batch.get("source_pdf_sha256")
         if expected_hash and expected_hash != extraction["source_file_sha256"]:
             raise PipelineError("Source PDF SHA-256 does not match the batch metadata.")
         source_pdf_sha256 = extraction["source_file_sha256"]
+        if isinstance(batch.get("records"), list):
+            if batch.get("record_mapping_reviewed") is not True:
+                raise PipelineError("Pre-normalized official records require record_mapping_reviewed=true.")
+            normalized_records = batch["records"]
+        elif isinstance(batch.get("table_mapping"), dict):
+            if batch.get("table_mapping_reviewed") is not True:
+                raise PipelineError("PDF table mappings require table_mapping_reviewed=true.")
+            try:
+                normalized_records = normalize_extracted_tables(extraction, batch["table_mapping"])
+            except NormalizationError as exc:
+                raise PipelineError(f"PDF table normalization stopped safely: {exc}") from exc
+        else:
+            raise PipelineError("Provide reviewed records or an explicitly reviewed table_mapping.")
     elif provenance == "third_party_fallback":
         source = _approved_source(batch, repository_root)
         attempt_log = _repo_path(batch.get("official_attempt_log", ""), repository_root)
@@ -144,10 +153,13 @@ def process_batch(batch_path: str | Path, *, root: str | Path | None = None) -> 
         ):
             raise PipelineError("Fallback sources must be independently hosted, distinct HTTPS sources.")
         source_pdf_sha256 = None
+        normalized_records = batch.get("records")
+        if not isinstance(normalized_records, list):
+            raise PipelineError("Fallback batches require normalized records from source A.")
     else:
         raise PipelineError("provenance must be official_direct or third_party_fallback.")
 
-    records = batch["records"]
+    records = normalized_records
     report = validate_records(
         records,
         announced_count=batch["announced_count"],

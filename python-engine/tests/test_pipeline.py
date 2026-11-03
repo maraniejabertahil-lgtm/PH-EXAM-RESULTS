@@ -48,6 +48,32 @@ class ProcessingPipelineTests(unittest.TestCase):
         self.assertEqual(result["report"]["greenlight_score"], 100)
         self.assertTrue((result["dataset_dir"] / "manifest.json").is_file())
 
+    def test_reviewed_pdf_table_mapping_flows_into_greenlight(self):
+        batch = dict(self.base)
+        batch.pop("records")
+        batch.pop("record_mapping_reviewed")
+        batch["table_mapping_reviewed"] = True
+        batch["table_mapping"] = {
+            "table_indexes": [0], "header_rows": 1,
+            "name_column": 0, "sequence_column": 1,
+        }
+        self.batch.write_text(json.dumps(batch), encoding="utf-8")
+        extraction = {
+            "source_file_sha256": "a" * 64,
+            "pages": [{
+                "page_number": 1,
+                "tables": [[
+                    ["NAME", "SEQ"],
+                    ["DOE, JANE A", "001"],
+                    ["SMITH, JOHN B", "002"],
+                ]],
+            }],
+        }
+        with patch("main.extract_pdf", return_value=extraction):
+            result = process_batch("batch.json", root=self.root)
+        self.assertEqual(result["report"]["greenlight_score"], 100)
+        self.assertEqual(result["report"]["record_count"], 2)
+
     def test_missing_sequence_fails_before_dataset_creation(self):
         broken = dict(self.base)
         broken["records"] = [
