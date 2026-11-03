@@ -226,7 +226,7 @@ def main():
                 rows[seq] = name
     missing = sorted(set(range(1, EXPECTED + 1)) - set(rows))
     records = [{"seq": str(k), "name": rows[k]} for k in sorted(rows)]
-    (OUT / "extracted-records.jsonl").write_text("".join(json.dumps(r, ensure_ascii=False) + "\\n" for r in records))
+    (OUT / "extracted-records.jsonl").write_text("".join(json.dumps(r, ensure_ascii=False) + "\n" for r in records))
 
     from collections import Counter
     name_counts = Counter(record["name"] for record in records)
