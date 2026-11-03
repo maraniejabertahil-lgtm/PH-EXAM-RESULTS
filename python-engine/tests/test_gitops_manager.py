@@ -1,6 +1,8 @@
 import unittest
+from unittest.mock import Mock
 
 from publisher.gitops_manager import (
+    GitHubGitOps,
     GitOpsError,
     validate_artifacts,
     validate_greenlight,
@@ -80,6 +82,40 @@ class GitOpsGateTests(unittest.TestCase):
     def test_rejects_empty_artifact(self):
         with self.assertRaises(GitOpsError):
             validate_artifacts({"public/data/empty.json": b""})
+
+
+
+class GitOpsCheckTests(unittest.TestCase):
+    def setUp(self):
+        self.client = GitHubGitOps("owner/repo", token="test-token")
+
+    def test_failed_github_check_blocks_merge(self):
+        self.client._request = Mock(side_effect=[
+            {"state": "open", "merged": False, "head": {"sha": "b" * 40}},
+            {"check_runs": [{"name": "tests", "status": "completed", "conclusion": "failure"}]},
+        ])
+        with self.assertRaises(GitOpsError):
+            self.client.merge_when_checks_pass(
+                pull_request_number=1, greenlight_report=good_report()
+            )
+
+    def test_missing_checks_do_not_merge(self):
+        self.client._request = Mock(side_effect=[
+            {"state": "open", "merged": False, "head": {"sha": "b" * 40}},
+            {"check_runs": []},
+        ])
+        result = self.client.merge_when_checks_pass(
+            pull_request_number=1, greenlight_report=good_report()
+        )
+        self.assertFalse(result["merged"])
+        self.assertEqual(result["status"], "awaiting_checks")
+
+    def test_invalid_validation_workflow_is_rejected(self):
+        with self.assertRaises(GitOpsError):
+            self.client.dispatch_ci_and_merge(
+                pull_request_number=1, greenlight_report=good_report(),
+                workflow_file="../unsafe.yml",
+            )
 
 
 if __name__ == "__main__":
