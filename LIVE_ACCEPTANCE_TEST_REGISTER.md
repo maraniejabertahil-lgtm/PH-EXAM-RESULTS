@@ -48,7 +48,7 @@ This register is connected to, but is not a duplicate of, the implementation che
 
 ## 1. Acceptance rules that apply to every phase
 
-- **Official first:** Attempt the official PRC/CSC announcement and its linked result destination before any third-party fallback (Part 20).
+- **Official first:** For the current Phase 2 acquisition and validation work, attempt PRC official announcements and their linked result destinations before any third-party fallback (Part 20). CSC-specific testing is excluded by Owner decision D-003; this does not delete CSC support from the architecture.
 - **Content first:** The required result is each passer's exact name paired with the official sequence number. A downloadable PDF is optional; an accessible official webpage, portal response, embedded dataset, CSV, or other readable official format is acceptable (Part 21).
 - **No access circumvention:** Never bypass authentication, CAPTCHA/Turnstile, MFA, permissions, robots.txt, rate limits, or other access restrictions. Stop automation and use an authorized manual handoff/review route when required (Parts 18, 20, 21).
 - **Greenlight is fail-closed:** No unverified batch may be published or auto-merged. A failed validation must preserve the last known-good public dataset (Parts 5, 12, 20).
@@ -67,7 +67,8 @@ For each affected test or test execution:
 
 **Currently applicable decisions**
 - `D-001` — Phase 2 content-first requirement: capture exact passer-name/sequence-number pairs; PDF download is optional.
-- `D-002` — Phase 2 CSC source-path decision: skip the specific CSC-side PDF-release path and assess the relevant portal instead, subject to compliant public access.
+- `D-002` — Earlier Phase 2 CSC source-path decision; superseded for testing scope by D-003.
+- `D-003` — Exclude all CSC-specific testing; current Phase 2 source validation is PRC-only.
 
 ### Status legend
 
@@ -168,13 +169,13 @@ For each affected test or test execution:
 #### P2-03 — Result-content acquisition
 
 - **Pass condition:** The pipeline obtains the actual passer names and their corresponding official sequence numbers from an authorized source.
-- **Evidence to retain:** No authorized official sample containing actual name/sequence pairs has been acquired. The official PRC article (https://www.prc.gov.ph/article/march-2026-licensure-examination-professional-teachers-results-released-thirty-nine-39) links elementary and secondary passer lists to Google Drive, but the inspected Drive views showed loading/sign-in rather than readable records. The official CSC portal (https://exam.csc.gov.ph/list_passers?type_id=1) is a public search interface; this inspection did not retrieve result rows or establish that it exposes the complete list with exact sequence numbers. Existing manual handoff code verifies that a supplied Drive URL is linked from an approved official article, but deliberately does not access Drive; it still requires the Owner to legitimately review the complete public contents and provide reviewed name/sequence pairs. No sign-in, CAPTCHA, or permission control was bypassed.
+- **Evidence to retain:** No authorized PRC sample containing actual name/sequence pairs has been acquired. The official PRC article (https://www.prc.gov.ph/article/march-2026-licensure-examination-professional-teachers-results-released-thirty-nine-39) links elementary and secondary passer lists to Google Drive, but the inspected Drive views showed loading/sign-in rather than readable records. Existing PRC manual handoff code verifies that a supplied Drive URL is linked from an approved official article, but deliberately does not access Drive; it still requires the Owner to legitimately review the complete public contents and provide reviewed name/sequence pairs. CSC source access and testing are excluded by D-003. No sign-in, CAPTCHA, or permission control was bypassed.
 - **Status:** `BLOCKED`
 
 #### P2-04 — Content-format flexibility
 
 - **Pass condition:** A readable official webpage, portal response, embedded/public dataset, CSV, or other compliant format can be used; PDF possession is not required.
-- **Evidence to retain:** The official CSC portal confirms a non-PDF public search-interface candidate, and PRC official result articles expose official list links. However, no machine-readable or browser-readable representative content containing exact passer-name/sequence pairs has yet been retrieved and validated from either authority. The CSC portal's completeness and sequence-number fields remain unverified; PRC's linked Drive content remains unreadable in the inspected view. PDF possession is not treated as a requirement.
+- **Evidence to retain:** PRC official result articles expose official list links, but no machine-readable or browser-readable representative content containing exact passer-name/sequence pairs has yet been retrieved and validated. PRC's linked Drive content remains unreadable in the inspected view. CSC content-format investigation and testing are excluded by D-003. PDF possession is not treated as a requirement.
 - **Status:** `BLOCKED`
 
 #### P2-05 — PDF parsing when applicable
@@ -315,7 +316,7 @@ For each affected test or test execution:
 - **Evidence to retain:** Before/after deployed dataset version/hash.
 - **Status:** `NOT RUN`
 
-**Related Owner decisions:** `D-001` and `D-002` in Part 16.
+**Related Owner decisions:** `D-001`, `D-002`, and `D-003` in Part 16. D-003 excludes CSC-specific testing; these Phase 2 acceptance checks apply to PRC only.
 
 **Phase 2 acceptance note:** The active project task is to find and validate a compliant official-content access path yielding exact passer-name/sequence-number pairs. A downloadable PDF is not a pass condition. Representative official-content mapping validation and a real released batch are separate acceptance milestones.
 
@@ -502,7 +503,7 @@ For each affected test or test execution:
 #### P5-09 — CAPTCHA / human-verification stop
 
 - **Pass condition:** When an official source presents CAPTCHA or another human-verification barrier, automated retrieval stops; no bypass is attempted.
-- **Evidence to retain:** Live CSC Region V HTTP 403 security-verification barrier led to source disablement/manual handling; PRC proxy/browser verification response was rejected as a source. No bypass attempted. Manual processing route remains incomplete.
+- **Evidence to retain:** PRC proxy/browser verification response was rejected as a source. No bypass attempted. PRC manual processing route remains incomplete. CSC-specific testing and evidence collection are excluded by Owner decision D-003.
 - **Status:** `PARTIAL`
 
 #### P5-10 — Manual-drop override
