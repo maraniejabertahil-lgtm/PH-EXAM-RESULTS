@@ -1,13 +1,17 @@
 #!/usr/bin/env python3
 import hashlib, json, re, sys
-from datetime import datetime, timezone\nimport time
+from datetime import datetime, timezone
+import time
 from html.parser import HTMLParser
 from pathlib import Path
 from urllib.request import Request, build_opener, HTTPCookieProcessor
 from http.cookiejar import CookieJar
 from urllib.parse import urljoin, urlparse
 
-ARTICLES = [\n    "https://www.prc.gov.ph/article/march-2026-licensure-examination-professional-teachers-results-released-thirty-nine-39",\n    "https://prc.gov.ph/article/march-2026-licensure-examination-professional-teachers-results-released-thirty-nine-39",\n]
+ARTICLES = [
+    "https://www.prc.gov.ph/article/march-2026-licensure-examination-professional-teachers-results-released-thirty-nine-39",
+    "https://prc.gov.ph/article/march-2026-licensure-examination-professional-teachers-results-released-thirty-nine-39",
+]
 DRIVE_ID = "1kY0CTSuwdxDwnf1UEvWe27HDEXU3rolE"
 EXPECTED = 18376
 OUT = Path("official-prc-evidence")
@@ -42,17 +46,42 @@ def fetch(url, limit=50 * 1024 * 1024):
 def log(stage, **fields):
     events.append({"time_utc": datetime.now(timezone.utc).isoformat(), "stage": stage, **fields})
 
+def fetch_with_retries(url, limit):
+    last = None
+    for attempt in range(1, 4):
+        try:
+            data, meta = fetch(url, limit)
+            log("http_fetch_success", url=url, attempt=attempt, **meta)
+            return data, meta
+        except Exception as error:
+            last = error
+            log("http_fetch_retry", url=url, attempt=attempt, error=repr(error))
+            if attempt < 3:
+                time.sleep(attempt * 4)
+    raise last
+
 def main():
-    article, meta = fetch(ARTICLE, 8 * 1024 * 1024)
+    article = None
+    article_url = None
+    last_error = None
+    for candidate in ARTICLES:
+        try:
+            article, meta = fetch_with_retries(candidate, 8 * 1024 * 1024)
+            article_url = candidate
+            break
+        except Exception as error:
+            last_error = error
+    if article is None:
+        raise RuntimeError("Official PRC article unavailable after bounded retries: " + repr(last_error))
     (OUT / "official-article.html").write_bytes(article)
     page = article.decode("utf-8", "replace")
     parser = Links()
     parser.feed(page)
-    links = [urljoin(ARTICLE, x) for x in parser.items]
+    links = [urljoin(article_url, x) for x in parser.items]
     official_link = next((x for x in links if DRIVE_ID in x), None)
     if DRIVE_ID not in page:
         raise RuntimeError("Expected official Drive ID not found on PRC article")
-    log("official_article", url=ARTICLE, sha256=hashlib.sha256(article).hexdigest(), drive_link=official_link, **meta)
+    log("official_article", url=article_url, sha256=hashlib.sha256(article).hexdigest(), drive_link=official_link, **meta)
 
     urls = [
         "https://drive.google.com/uc?export=download&id=" + DRIVE_ID,
@@ -66,15 +95,14 @@ def main():
                 pdf = body
                 log("official_pdf", attempt=index, sha256=hashlib.sha256(body).hexdigest(), bytes=len(body), **info)
                 break
-            prefix = body[:250].decode("utf-8", "replace")
-            log("non_pdf_response", attempt=index, prefix=prefix, **info)
             low = body[:50000].lower()
+            log("non_pdf_response", attempt=index, prefix=body[:250].decode("utf-8", "replace"), **info)
             if b"captcha" in low or b"verify you are human" in low or b"request access" in low or b"sign in" in low:
-                raise RuntimeError("Google Drive requires sign-in, permission, or human verification; stop without bypass")
+                raise RuntimeError("Drive requires sign-in, permission, or human verification; stop without bypass")
         except Exception as error:
             log("download_attempt_error", attempt=index, error=repr(error))
     if pdf is None:
-        raise RuntimeError("Official file not publicly retrievable through compliant unauthenticated access; no third-party fallback attempted")
+        raise RuntimeError("Official file not publicly retrievable; no third-party fallback attempted")
     (OUT / "official-result.pdf").write_bytes(pdf)
 
     import pdfplumber
