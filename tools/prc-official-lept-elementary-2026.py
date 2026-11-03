@@ -124,37 +124,57 @@ def main():
         # Content-first alternative: ordinary public Google Drive preview UI.
         # No download endpoint, private API, or access-control circumvention.
         preview_url = "https://drive.google.com/file/d/" + DRIVE_ID + "/preview"
-        preview_text = []
+        page_texts = []
+        page_count = 368  # Public viewer reports 368 pages; document's printed page count includes cover.
         with sync_playwright() as p:
             browser = p.chromium.launch(headless=True)
             page = browser.new_page(user_agent=UA, viewport={"width": 1600, "height": 1200})
             response = page.goto(preview_url, wait_until="domcontentloaded", timeout=60000)
-            page.wait_for_timeout(5000)
+            page.wait_for_timeout(4000)
             final_url = page.url
             if (urlparse(final_url).hostname or "") not in {"drive.google.com", "docs.google.com"}:
                 browser.close()
                 raise RuntimeError("Unexpected public-preview redirect host")
-            for frame in page.frames:
-                try:
-                    body = frame.locator("body").inner_text(timeout=4000)
-                    if body.strip():
-                        preview_text.append(body)
-                except Exception:
-                    pass
-            preview_html = page.content()
-            page.screenshot(path=str(OUT / "official-preview.png"), full_page=True)
+            body = page.locator("body")
+            initial = body.inner_text(timeout=10000)
+            low = initial.lower() + page.content()[:100000].lower()
+            if any(term in low for term in ("request access", "sign in to continue", "verify you are human", "captcha", "access denied")):
+                browser.close()
+                raise RuntimeError("Official public preview requires permission or human verification; manual handoff required")
+            page_input = page.locator('input[aria-label^="Page is"]')
+            if page_input.count() != 1:
+                browser.close()
+                raise RuntimeError("Public viewer page navigation control not found")
+            # Navigate only through the viewer's visible page-number control.
+            # No undocumented endpoints, file export, or hidden API calls.
+            for page_no in range(1, page_count + 1):
+                if page_no > 1:
+                    page_input.fill(str(page_no))
+                    page_input.press("Enter")
+                    page.wait_for_function(
+                        "(n) => { const e=document.querySelector('input[aria-label^=\\\"Page is\\\"]'); return e && e.getAttribute('aria-label') === 'Page is ' + n; }",
+                        arg=page_no, timeout=12000
+                    )
+                    page.wait_for_timeout(250)
+                visible = body.inner_text(timeout=10000)
+                if "Page " + str(page_no) + " of " not in visible:
+                    # A second short wait handles viewer page-render latency without
+                    # repeating requests or changing the access method.
+                    page.wait_for_timeout(500)
+                    visible = body.inner_text(timeout=10000)
+                page_texts.append(visible)
+            page.screenshot(path=str(OUT / "official-preview-page1.png"), full_page=True)
             browser.close()
-        combined = "\\n".join(preview_text)
-        low = (combined + preview_html[:100000]).lower()
-        if any(term in low for term in ("request access", "sign in to continue", "verify you are human", "captcha", "access denied")):
-            raise RuntimeError("Official public preview requires permission or human verification; manual handoff required")
-        log("official_public_preview", url=preview_url, final_url=final_url,
-            status=response.status if response else None, visible_text_characters=len(combined))
-        (OUT / "official-preview.html").write_text(preview_html, encoding="utf-8")
-        (OUT / "official-preview-text.txt").write_text(combined, encoding="utf-8")
-        text = combined
+        text = "\\n\\f\\n".join(page_texts)
         if len(text.strip()) < 100:
-            raise RuntimeError("Public preview did not expose readable document text; OCR prototype required")
+            raise RuntimeError("Public preview did not expose readable document text")
+        log("official_public_preview_pages", url=preview_url, final_url=final_url,
+            status=response.status if response else None, viewer_pages=page_count,
+            pages_read=len(page_texts), visible_text_characters=len(text))
+        (OUT / "official-preview-page-count.json").write_text(json.dumps({
+            "viewer_pages_expected": page_count, "viewer_pages_read": len(page_texts),
+            "page_text_characters": [len(x) for x in page_texts]
+        }, indent=2))
         (OUT / "official-layout-text.txt").write_text(text, encoding="utf-8")
     else:
         # Parse the response in memory. The source PDF is not written to disk.
