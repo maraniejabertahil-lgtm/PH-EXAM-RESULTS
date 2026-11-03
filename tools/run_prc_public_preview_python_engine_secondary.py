@@ -1,167 +1,263 @@
 #!/usr/bin/env python3
-"""Bridge official Secondary public-preview evidence into the Python Engine."""
+"""
+PRC March 2026 LEPT Secondary — native PDF extraction (speed-optimized).
+
+Acquisition:
+    Accepts a locally supplied, officially obtained PDF (--pdf).
+    Does not download anything and does not use browser automation.
+
+Extraction:
+    PyMuPDF native text extraction, no OCR, page ranges parsed in parallel.
+
+Validation (unchanged, fail closed):
+    - Exactly 45,001 unique sequences, coverage 1..45,001.
+    - No duplicate or conflicting sequence entries.
+    - Exact first and last expected names.
+    - JSON is written only after every check passes (atomic replace).
+
+Speed design:
+    - ProcessPoolExecutor; each worker opens the PDF ONCE (initializer) and
+      parses many page ranges.
+    - sort=False first (no layout sorting). If any integrity check fails, one
+      automatic retry with sort=True (the original behavior) before failing.
+    - Regex runs per page inside the worker; no giant joined string.
+    - Names are normalized in the worker; results return as compact lists.
+    - JSON is built as one string and written once, byte-identical to
+      json.dump(..., ensure_ascii=False, indent=2).
+
+Usage:
+    python tools/prc-official-lept-secondary-2026-fast.py \
+        --pdf manual-drop/prc-secondary-2026.pdf [--workers N]
+"""
+
 from __future__ import annotations
 
-import hashlib
+import argparse
 import json
+import os
+import re
 import sys
-from datetime import datetime, timezone
+import tempfile
+import time
+from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
+from typing import Dict, List, Optional, Tuple
 
-ROOT = Path(__file__).resolve().parents[1]
-EVIDENCE = ROOT / "official-prc-secondary-evidence"
-VISUAL = ROOT / "official-prc-secondary-visual-check"
-ENGINE_ARTIFACTS = ROOT / "python-engine" / "artifacts"
-ANNOUNCED = 45001
-SOURCE_ID = "PRC-EXAM-RESULTS-HOMEPAGE"
-OFFICIAL_SOURCE_URL = "https://www.prc.gov.ph/articles/exam-results"
-EXPECTED_ARTICLE = "https://www.prc.gov.ph/index.php/article/march-2026-licensure-examination-professional-teachers-results-released-thirty-nine-39"
-DRIVE_ID = "1RFuFGN4D1T3hkGC-iib9pRmJP1vJiJJ7"
-PREVIEW_URL = f"https://drive.google.com/file/d/{DRIVE_ID}/preview"
+import fitz  # PyMuPDF
 
+EXPECTED_COUNT = 45_001
+EXPECTED_FIRST = "AALA, ROSARIO FABELLAR"
+EXPECTED_LAST = "ZURITA, JAYSON RIVERA"
 
-def sha256(path: Path) -> str:
-    digest = hashlib.sha256()
-    with path.open("rb") as stream:
-        for chunk in iter(lambda: stream.read(1024 * 1024), b""):
-            digest.update(chunk)
-    return digest.hexdigest()
+DEFAULT_OUTPUT = Path("python-engine/artifacts/dataset/prc_secondary_results.json")
+
+# Same pattern as the original script.
+RECORD_PATTERN = re.compile(
+    r"^\s*(\d{1,5})\s+([A-ZÑ\s,\.\-\']+?)(?=\s{2,}|\n|$)",
+    re.MULTILINE,
+)
+_FINDALL = RECORD_PATTERN.findall  # findall returns (seq, name) tuples without match objects
 
 
-def read_json(path: Path) -> dict:
-    value = json.loads(path.read_text(encoding="utf-8"))
-    if not isinstance(value, dict):
-        raise RuntimeError(f"Expected JSON object in {path}")
-    return value
+class EmptyPageError(ValueError):
+    """A page had no native text; OCR is disabled so this must fail closed."""
+
+
+# --------------------------------------------------------------------------
+# Worker side
+# --------------------------------------------------------------------------
+
+_DOC = None  # per-process document handle, opened once by the initializer
+
+
+def _init_worker(pdf_path: str) -> None:
+    global _DOC
+    _DOC = fitz.open(pdf_path)
+
+
+def _parse_range(job: Tuple[int, int, bool]):
+    """Extract and parse pages [start, end). Returns (start, records, empty_page)."""
+    start, end, sort = job
+    doc = _DOC
+    out: List[Tuple[int, str]] = []
+    append = out.append
+    for i in range(start, end):
+        text = doc[i].get_text("text", sort=sort)
+        if not text.strip():
+            return start, None, i + 1  # 1-based page number
+        for seq, name in _FINDALL(text):
+            # str.split() with no args collapses all whitespace runs in C.
+            append((int(seq), " ".join(name.split())))
+    return start, out, None
+
+
+# --------------------------------------------------------------------------
+# Main-process side
+# --------------------------------------------------------------------------
+
+def preflight(pdf_path: Path) -> int:
+    if not pdf_path.is_file():
+        raise FileNotFoundError(f"PDF not found: {pdf_path}")
+    if pdf_path.stat().st_size == 0:
+        raise ValueError("The supplied PDF is empty.")
+    with pdf_path.open("rb") as fh:
+        if fh.read(5) != b"%PDF-":
+            raise ValueError("Input file does not have a valid PDF signature.")
+    doc = fitz.open(pdf_path)
+    try:
+        if doc.is_encrypted:
+            raise ValueError("The PDF is encrypted. Do not attempt to bypass its protection.")
+        if doc.page_count == 0:
+            raise ValueError("The PDF contains no pages.")
+        return doc.page_count
+    finally:
+        doc.close()
+
+
+def extract_records(pdf_path: Path, pages: int, workers: int, sort: bool) -> Dict[int, str]:
+    # ~4 chunks per worker balances load without many tiny tasks.
+    chunk = max(1, -(-pages // (workers * 4)))
+    jobs = [(s, min(s + chunk, pages), sort) for s in range(0, pages, chunk)]
+
+    if workers > 1:
+        with ProcessPoolExecutor(
+            max_workers=workers, initializer=_init_worker, initargs=(str(pdf_path),)
+        ) as pool:
+            results = list(pool.map(_parse_range, jobs))  # preserves page order
+    else:
+        _init_worker(str(pdf_path))
+        results = [_parse_range(j) for j in jobs]
+
+    records: Dict[int, str] = {}
+    duplicates: List[int] = []
+    conflicts: List[dict] = []
+    get = records.get
+
+    for _, parsed, empty_page in results:
+        if empty_page is not None:
+            raise EmptyPageError(
+                f"Page {empty_page} contains no extractable native text. "
+                "OCR is disabled; manual review is required."
+            )
+        for seq, name in parsed:
+            if not name or not 1 <= seq <= EXPECTED_COUNT:
+                continue
+            prev = get(seq)
+            if prev is not None:
+                duplicates.append(seq)
+                if prev != name:
+                    conflicts.append({"sequence": seq, "first_name": prev, "second_name": name})
+                continue
+            records[seq] = name
+
+    if duplicates:
+        raise ValueError(f"Duplicate sequence entries detected: {sorted(set(duplicates))[:30]}")
+    if conflicts:
+        raise ValueError(f"Conflicting names for sequence numbers: {conflicts[:10]}")
+    return records
+
+
+def validate_records(records: Dict[int, str]) -> None:
+    """Fail closed unless every required integrity check passes."""
+    assert len(records) == EXPECTED_COUNT, (
+        f"Expected {EXPECTED_COUNT:,} unique records; found {len(records):,}."
+    )
+    expected = set(range(1, EXPECTED_COUNT + 1))
+    actual = set(records)
+    assert actual == expected, (
+        "Sequence coverage is incomplete or contains unexpected values. "
+        f"Missing sample: {sorted(expected - actual)[:20]}; "
+        f"unexpected sample: {sorted(actual - expected)[:20]}"
+    )
+    assert records[1] == EXPECTED_FIRST, f"First record mismatch: {records[1]!r}"
+    assert records[EXPECTED_COUNT] == EXPECTED_LAST, (
+        f"Last record mismatch: {records[EXPECTED_COUNT]!r}"
+    )
+    assert all(isinstance(n, str) and n.strip() for n in records.values()), (
+        "Invalid sequence key or blank name detected."
+    )
+
+
+def save_json(records: Dict[int, str], output_path: Path) -> None:
+    """
+    Write validated records atomically.
+
+    Output is byte-identical to
+    json.dump({seq: name}, f, ensure_ascii=False, indent=2) + "\\n",
+    but built as a single string and written once.
+    """
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    dumps = json.dumps
+    body = ",\n".join(
+        f'  "{seq}": {dumps(records[seq], ensure_ascii=False)}' for seq in sorted(records)
+    )
+    data = ("{\n" + body + "\n}\n").encode("utf-8")
+
+    tmp: Optional[Path] = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            mode="wb",
+            dir=output_path.parent,
+            prefix=output_path.name + ".",
+            suffix=".tmp",
+            delete=False,
+        ) as f:
+            tmp = Path(f.name)
+            f.write(data)  # single write; no fsync, the atomic rename is what matters here
+        tmp.replace(output_path)
+    finally:
+        if tmp and tmp.exists():
+            tmp.unlink()
 
 
 def main() -> int:
-    extraction_path = EVIDENCE / "extraction-report.json"
-    visual_path = VISUAL / "visual-check-report.json"
-    attempt_path = EVIDENCE / "attempt-evidence.json"
-    records_path = EVIDENCE / "extracted-records.jsonl"
-    text_path = EVIDENCE / "official-layout-text.txt"
-    extraction = read_json(extraction_path)
-    visual = read_json(visual_path)
-    attempts = json.loads(attempt_path.read_text(encoding="utf-8"))
-    if not isinstance(attempts, list):
-        raise RuntimeError("Official attempt evidence must be a list.")
+    ap = argparse.ArgumentParser(
+        description="Extract and validate PRC LEPT Secondary 2026 results (fast)."
+    )
+    ap.add_argument("--pdf", required=True, type=Path, help="Officially obtained local PDF.")
+    ap.add_argument("--output", type=Path, default=DEFAULT_OUTPUT)
+    ap.add_argument("--workers", type=int, default=os.cpu_count() or 1)
+    args = ap.parse_args()
+    started = time.perf_counter()
 
-    article_events = [event for event in attempts if event.get("stage") == "official_article"]
-    preview_events = [event for event in attempts if event.get("stage") == "official_public_preview_pages"]
-    if len(article_events) != 1 or len(preview_events) != 1:
-        raise RuntimeError("Expected exactly one official article and public-preview evidence event.")
-    article = article_events[0]
-    preview = preview_events[0]
-    if article.get("url") != EXPECTED_ARTICLE or DRIVE_ID not in str(article.get("drive_link", "")):
-        raise RuntimeError("Captured article or linked Drive document does not match the approved PRC Secondary result.")
-    if preview.get("url") != PREVIEW_URL or preview.get("final_url") != PREVIEW_URL:
-        raise RuntimeError("Captured preview URL does not match the official linked Secondary document.")
-    # The extraction report records the page traversal in attempt-evidence.json;
-    # the report itself intentionally stores record validation, not viewer metadata.
-    viewer_pages = preview.get("viewer_pages")
-    if (
-        preview.get("status") != 200
-        or not isinstance(viewer_pages, int)
-        or preview.get("viewer_pages") != viewer_pages
-        or preview.get("pages_navigated") != viewer_pages
-        or preview.get("snapshots_retained") != viewer_pages
-    ):
-        raise RuntimeError("Public-preview page navigation evidence is incomplete.")
+    try:
+        print(f"Reading PDF: {args.pdf}")
+        pages = preflight(args.pdf)
+        workers = max(1, min(args.workers, pages))
+        t_pre = time.perf_counter()
 
-    visual_results = visual.get("results")
-    if (
-        visual.get("source") != PREVIEW_URL
-        or visual.get("access_controls_bypassed") is not False
-        or visual.get("viewer_pages") != viewer_pages
-    ):
-        raise RuntimeError("Visual evidence source or access-control safeguards are invalid.")
-    if not isinstance(visual_results, list) or len(visual_results) != 2:
-        raise RuntimeError("Expected first and last record visual evidence captures.")
-    for item in visual_results:
-        screenshot = (ROOT / item["screenshot"]).resolve()
-        if ROOT not in screenshot.parents or not screenshot.is_file():
-            raise RuntimeError("Visual screenshot path is invalid or missing.")
-        actual_hash = sha256(screenshot)
-        if actual_hash != item.get("screenshot_sha256") or item.get("viewer_text_confirmed") is not True:
-            raise RuntimeError("Visual screenshot hash or viewer text confirmation failed.")
-        sequence = str(item["sequence"])
-        expected_name = item.get("name")
-        if not isinstance(expected_name, str) or not expected_name.strip():
-            raise RuntimeError(f"Visual evidence is missing the visible name for sequence {sequence}.")
-        entry = extraction.get("visual_verification_evidence", {}).get(sequence)
-        if not isinstance(entry, dict) or entry.get("name") != expected_name:
-            raise RuntimeError(f"Visual source evidence does not match extraction sequence {sequence}.")
-        entry["screenshot_sha256"] = actual_hash
-    extraction["visual_evidence_integrity"] = "SCREENSHOT_HASHES_MATCH"
-    extraction["visual_human_review_status"] = visual.get("human_visual_verification", "PENDING")
-    extraction_path.write_text(json.dumps(extraction, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        try:
+            records = extract_records(args.pdf, pages, workers, sort=False)
+            validate_records(records)
+            mode = "unsorted (fast path)"
+        except EmptyPageError:
+            raise
+        except (AssertionError, ValueError) as fast_error:
+            print(f"Fast path failed integrity checks ({fast_error}); retrying with sort=True.")
+            records = extract_records(args.pdf, pages, workers, sort=True)
+            validate_records(records)
+            mode = "sorted (fallback)"
+        t_ext = time.perf_counter()
 
-    manifest = {
-        "schema_version": 1,
-        "provenance": "official_direct",
-        "public_preview_only": True,
-        "official_article_url": EXPECTED_ARTICLE,
-        "official_content_url": article["drive_link"],
-        "public_preview_url": PREVIEW_URL,
-        "captured_at_utc": datetime.now(timezone.utc).isoformat(),
-        "viewer_pages_expected": viewer_pages,
-        "viewer_pages_navigated": viewer_pages,
-        "snapshots_retained": viewer_pages,
-        "pdf_downloaded": False,
-        "access_controls_bypassed": False,
-        "visual_human_review_status": visual.get("human_visual_verification", "PENDING"),
-        "files": {
-            "layout_text": {"path": "official-prc-secondary-evidence/official-layout-text.txt", "sha256": sha256(text_path)},
-            "records_jsonl": {"path": "official-prc-secondary-evidence/extracted-records.jsonl", "sha256": sha256(records_path)},
-            "extraction_report": {"path": "official-prc-secondary-evidence/extraction-report.json", "sha256": sha256(extraction_path)},
-            "visual_report": {"path": "official-prc-secondary-visual-check/visual-check-report.json", "sha256": sha256(visual_path)},
-        },
-        "visual_screenshots": [
-            {"path": item["screenshot"], "sha256": item["screenshot_sha256"], "sequence": item["sequence"]}
-            for item in visual_results
-        ],
-    }
-    ENGINE_ARTIFACTS.mkdir(parents=True, exist_ok=True)
-    manifest_path = ENGINE_ARTIFACTS / "prc-lept-secondary-2026-capture-manifest.json"
-    manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        save_json(records, args.output)
+        done = time.perf_counter()
 
-    batch = {
-        "authority": "PRC",
-        "exam": "LEPT-SECONDARY",
-        "year": 2026,
-        "announced_count": ANNOUNCED,
-        "provenance": "official_direct",
-        "source_id": SOURCE_ID,
-        "publicly_released": True,
-        "official_source_url": OFFICIAL_SOURCE_URL,
-        "official_article_url": EXPECTED_ARTICLE,
-        "official_content_url": article["drive_link"],
-        "public_preview_url": PREVIEW_URL,
-        "official_content_mode": "public_preview_capture",
-        "capture_manifest": str(manifest_path.relative_to(ROOT)),
-    }
-    batch_path = ENGINE_ARTIFACTS / "prc-lept-secondary-2026-batch.json"
-    batch_path.write_text(json.dumps(batch, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        print("All integrity assertions passed.")
+        print("\nVALIDATION SUCCESS")
+        print(f"Records: {len(records):,}")
+        print(f"Sequence 1: {records[1]}")
+        print(f"Sequence {EXPECTED_COUNT}: {records[EXPECTED_COUNT]}")
+        print(f"JSON output: {args.output}")
+        print(f"Mode: {mode}; pages: {pages}; workers: {workers}")
+        print(
+            f"Timing: preflight {t_pre - started:.3f}s | extract+validate {t_ext - t_pre:.3f}s "
+            f"| write {done - t_ext:.3f}s | total {done - started:.3f}s"
+        )
+        return 0
 
-    sys.path.insert(0, str(ROOT / "python-engine"))
-    from main import process_batch
-    result = process_batch(batch_path.relative_to(ROOT), root=ROOT)
-    report = read_json(ENGINE_ARTIFACTS / "validation-report.json")
-    print(json.dumps({
-        "greenlight_status": report["status"],
-        "greenlight_score": report["greenlight_score"],
-        "record_count": report["record_count"],
-        "announced_count": report["announced_count"],
-        "records_sha256": report["records_sha256"],
-        "checks": report["checks"],
-        "dataset_manifest": str((result["dataset_dir"] / "manifest.json").relative_to(ROOT)),
-        "dataset_shard_count": result["manifest"]["shard_count"],
-        "dataset_shard_sizes": [entry["size_bytes"] for entry in result["manifest"]["shards"]],
-        "visual_human_review_status": report["public_preview_capture"]["visual_review_status"],
-        "publication_performed": False,
-    }, ensure_ascii=False, indent=2))
-    return 0
+    except Exception as error:
+        print(f"\nEXTRACTION FAILED — NO NEW DATASET WRITTEN\n{error}", file=sys.stderr)
+        return 1
 
 
 if __name__ == "__main__":
