@@ -99,6 +99,9 @@ def acquire_official_pdf(*, source, article_url, document_url, output_path, atte
     if source.get("robots_policy_verified") is not True or not source.get("robots_policy_url"):
         write_attempt_log(log, attempt_log_path)
         raise AcquisitionError("A verified robots.txt policy URL is required.")
+    if _origin(source["robots_policy_url"]) != _origin(source["url"]):
+        write_attempt_log(log, attempt_log_path)
+        raise AcquisitionError("robots_policy_url must be on the approved source origin.")
     try:
         if not _robots_allowed(source["robots_policy_url"], article_url, timeout):
             raise AcquisitionError("robots.txt disallows the official article.")
@@ -116,6 +119,8 @@ def acquire_official_pdf(*, source, article_url, document_url, output_path, atte
         head_status, head_headers, head_final, head_body = _request(document_url, "HEAD", timeout, 1024)
         record_attempt(log, method="HEAD", status_code=head_status, content_type=head_headers.get("Content-Type", ""), final_url=head_final, body_prefix=head_body[:1024])
         write_attempt_log(log, attempt_log_path)
+        if _origin(head_final) != _origin(source["url"]):
+            raise AcquisitionError("Official PDF HEAD request redirected outside the approved origin.")
         if head_status in {401, 407}:
             raise AcquisitionError("Official PDF requires authentication; use manual review.")
         get_status, get_headers, get_final, data = _request(document_url, "GET", timeout, MAX_BYTES)
