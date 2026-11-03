@@ -225,9 +225,16 @@ class GitHubGitOps:
                         raise GitOpsError(
                             f"Validation workflow failed ({run.get('conclusion')}); PR remains open."
                         )
-                    return self.merge_when_checks_pass(
-                        pull_request_number=pull_request_number,
-                        greenlight_report=greenlight_report,
+                    while time.monotonic() < deadline:
+                        merge_result = self.merge_when_checks_pass(
+                            pull_request_number=pull_request_number,
+                            greenlight_report=greenlight_report,
+                        )
+                        if merge_result.get("merged") is True:
+                            return merge_result
+                        time.sleep(poll_seconds)
+                    raise GitOpsError(
+                        "Validation workflow passed, but GitHub checks did not reach a mergeable success state; PR remains open."
                     )
             time.sleep(poll_seconds)
         raise GitOpsError(
@@ -248,16 +255,24 @@ class GitHubGitOps:
 
         checks = self._request("GET", f"/commits/{head_sha}/check-runs")
         runs = checks.get("check_runs", [])
-        if not runs or any(
-            run.get("status") != "completed" or run.get("conclusion") != "success"
-            for run in runs
-        ):
-            return {"status": "awaiting_checks", "merged": False, "check_runs": len(runs)}
+        if not runs:
+            return {"status": "awaiting_checks", "merged": False, "check_runs": 0}
+        for run in runs:
+            if run.get("status") == "completed" and run.get("conclusion") != "success":
+                raise GitOpsError(
+                    f"GitHub check '{run.get('name', 'unnamed')}' concluded {run.get('conclusion')}; PR remains open."
+                )
+            if run.get("status") != "completed":
+                return {"status": "awaiting_checks", "merged": False, "check_runs": len(runs)}
 
         statuses = self._request("GET", f"/commits/{head_sha}/status")
         # GitHub reports an empty combined-status set as "pending". That is
         # not a failing status; check-runs above are the authoritative checks.
         # If commit statuses exist, every one must have succeeded.
+        if statuses.get("total_count", 0) > 0 and statuses.get("state") in {"failure", "error"}:
+            raise GitOpsError(
+                f"GitHub commit status is {statuses.get('state')}; PR remains open."
+            )
         if statuses.get("total_count", 0) > 0 and statuses.get("state") != "success":
             return {"status": "awaiting_checks", "merged": False, "commit_status": statuses.get("state")}
 
