@@ -23,6 +23,7 @@ def blocked(text):
 
 def main():
     results = []
+    previous_digest = None
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
         page = browser.new_page(viewport={"width": 1800, "height": 1500},
@@ -48,9 +49,29 @@ def main():
             visible = body.inner_text(timeout=10000)
             if blocked(visible):
                 raise RuntimeError("Access challenge appeared during pagination")
+            # Capture the largest visible PDF canvas, not the entire viewer
+            # viewport (which can include part of the adjacent page).
+            canvases = page.locator("canvas")
+            candidates = canvases.evaluate_all("""els => els.map((el, index) => {
+              const r = el.getBoundingClientRect();
+              const style = getComputedStyle(el);
+              return {index, area: r.width * r.height,
+                visible: r.width > 100 && r.height > 100 &&
+                  style.display !== 'none' && style.visibility !== 'hidden' &&
+                  r.bottom > 0 && r.right > 0 && r.top < innerHeight && r.left < innerWidth,
+                x: r.x, y: r.y, width: r.width, height: r.height};
+            })""")
+            visible_canvases = [x for x in candidates if x["visible"]]
+            if not visible_canvases:
+                raise RuntimeError("No visible PDF page canvas found")
+            visible_canvases.sort(key=lambda x: x["area"], reverse=True)
+            selected = visible_canvases[0]
             shot = OUT / f"viewer-page-{number:03}.png"
-            page.screenshot(path=str(shot), full_page=False)
+            canvases.nth(selected["index"]).screenshot(path=str(shot), timeout=15000)
             digest = hashlib.sha256(shot.read_bytes()).hexdigest()
+            if number > 1 and digest == previous_digest:
+                raise RuntimeError("Rendered PDF canvas did not change after page navigation")
+            previous_digest = digest
             proc = subprocess.run(["tesseract", str(shot), "stdout", "--psm", "6"],
                                   check=True, capture_output=True, text=True, timeout=60)
             ocr = proc.stdout
@@ -61,6 +82,8 @@ def main():
                 if m:
                     pairs.append({"seq": int(m.group(1)), "name": " ".join(m.group(2).split())})
             results.append({"viewer_page": number, "screenshot_sha256": digest,
+                "selected_canvas": selected,
+                "visible_canvas_count": len(visible_canvases),
                 "ocr_characters": len(ocr), "pairs_found": len(pairs),
                 "sequence_min": min((x["seq"] for x in pairs), default=None),
                 "sequence_max": max((x["seq"] for x in pairs), default=None),
