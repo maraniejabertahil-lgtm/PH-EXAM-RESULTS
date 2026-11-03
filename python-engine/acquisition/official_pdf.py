@@ -157,7 +157,7 @@ def acquire_official_pdf(*, source, article_url, document_url, output_path, atte
         log["source_pdf_sha256"] = digest
         log["source_pdf_size_bytes"] = len(data)
         write_attempt_log(log, attempt_log_path)
-        return {"path": str(destination), "sha256": digest, "size_bytes": len(data), "attempt_log_path": str(attempt_log_path)}
+        return {"path": str(destination), "sha256": digest, "size_bytes": len(data), "attempt_log_path": str(attempt_log_path), "provenance": "official_direct"}
     except AcquisitionError:
         write_attempt_log(log, attempt_log_path)
         raise
