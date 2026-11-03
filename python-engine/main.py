@@ -69,12 +69,16 @@ def _approved_source(batch: dict[str, Any], root: Path) -> dict[str, Any]:
     if len(matches) != 1:
         raise PipelineError("source_id must match exactly one approved registry entry.")
     source = matches[0]
+    exam_matches = source.get("exam") == batch.get("exam") or (
+        source.get("source_type") == "official"
+        and source.get("exam_scope") == "all"
+    )
     if (
         source.get("enabled") is not True
         or source.get("source_type") != "official"
         or source.get("authorized") is not True
         or source.get("authority") != batch.get("authority")
-        or source.get("exam") != batch.get("exam")
+        or not exam_matches
     ):
         raise PipelineError("Batch identity does not match an enabled, authorized official source.")
     if batch.get("official_source_url") != source.get("url"):
