@@ -9,7 +9,7 @@
 - [x] Initialize `watcher-bot/` directory and `wrangler.toml` config
 - [x] Implement standard 1-minute cron check against approved official PRC/CSC sources (PRC monitored; CSC safely paused pending compliant access)
 - [x] Implement Peak Week Mode (Cloudflare KV check, 30-sec loop)
-- [ ] Add Preemptive Strike logic (HEAD requests predicting PDF URLs)
+- [x] Add Preemptive Strike logic (template-based HEAD requests; production URL templates remain empty until officially verified)
 - [ ] Configure `repository_dispatch` Webhook to wake GitHub Actions
 
 ## Phase 2: The Extractor & Greenlight (Python & GitOps)
