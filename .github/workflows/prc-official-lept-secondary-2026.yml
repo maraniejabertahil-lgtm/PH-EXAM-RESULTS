@@ -20,7 +20,7 @@ permissions:
 
 env:
   # Six-way capture matrix; matrix expressions below are native GitHub Actions expressions.
-  SHARDS: 6
+  SHARDS: 4
 
 jobs:
   capture:
@@ -30,7 +30,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        shard: [0, 1, 2, 3, 4, 5]
+        shard: [0, 1, 2, 3]
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-python@v6
