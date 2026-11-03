@@ -1,7 +1,7 @@
 # Project Progress & Phase Tracker
 
-> **Active Phase:** Phase 1  
-> **Status:** Initializing  
+> **Active Phase:** Phase 2  
+> **Status:** In Progress  
 
 ---
 
@@ -11,13 +11,14 @@
 - [x] Implement Peak Week Mode (Cloudflare KV check, 30-sec loop)
 - [x] Add Preemptive Strike logic (template-based HEAD requests; production URL templates remain empty until officially verified)
 - [x] Configure `repository_dispatch` Webhook to wake GitHub Actions (receiver validation workflow configured; genuine production dispatch acceptance still pending)
+- [x] Owner-approved phase transition: defer genuine PRC production acceptance until the official result release is available; live production acceptance remains unverified and must be revisited when available.
 
 ## Phase 2: The Extractor & Greenlight (Python & GitOps)
 - [x] Build Python `extractor/` using `pdfplumber` and `pandas` (local raw extraction only; no OCR, normalization, Greenlight, or publication)
 - [x] Implement Part 20 Official-First Policy (persist official-attempt evidence before fallback; block fallback on authentication/CAPTCHA; production acquisition integration remains pending)
 - [x] Build `processor/` & Greenlight Protocol (100/0 fail-closed score; count, blanks, duplicates, anomalies, sequence coverage, and two-source fallback agreement)
 - [x] Implement Array-of-Arrays JSON builder and sharding logic (each data shard strictly below 10 MiB; Greenlight fingerprint required)
-- [ ] Set up GitOps Manager to open PRs and Auto-Merge if Score == 100%
+- [ ] Integrate the GitOps Manager with the processing workflow so a 100/100 Greenlight batch opens a PR and auto-merges only after all GitHub checks pass (core manager and unit tests merged in PR #47; workflow invocation and end-to-end verification remain pending)
 
 ## Phase 3: Automated Broadcasting
 - [ ] Build `broadcaster.py` inside Python Engine
