@@ -168,10 +168,38 @@ def main():
                 if page_no > 1:
                     page_input.fill(str(page_no))
                     page_input.press("Enter")
-                    page.wait_for_function(
-                        "(n) => { const e=document.querySelector('input[aria-label^=\\\"Page is\\\"]'); return e && e.getAttribute('aria-label') === 'Page is ' + n; }",
-                        arg=page_no, timeout=12000
-                    )
+                    # Google Drive's accessible label is not a reliable navigation
+                    # completion signal across viewer versions. Wait for the visible
+                    # page indicator or the input's actual value, not its aria-label.
+                    deadline = time.monotonic() + 30
+                    navigated = False
+                    last_visible = ""
+                    while time.monotonic() < deadline:
+                        current_value = page_input.input_value(timeout=3000)
+                        last_visible = body.inner_text(timeout=10000)
+                        if current_value == str(page_no) and (
+                            f"Page {page_no} of " in last_visible
+                            or f"Page {page_no} of" in last_visible
+                        ):
+                            navigated = True
+                            break
+                        page.wait_for_timeout(500)
+                    if not navigated:
+                        diagnostic = {
+                            "requested_page": page_no,
+                            "input_value": page_input.input_value(timeout=3000),
+                            "aria_label": page_input.get_attribute("aria-label"),
+                            "visible_text_excerpt": last_visible[:1200],
+                            "url": page.url,
+                        }
+                        (OUT / "navigation-failure.json").write_text(
+                            json.dumps(diagnostic, indent=2), encoding="utf-8"
+                        )
+                        page.screenshot(path=str(OUT / "navigation-failure.png"), full_page=True)
+                        raise RuntimeError(
+                            "Public viewer did not confirm requested page navigation: "
+                            + json.dumps(diagnostic, ensure_ascii=False)
+                        )
                     page.wait_for_timeout(250)
                 visible = body.inner_text(timeout=10000)
                 if "Page " + str(page_no) + " of " not in visible:
