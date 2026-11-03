@@ -49,7 +49,7 @@ class ArrayJsonBuilderTests(unittest.TestCase):
         all_rows = []
         for shard_info in manifest["shards"]:
             path = self.output / shard_info["file"]
-            self.assertLessEqual(path.stat().st_size, 150)
+            self.assertLess(path.stat().st_size, 150)
             self.assertEqual(path.stat().st_size, shard_info["size_bytes"])
             payload = json.loads(path.read_text(encoding="utf-8"))
             all_rows.extend(payload["data"])
