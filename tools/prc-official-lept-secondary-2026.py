@@ -233,14 +233,14 @@ def main():
             merged_lines = list(dict.fromkeys(
                 line for snapshot in page_snapshots for line in snapshot["text"].splitlines()
             ))
-            final_visible_text = "\\n".join(merged_lines)
+            final_visible_text = "\n".join(merged_lines)
             (OUT / "page-capture-index.json").write_text(json.dumps([
                 {key: value for key, value in snapshot.items() if key != "text"}
                 for snapshot in page_snapshots
             ], indent=2), encoding="utf-8")
             (OUT / "page-text-snapshots.jsonl").write_text("".join(
                 json.dumps({"viewer_page": item["viewer_page"], "text": item["text"]},
-                           ensure_ascii=False) + "\\n" for item in page_snapshots
+                           ensure_ascii=False) + "\n" for item in page_snapshots
             ), encoding="utf-8")
             page.screenshot(path=str(OUT / "official-preview-page1.png"), full_page=True)
             browser.close()
@@ -263,7 +263,7 @@ def main():
         import pymupdf
         doc = pymupdf.open(stream=pdf, filetype="pdf")
         page_text = [page.get_text("text", sort=True) for page in doc]
-        text = "\\n\\f\\n".join(page_text)
+        text = "\n\f\n".join(page_text)
         doc.close()
         (OUT / "official-layout-text.txt").write_text(text, encoding="utf-8")
         log("pdf_text_extracted_in_memory", pages=len(page_text), characters=len(text))
