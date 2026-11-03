@@ -26,6 +26,7 @@
       "id": "PRC-EXAM-RESULTS-HOMEPAGE",
       "authority": "PRC",
       "exam": "LICENSURE-EXAM-RESULTS",
+      "exam_scope": "all",
       "source_type": "official",
       "authorized": true,
       "enabled": true,
