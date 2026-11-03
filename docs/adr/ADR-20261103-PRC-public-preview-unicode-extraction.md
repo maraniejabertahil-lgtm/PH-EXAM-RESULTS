@@ -1,6 +1,6 @@
 # ADR-20261103-PRC: Unicode-Aware Extraction from the Official Public Preview
 
-- **Status:** Active (isolated prototype; not yet production-integrated)
+- **Status:** Active (Python Engine integration merged; full Elementary Greenlight passed; GitOps publication pending)
 - **Date:** 2026-11-03
 - **Owner:** PH-EXAM-RESULTS Project Owner
 - **Technical owner:** PH-EXAM-RESULTS engineering workflow
@@ -27,9 +27,11 @@ The extraction prototype must retain only the final cumulative document-text sna
 - Prototype validation: 18,376 records; zero missing sequence numbers; zero conflicting assignments; zero duplicate names; zero blank names; zero out-of-range records.
 - Sequence 10,710 was visually checked on printed page 216: `MAGANGCONG, MUHAMMAD_THANI PAUTE`.
 - Sequence 15,066 was visually checked on printed page 303: `ROBLES, D9 BASUG`.
-- Screenshot evidence is retained in GitHub Actions run [#41658515004](https://github.com/maraniejabertahil-lgtm/PH-EXAM-RESULTS/actions/runs/41658515004). Screenshot SHA-256 values:
+- The integrated full-batch evidence is retained in [run #41664546615](https://github.com/maraniejabertahil-lgtm/PH-EXAM-RESULTS/actions/runs/41664546615), artifact `prc-official-lept-elementary-2026-evidence`. Screenshot SHA-256 values in the latest reconciled capture:
   - Page 216: `f35571961f7fe6a946097b1cfc82f82e8988d45fe04d7bb2b79688e79dbd0968`
-  - Page 303: `9807a25222a52c5d85f183f0bebc7f268a114a8edb08c59b95bb21e26b2ecc3e`
+  - Page 303: `7b32b939a5e8deefed29c94de644fd4db0bb8da9d503f2522d7253189971c10e`
+- Python Engine integration was merged in PRs #58 and #59. The full 18,376-record batch passed Greenlight 100/100 in runs #41663204288 and #41664546615. Canonical records SHA-256: `37cd69173dc25d2792c0602daaa1ff5bcd4e3f87569e2fe4598b14300c01e21e`.
+- Dataset manifest contains one 862,332-byte Array-of-Arrays shard; its SHA-256 matches the generated file. The optimized incremental shard-size calculation reduced the Python Engine validation/dataset step from 73 seconds to 5 seconds on the same 18,376-record batch (PR #60; 116 tests passed).
 - The visible document pages contain a DRAFT watermark. The official PRC article nevertheless identifies the result as released and links this document. Preserve the watermark as a source-quality observation; do not interpret it as permission to alter the records.
 
 ## Safeguards and compliance
@@ -40,18 +42,19 @@ The extraction prototype must retain only the final cumulative document-text sna
 - Respect the official source's robots policy and use bounded, low-frequency requests.
 - Do not infer, autocorrect, transliterate, or renumber names or sequences.
 - OCR is advisory only; original visible source text and screenshot evidence control.
-- Full Greenlight remains fail-closed. No dataset publication, GitOps PR, merge, or deployment is authorized by this ADR alone.
+- Full Greenlight remains fail-closed. The GitOps attempt [run #41665288366](https://github.com/maraniejabertahil-lgtm/PH-EXAM-RESULTS/actions/runs/41665288366) staged the dataset on `data/greenlight-37cd69173dc2` but GitHub rejected `POST /pulls` with HTTP 403 because Actions is not permitted to create or approve pull requests. The repository setting must be enabled by the Owner before the automated PR path can proceed.
+- The source file carries a visible DRAFT watermark and the visual report retains `human_visual_verification: PENDING`. The Owner must review this source-quality caveat before the dataset PR is merged. No dataset has been merged into `main` or deployed.
 
 ## Trade-offs and known debt
 
 - Viewer accessibility text can be cumulative and may repeat prior pages if intermediate snapshots are concatenated. The prototype therefore retains only the final cumulative snapshot and records page-navigation evidence.
 - Playwright adds browser-install and CI runtime cost, though it uses the existing free GitHub Actions runner.
 - Tesseract may misread underscores, digits, or accented names; it is never allowed to alter extracted records.
-- This prototype is not yet integrated into `python-engine/main.py` as a first-class official public-preview acquisition mode. That integration and a full real-batch Greenlight/dataset/GitOps acceptance run remain open.
+- The hash-bound `public_preview_capture` mode is now a first-class Python Engine acquisition path (`python-engine/acquisition/public_preview.py` and `python-engine/main.py`), with tests for manifest integrity, screenshot binding, and fail-closed behavior. The full Elementary Greenlight and dataset generation are proven; live GitOps PR creation/CI/merge remains blocked by the repository Actions permission setting and the DRAFT-watermark Owner review.
 
 ## Rollback plan
 
-Revert the isolated test-branch commits that modify `tools/prc-official-lept-elementary-2026.py`, `tools/prototypes/prc_preview_ocr_probe.py`, and its trial workflow. No production dataset or published asset has been changed. Keep the existing fail-closed pipeline and last-known-good public data untouched.
+Revert the source-specific trial workflow/scripts on `integration/prc-public-preview-python-engine` if they are no longer needed. The reusable Python Engine integration can be rolled back by reverting PRs #58 and #59; the linear-time shard optimization can be reverted by PR #60. No dataset has been merged into `main` or deployed. Keep the last-known-good public data untouched.
 
 ## Review date
 
