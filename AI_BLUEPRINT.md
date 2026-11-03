@@ -29,6 +29,8 @@ If you encounter an error (e.g., failed test, GitHub Action crash, API 4xx/5xx e
 2. Read the logs (via API or CLI actions), write a patch, push the fix, and re-trigger the test yourself.
 3. You must attempt to fix the issue autonomously at least 3 times.
 4. Only escalate to the Owner if you fail 3 consecutive times on the exact same error.
+5. When Owner says: Next, means Owner approves your recommendation and allows you to proceed to the next task without asking the Owner.
+6. DO NOT start the next phase unless Owner grants approval. 
 
 ---
 
