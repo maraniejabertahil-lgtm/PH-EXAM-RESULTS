@@ -29,6 +29,23 @@
 
 ---
 
+
+## Cross-document references and communication
+
+This register is connected to, but is not a duplicate of, the implementation checklist and roadmap:
+
+- **Implementation task status:** [`PROGRESS_TRACKER.md`](PROGRESS_TRACKER.md) owns the task checkboxes and identifies the next unchecked task.
+- **Phase context and Owner decisions:** [Part 16 — `IMPLEMENTATION_ROADMAP.md`](IMPLEMENTATION_ROADMAP.md) owns the phase-level delivery summary and full Owner decision register.
+- **Acceptance evidence:** This Part 17 register owns test pass conditions, actual outcomes, and evidence.
+
+**Linking rules**
+1. Each test ID (such as `P2-03`) identifies an acceptance check. Where useful, its record should name the related tracker task by its exact checklist wording.
+2. Add the relevant Part 16 Owner decision ID(s) to affected test records. Do not duplicate or redefine the full decision in this file.
+3. Keep test status based on the stated pass condition and recorded evidence. A tracker checkbox marked complete is not proof of acceptance; an automated PASS is not automatically live acceptance.
+4. When evidence changes, update the affected test record here and communicate the resulting implementation impact to the tracker/Part 16 only where their own records need to change.
+5. Do not make statuses identical merely for consistency. A task can be implemented while its live acceptance test remains BLOCKED or PARTIAL.
+6. If a pass condition appears to conflict with an Owner decision, consult the authoritative decision in Part 16. Do not silently change acceptance criteria; record any new Owner direction as a new decision there.
+
 ## 1. Acceptance rules that apply to every phase
 
 - **Official first:** Attempt the official PRC/CSC announcement and its linked result destination before any third-party fallback (Part 20).
@@ -548,6 +565,7 @@ Copy this block for each test execution:
 
 ```text
 Related Owner decision ID(s):
+Related Progress Tracker task(s):
 Test ID:
 Date/time (include timezone):
 Environment:
