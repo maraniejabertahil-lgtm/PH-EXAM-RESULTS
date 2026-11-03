@@ -27,7 +27,7 @@ LANDINGS = {
 }
 class Page(HTMLParser):
  def __init__(self):
-  super().__init__(); self.parts=[]; self.links=[]; self.anchor=[]; self.skip=0
+  super().__init__(); self.parts=[]; self.links=[]; self.anchor=None; self.skip=0
  def handle_starttag(self,tag,attrs):
   if tag in ("script","style","noscript"): self.skip+=1
   if tag=="a": self.anchor=[dict(attrs).get("href",""),""]
