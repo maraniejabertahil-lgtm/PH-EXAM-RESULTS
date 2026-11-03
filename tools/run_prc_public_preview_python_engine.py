@@ -142,22 +142,26 @@ def main() -> int:
     batch_path.write_text(json.dumps(batch, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
     sys.path.insert(0, str(ROOT / "python-engine"))
-    from main import process_batch
-    result = process_batch(batch_path.relative_to(ROOT), root=ROOT)
-    report = result["report"]
+    from main import publish_batch
+    result = publish_batch(batch_path.relative_to(ROOT), root=ROOT)
+    manifest = result["manifest"]
+    validation = read_json(ENGINE_ARTIFACTS / "validation-report.json")
+    report = validation
+    publication = result["publication"]
     print(json.dumps({
-        "status": report["status"],
+        "greenlight_status": report["status"],
         "greenlight_score": report["greenlight_score"],
         "record_count": report["record_count"],
         "announced_count": report["announced_count"],
         "records_sha256": report["records_sha256"],
         "checks": report["checks"],
-        "dataset_manifest": str((result["dataset_dir"] / "manifest.json").relative_to(ROOT)),
-        "dataset_shard_count": result["manifest"]["shard_count"],
-        "dataset_shard_sizes": [entry["size_bytes"] for entry in result["manifest"]["shards"]],
-        "publication_performed": False,
-        "gitops_pr_created": False,
+        "dataset_manifest": str((ENGINE_ARTIFACTS / "dataset" / "manifest.json").relative_to(ROOT)),
+        "dataset_shard_count": manifest["shard_count"],
+        "dataset_shard_sizes": [entry["size_bytes"] for entry in manifest["shards"]],
         "visual_human_review_status": report["public_preview_capture"]["visual_review_status"],
+        "gitops_pull_request": result["pull_request"],
+        "publication": publication,
+        "publication_performed": publication.get("merged") is True,
     }, ensure_ascii=False, indent=2))
     return 0
 
