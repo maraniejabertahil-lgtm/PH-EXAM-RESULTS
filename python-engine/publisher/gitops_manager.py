@@ -202,7 +202,10 @@ class GitHubGitOps:
             return {"status": "awaiting_checks", "merged": False, "check_runs": len(runs)}
 
         statuses = self._request("GET", f"/commits/{head_sha}/status")
-        if statuses.get("state") != "success":
+        # GitHub reports an empty combined-status set as "pending". That is
+        # not a failing status; check-runs above are the authoritative checks.
+        # If commit statuses exist, every one must have succeeded.
+        if statuses.get("total_count", 0) > 0 and statuses.get("state") != "success":
             return {"status": "awaiting_checks", "merged": False, "commit_status": statuses.get("state")}
 
         result = self._request("PUT", f"/pulls/{pull_request_number}/merge", {
