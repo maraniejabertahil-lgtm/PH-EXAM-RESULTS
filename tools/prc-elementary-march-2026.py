@@ -153,3 +153,5 @@ def main():
  print(json.dumps(summary,ensure_ascii=False,indent=2),flush=True)
  if not passed: raise SystemExit("Elementary extraction did not meet exact 18,376-record two-source Greenlight.")
 if __name__=="__main__": main()
+
+# Trigger a clean extraction run after workflow registration on the default branch.
