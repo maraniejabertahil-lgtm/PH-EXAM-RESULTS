@@ -13,7 +13,7 @@
 - [x] Configure `repository_dispatch` Webhook to wake GitHub Actions (receiver validation workflow configured; genuine production dispatch acceptance still pending)
 
 ## Phase 2: The Extractor & Greenlight (Python & GitOps)
-- [ ] Build Python `extractor/` using `pdfplumber` and `pandas`
+- [x] Build Python `extractor/` using `pdfplumber` and `pandas` (local raw extraction only; no OCR, normalization, Greenlight, or publication)
 - [ ] Implement Part 20 Official-First Policy (Log failures before 3rd-party fallback)
 - [ ] Build `processor/` & Greenlight Protocol (Score 100% = Count match, 0 blanks, 0 dupes, 0 anomalies)
 - [ ] Implement Array-of-Arrays JSON builder and sharding logic (files < 10MB)
