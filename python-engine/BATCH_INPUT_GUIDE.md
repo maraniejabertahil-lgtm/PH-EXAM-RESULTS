@@ -28,7 +28,7 @@ For `official_direct`, also provide:
 - `table_mapping_reviewed`: Boolean `true` when supplying `table_mapping`.
 - `source_pdf_sha256`: optional expected SHA-256 fingerprint.
 
-Automatic official acquisition is currently limited to same-origin HTTPS PDF links. External Google Drive links are recorded as requiring manual drop/review until public-download and access policy is separately verified. The acquisition code does not sign in, use cookies, or bypass human verification. It checks robots.txt, verifies that the PDF link appears on the supplied official article, and records bounded HEAD/GET evidence.
+Automated PDF acquisition remains limited to same-origin HTTPS PDF links. External Google Drive files are not downloaded by the manual-handoff path. The content handoff verifies the official article-to-Drive link and records that the owner reviewed the source contents; it does not access Google Drive or bypass sign-in, permissions, or human verification.
 
 ## Third-party fallback fields
 
