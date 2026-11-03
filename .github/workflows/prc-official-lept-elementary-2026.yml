@@ -49,5 +49,6 @@ jobs:
           path: |
             official-prc-evidence/
             official-prc-visual-check/
+            python-engine/artifacts/
           if-no-files-found: warn
           retention-days: 7
