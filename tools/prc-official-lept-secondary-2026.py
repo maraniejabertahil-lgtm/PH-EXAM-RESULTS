@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-import hashlib, json, re, sys, unicodedata
+import hashlib, json, os, re, sys, unicodedata
 from datetime import datetime, timezone
 import time
 from html.parser import HTMLParser
@@ -162,6 +162,21 @@ def main():
             if page_input.count() != 1:
                 browser.close()
                 raise RuntimeError("Public viewer page navigation control not found")
+            if os.environ.get("PRC_PREVIEW_DIAGNOSTIC_ONLY") == "1":
+                inputs = page.locator("input").evaluate_all("(els) => els.map(e => ({outerHTML:e.outerHTML, value:e.value, disabled:e.disabled, readOnly:e.readOnly, type:e.type}))")
+                buttons = page.locator("button").evaluate_all("(els) => els.map(e => ({text:e.innerText, aria:e.getAttribute('aria-label'), title:e.title, disabled:e.disabled}))")
+                diagnostic = {"inputs": inputs, "buttons": buttons, "iframes": page.locator("iframe").count(), "control_before": page_input.evaluate("(e) => e.outerHTML"), "body_excerpt": initial[:2500]}
+                print("VIEWER_NAVIGATION_DIAGNOSTIC " + json.dumps(diagnostic, ensure_ascii=False))
+                page_input.fill("2")
+                diagnostic["after_fill"] = page_input.input_value()
+                diagnostic["after_fill_outerHTML"] = page_input.evaluate("(e) => e.outerHTML")
+                page_input.press("Enter")
+                page.wait_for_timeout(2500)
+                diagnostic["after_enter"] = page_input.input_value()
+                diagnostic["after_enter_body"] = body.inner_text(timeout=10000)[:1800]
+                print("VIEWER_NAVIGATION_AFTER_ENTER " + json.dumps(diagnostic, ensure_ascii=False))
+                browser.close()
+                return
             # Navigate only through the viewer's visible page-number control.
             # Capture each rendered page after its text has stabilized. The input
             # value alone is not proof that the PDF text layer has finished rendering.
