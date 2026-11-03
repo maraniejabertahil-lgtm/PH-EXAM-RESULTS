@@ -1,9 +1,9 @@
 # LIVE ACCEPTANCE TEST REGISTER
 ## PH-EXAM-RESULTS
 
-**Purpose:** A single, phase-by-phase register of live acceptance tests derived from `Master_Technical_Blueprint.md` (Parts 1–21), with the implementation roadmap in Part 16 and the three expressly named acceptance criteria in Part 17 kept distinguishable.
+**Purpose:** A single, phase-by-phase register of current acceptance-test results and evidence derived from `Master_Technical_Blueprint.md` (Parts 1–21), with implementation progress governed by Part 16 and acceptance criteria governed by Part 17.
 
-**Important:** This document separates historical automated evidence, production/live verification, and formal acceptance. A successful unit test or synthetic event is not automatically a live acceptance PASS. A completed implementation checkbox in `PROGRESS_TRACKER.md` is not, by itself, proof of live acceptance.
+**Important:** This document records the current strongest evidence and acceptance status. A successful unit test or synthetic event is not automatically a live acceptance PASS. A completed implementation checkbox in `PROGRESS_TRACKER.md` is not, by itself, proof of live acceptance.
 
 ---
 
@@ -178,43 +178,3 @@ Verified by:
 ```
 
 ---
-
-## 9. Historical testing and verification transferred — 2026-11-03
-
-This section records prior evidence so earlier tests are not repeated merely because this register was created later. Statuses above distinguish automated evidence from live acceptance.
-
-### Confirmed historical evidence
-
-- **Phase 1 automated Watcher:** PR #18 records 21 Watcher tests passed and 9 approved-Drive retrieval tests passed. The read-only diagnostics workflow completed successfully.
-- **Phase 1 production diagnostics:** production cron and Worker runtime were observed; standard-mode execution had no exceptions; production KV was inspected; two synthetic receiver events succeeded but performed metadata validation only (`pdf_acquired=false`, `extraction_performed=false`, `published=false`).
-- **Peak Week:** automated simulation verified the 30-second wait and two-scan behavior. A later production event observed `PEAK_WEEK=true` and two scans, but the retained record does not establish exact 30-second timestamps for that live invocation.
-- **Official-source compliance:** PRC robots.txt was checked (HTTP 200) and public result article paths were not disallowed. CSC Region V returned HTTP 403 security verification and automated polling was paused. The system did not attempt to bypass either barrier.
-- **Python/GitOps CI progression:** PR #48/#50 recorded 90 Python tests; PR #51 recorded 98; PR #52 recorded 104; PR #55 and its merged main-branch run recorded 112 Python tests passing. These are automated tests, not proof of a real result batch publication.
-- **Extraction Safety:** PR #55 is the specific end-to-end pipeline regression test for a missing sequence. It passes with a deterministic extracted-table fixture and proves fail-closed publication behavior.
-- **Owner verification:** The Owner explicitly confirmed personally testing Phase 1. This is retained as owner-reported verification in Blueprint Part 16; it does not replace independently retained logs for each acceptance test.
-
-### Historical evidence that must not be overstated
-
-- Synthetic HEAD fixtures do not satisfy the genuine Part 17 preemptive test.
-- Synthetic receiver events do not prove a genuine official source detection dispatched the receiver.
-- Staging parser tests do not prove extraction from a representative official result layout.
-- An earlier 50,000-record Node/GitHub-runner search timing (66.69 ms) is not a browser UI-frame benchmark and does not satisfy P4-11.
-- No complete real released-result batch has passed official acquisition, exact name/sequence validation, Greenlight, dataset generation, GitOps merge, and deployment.
-- No Facebook/Telegram publication, production Pages search, or complete end-to-end result release acceptance is evidenced by the records reviewed.
-
-### Evidence links
-
-- [Phase 1 live acceptance audit](docs/PHASE_1_ACCEPTANCE_AUDIT_2026-11-03.md)
-- [PR #18 — read-only Cloudflare production diagnostics](https://github.com/maraniejabertahil-lgtm/PH-EXAM-RESULTS/pull/18)
-- [PR #48 — Python/GitOps integration](https://github.com/maraniejabertahil-lgtm/PH-EXAM-RESULTS/pull/48)
-- [PR #51 — explicit PDF normalization](https://github.com/maraniejabertahil-lgtm/PH-EXAM-RESULTS/pull/51)
-- [PR #52 — bounded official PDF acquisition](https://github.com/maraniejabertahil-lgtm/PH-EXAM-RESULTS/pull/52)
-- [PR #55 — extraction safety regression test](https://github.com/maraniejabertahil-lgtm/PH-EXAM-RESULTS/pull/55)
-- [PR #55 CI](https://github.com/github/actions/runs/41594622630)
-- [Merged main CI](https://github.com/github/actions/runs/41594733732)
-
-## 10. Current project position (reference only)
-
-At the time this register was created, `PROGRESS_TRACKER.md` identifies **Phase 2 — The Extractor & Greenlight** as the active phase. The first unchecked task is to identify and validate a compliant official-content access path that provides passer names with their exact sequence numbers. The tracker also lists representative official-content mapping validation and a real released-result batch as remaining Phase 2 tasks.
-
-This register does not change the progress tracker or mark implementation tasks complete. Each row now reflects the strongest evidence currently recorded: automated passes remain distinct from partial/live evidence and formal acceptance.
