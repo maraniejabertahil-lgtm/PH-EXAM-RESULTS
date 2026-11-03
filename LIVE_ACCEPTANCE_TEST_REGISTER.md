@@ -177,38 +177,38 @@ For each affected test or test execution:
 #### P2-02 — Official-first acquisition
 
 - **Pass condition:** The pipeline attempts the official announcement and its linked result destination before considering third-party sources.
-- **Evidence to retain:** Official-first policy and bounded official retrieval are implemented and covered by automated tests (PRs #48–#52). On 2026-11-03, the official PRC March 2026 LEPT result article was reachable and exposed separate "List of Successful Examinees" links, but the linked Google Drive views rendered only a loading/sign-in screen in the inspection; no file contents were acquired. The official CSC Examination Portal is publicly reachable at https://exam.csc.gov.ph/list_passers?type_id=1 and renders exam-date/type/region search filters, but the inspected page did not expose result rows or sequence numbers without a completed search. No access control was bypassed.
+- **Evidence:** Official-first policy and bounded retrieval are implemented (PRs #48–#52). Run #41663204288 acquired the contents from the PRC article's linked Google Drive ordinary public-preview UI after navigating all 368 viewer pages. No sign-in, CAPTCHA, private endpoint, PDF download, or access-control bypass was used. The separate CSC source remains excluded by Owner decision D-003.
 - **Status:** `PASS`
 
 #### P2-03 — Result-content acquisition
 
 - **Pass condition:** The pipeline obtains the actual passer names and their corresponding official sequence numbers from an authorized source.
-- **Evidence to retain:** Owner supplied a readable image of page 2 of the official PRC March 2026 LEPT Elementary successful-examinees roll (page 2 of 369). The page contains 50 actual passer names paired with sequence numbers 1–50. The records were OCR-read and visually checked against the image. PR #56 adds a regression test for the owner-reviewed manual handoff content: exact pair preservation and Greenlight sample validation. This demonstrates a compliant owner-provided content path; it does not prove automated Drive retrieval or complete-release acquisition. No sign-in, CAPTCHA, or permission control was bypassed. CSC source access and testing are excluded by D-003.
+- **Evidence:** Run #41663204288 captured the official linked public preview and the Python Engine ingested all 18,376 passer-name/sequence-number pairs. The artifact contains 18,376 parseable JSONL records and exact pair preservation through the generated dataset. The ordinary public preview was used without bypassing access controls. CSC source access and testing are excluded by D-003.
 - **Status:** `PASS`
 
 #### P2-04 — Content-format flexibility
 
 - **Pass condition:** A readable official webpage, portal response, embedded/public dataset, CSV, or other compliant format can be used; PDF possession is not required.
-- **Evidence to retain:** A readable rendered page image from the official PRC Elementary list was supplied and used to obtain 50 exact passer-name/sequence-number pairs. The manual handoff and structured-record route does not require automated PDF download. PR #56 validates the mapped records and sample Greenlight result. PDF possession is not treated as a requirement; automated Drive retrieval remains unverified. CSC content-format investigation and testing are excluded by D-003.
+- **Evidence:** The integrated capture uses the ordinary publicly accessible, JavaScript-rendered Google Drive preview linked by the official PRC article. It traverses 368 viewer pages and captures the cumulative rendered text; no PDF download is required. The full batch passed Python Engine validation. CSC content-format investigation and testing are excluded by D-003.
 - **Status:** `PASS`
 
 #### P2-05 — PDF parsing when applicable
 
 - **Pass condition:** When PDF is the practical authorized source, the parser extracts the required records from a representative PDF.
-- **Evidence to retain:** PR #56 validates the explicit sequence/name mapping against 50 visually checked records from a rendered official PRC PDF page. The test exercises normalization and Greenlight, but not `pdfplumber` extraction from the original PDF bytes or OCR automation; the uploaded artifact was a page image.
+- **Evidence:** The successful run uses the public-preview rendered text path rather than PDF bytes. Unicode extraction produced 18,376 records; Tesseract OCR was advisory only. Screenshot evidence is hash-bound. This validates the selected content-first path, not pdfplumber extraction from original PDF bytes.
 - **Status:** `PARTIAL`
 
 #### P2-06 — Text cleaning / OCR handling
 
 - **Pass condition:** Where the chosen input requires cleaning or OCR, the pipeline either produces reviewable records or fails safely; it must not silently invent uncertain values.
 - **Evidence to retain:** Sanitized extraction output and warnings/failure report.
-- **Evidence:** Official PRC-linked public preview was captured with Playwright; Tesseract OCR was used as an advisory cross-check. Printed pages 216 and 303 were visually inspected. The exact names for sequences 10,710 and 15,066 match the visible source. Screenshots and hashes are retained in Actions run [#41658515004](https://github.com/maraniejabertahil-lgtm/PH-EXAM-RESULTS/actions/runs/41658515004). Full extraction-to-Greenlight integration remains pending.
+- **Evidence:** Run #41663204288 completed public-preview extraction, screenshot capture, hash reconciliation, Python Engine ingestion, and Greenlight. Tesseract remains advisory: it did not reproduce the expected name on the first flagged page. The extraction did not guess or rewrite the two flagged strings; both are visible in the captured rendered screenshots. Human visual-review status remains PENDING.
 - **Status:** `PASS`
 
 #### P2-07 — Normalization integrity
 
 - **Pass condition:** Name normalization does not change a person's identity or merge distinct records.
-- **Evidence to retain:** Before/after mapping sample and tests.
+- **Evidence:** The full output preserves every source name and sequence pair exactly. Independent artifact inspection compared all 18,376 records by sequence key between source JSONL and generated Array-of-Arrays output; there were zero pair mismatches. No name rewriting or sequence renumbering occurred.
 - **Status:** `PASS`
 
 #### P2-08 — Sequence preservation
@@ -221,31 +221,31 @@ For each affected test or test execution:
 
 - **Pass condition:** Extracted record count equals the authority-announced passer count.
 - **Evidence to retain:** Announced count and computed count in validation report.
-- **Evidence:** The official PRC announcement reports 18,376 Elementary passers. A Unicode-aware prototype run against the final cumulative public-preview text snapshot recovered 18,376 unique sequence/name pairs, with zero missing sequences and zero conflicting assignments. The integrated Python Engine batch has not yet completed Greenlight.
+- **Evidence:** Integrated validation report from run #41663204288: 18,376 extracted / 18,376 announced; `count_match=true`; Greenlight 100/100.
 - **Status:** `PASS`
 
 #### P2-10 — Zero blank names
 
 - **Pass condition:** No record has an empty passer-name field.
-- **Evidence to retain:** PR #56 test Greenlight report: 50 records, zero blank names, zero anomalies, and 100/100 score for the representative page sample.
+- **Evidence:** Full-batch validation report: 18,376 records, `blank_record_count=0`, `zero_blanks=true`; independent JSONL inspection also found zero blank names.
 - **Status:** `PASS`
 
 #### P2-11 — Zero duplicates
 
 - **Pass condition:** No exact duplicate passer names or sequence numbers remain.
-- **Evidence to retain:** PR #56 test Greenlight report: zero duplicate names and zero duplicate sequence numbers in the 50-record sample.
+- **Evidence:** Full-batch validation report: zero duplicate names and duplicate sequence numbers; independent inspection found 18,376 unique sequence values and 18,376 unique names.
 - **Status:** `PASS`
 
 #### P2-12 — Zero unresolved anomalies
 
 - **Pass condition:** No unexpected/unparseable characters or unresolved parsing anomalies remain in a batch proposed for automatic publication.
-- **Evidence:** The two previously unresolved full-batch records were visually confirmed against the official PRC-linked preview screenshots: sequence 10,710 on printed page 216 and sequence 15,066 on printed page 303. The Unicode parser preserves both exact strings. Full-batch Greenlight has not yet completed, so this criterion remains open.
+- **Evidence:** Full-batch validation report: `anomaly_record_count=0`, `zero_anomalies=true`, and `unresolved_target_record_count=0`. The two unusual strings are preserved exactly and visible in hash-matched screenshots. Note the source pages carry a DRAFT watermark; this is a separate publication-quality caveat, not a parser anomaly.
 - **Status:** `PASS`
 
 #### P2-13 — Complete sequence coverage
 
 - **Pass condition:** The required official sequence range is complete, with no gaps or extras.
-- **Evidence:** The full PRC Elementary preview text candidate covers sequence numbers 1–18,376 with zero missing values, zero conflicting assignments, and zero out-of-range records in the independent Unicode-aware prototype check. Integrated batch validation is still pending.
+- **Evidence:** Integrated full-batch validation report: `complete_sequence_coverage=true`; 18,376 unique sequences span 1–18,376 with zero missing and zero unexpected values.
 - **Status:** `PASS`
 
 #### P2-14 — Fallback pair agreement
@@ -258,19 +258,19 @@ For each affected test or test execution:
 
 - **Pass condition:** Before fallback, the system records source/article URLs, timestamps, methods, HTTP status, content type, final URL, PDF/signature outcome where relevant, and concise failure reason/classification.
 - **Evidence to retain:** Persisted official-attempt evidence record.
-- **Status:** `PASS`
+- **Status:** `NOT RUN`
 
 #### P2-16 — Provenance
 
 - **Pass condition:** Every import and published dataset is labelled `official_direct` or `third_party_fallback`; fallback is never described as official PDF extraction.
 - **Evidence to retain:** Batch metadata, validation report, and dataset provenance.
-- **Status:** `NOT RUN`
+- **Status:** `PASS`
 
 #### P2-17 — Clean-batch Greenlight
 
 - **Pass condition:** A clean representative batch meeting every Greenlight and applicable Part 20 validation condition receives 100% and is eligible for the automated GitOps path.
-- **Evidence to retain:** PR #56 test run #119 passed and the representative 50-record page sample received Greenlight 100/100. The page sample is not the complete examination batch or announced total; full-batch clean Greenlight remains unverified.
-- **Status:** `PARTIAL`
+- **Evidence:** Run #41663204288 produced a complete 18,376-record batch with Greenlight 100/100 and all five required checks true. The report explicitly states validation only; GitOps publication was not performed.
+- **Status:** `PASS`
 
 #### P2-18 — Missing-sequence safety test
 
@@ -287,20 +287,20 @@ For each affected test or test execution:
 #### P2-20 — Array-of-Arrays dataset
 
 - **Pass condition:** Valid records are generated in the approved compact JSON structure, including the name and sequence fields and the defined dataset columns.
-- **Evidence to retain:** Generated JSON and schema validation.
-- **Status:** `NOT RUN`
+- **Evidence:** Artifact dataset has columns `name, rating, region, seq`, 18,376 rows, and exact name/sequence pair agreement with source JSONL.
+- **Status:** `PASS`
 
 #### P2-21 — Dataset sharding
 
 - **Pass condition:** A dataset exceeding 10 MB is split into the required alphabetic shards; each generated data shard remains strictly below 10 MiB as implemented.
-- **Evidence to retain:** File sizes, shard names, and record coverage check.
-- **Status:** `NOT RUN`
+- **Evidence:** This 18,376-record dataset fits in one 862,332-byte shard, strictly below 10 MiB. The partitioner regression suite also exercises multi-shard partitioning and exact byte limits.
+- **Status:** `PASS`
 
 #### P2-22 — Manifest and hashes
 
 - **Pass condition:** `manifest.json` routes to the correct datasets/shards and includes cache-busting hashes matching the generated files.
-- **Evidence to retain:** Manifest and independently computed hash comparison.
-- **Status:** `NOT RUN`
+- **Evidence:** Independent SHA-256 of the generated shard matches the manifest: `fb3b7086c1de0848977a5ce8601ab5401b15c6df3a0700bb2d30bb86c0d756de`. Canonical records hash is `37cd69173dc25d2792c0602daaa1ff5bcd4e3f87569e2fe4598b14300c01e21e`.
+- **Status:** `PASS`
 
 #### P2-23 — D1 metadata handling
 
