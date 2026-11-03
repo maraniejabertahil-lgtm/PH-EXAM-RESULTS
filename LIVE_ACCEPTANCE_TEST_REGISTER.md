@@ -3,7 +3,7 @@
 
 **Purpose:** A single, phase-by-phase register of live acceptance tests derived from `Master_Technical_Blueprint.md` (Parts 1–21), with the implementation roadmap in Part 16 and the three expressly named acceptance criteria in Part 17 kept distinguishable.
 
-**Important:** This document defines what must be demonstrated. It does not claim that any test has passed. Mark a test **PASS** only after the stated live evidence has been observed and recorded. A completed implementation checkbox in `PROGRESS_TRACKER.md` is not, by itself, proof of live acceptance.
+**Important:** This document separates historical automated evidence, production/live verification, and formal acceptance. A successful unit test or synthetic event is not automatically a live acceptance PASS. A completed implementation checkbox in `PROGRESS_TRACKER.md` is not, by itself, proof of live acceptance.
 
 ---
 
@@ -18,10 +18,12 @@
 
 ### Status legend
 
-- `NOT RUN` — no live evidence recorded yet.
-- `PASS` — pass condition demonstrated with evidence.
+- `NOT RUN` — no relevant test evidence has been recorded.
+- `AUTOMATED PASS` — automated/unit/regression test passed; live acceptance is not implied.
+- `PARTIAL` — some required behavior was verified, but the complete pass condition was not demonstrated.
+- `PASS` — the complete stated acceptance condition was demonstrated in the required environment.
 - `FAIL` — test ran and did not meet its pass condition.
-- `BLOCKED` — cannot be tested because an external prerequisite or authorized source is unavailable.
+- `BLOCKED` — a required live test cannot currently be completed because an external prerequisite or authorized source is unavailable.
 - `N/A` — only where the test genuinely does not apply; explain why.
 
 ---
@@ -32,16 +34,16 @@
 
 | ID | Live acceptance test | Pass condition | Evidence to retain | Status |
 |---|---|---|---|---|
-| P1-01 | Scheduled monitoring | The Watcher runs on the configured one-minute cron schedule. | Cloudflare Worker configuration and invocation logs. | NOT RUN |
-| P1-02 | Standard mode | Outside Peak Week, one normal source fetch is performed and the invocation terminates. | Worker execution log showing the standard-mode path. | NOT RUN |
+| P1-01 | Scheduled monitoring | The Watcher runs on the configured one-minute cron schedule. | Production cron `* * * * *`; successful scheduled Worker event at 2026-11-03 22:51:14 UTC; see Phase 1 audit §12. | PASS |
+| P1-02 | Standard mode | Outside Peak Week, one normal source fetch is performed and the invocation terminates. | PR #18 production tail recorded cron outcome `ok`, no exceptions, standard mode; see PR #18 and Phase 1 audit §1. | PASS |
 | P1-03 | Peak Week activation | Peak Week starts exactly seven days before the historically predicted D1 release date, or when manually activated by the Owner. | Prediction/activation record and KV value. | NOT RUN |
-| P1-04 | Peak Week KV flag | The Watcher reads the `PEAK_WEEK` flag from Cloudflare KV and selects the correct mode. | KV setting and corresponding Worker log. | NOT RUN |
-| P1-05 | Peak Week 30-second loop | In Peak Week, the Watcher performs its first check, waits 30 seconds, and performs the second check. | Timestamped logs for both checks in one invocation. | NOT RUN |
-| P1-06 | Preemptive HEAD test | The Watcher identifies a candidate result resource through a lightweight HEAD request before the official HTML announcement page updates. This is the explicit Part 17 Preemptive Test. | Target URL, timestamp, HEAD status/headers, and evidence that the HTML announcement had not yet updated. | NOT RUN |
-| P1-07 | Change detection | A relevant change at an approved monitored official source is detected. | Before/after source evidence and Worker log. | NOT RUN |
-| P1-08 | Webhook dispatch | On a qualifying detection, the Watcher sends the configured `repository_dispatch` event to GitHub Actions. | Dispatch event/run URL and sanitized Worker log. | NOT RUN |
-| P1-09 | Official-source priority | Monitoring and acquisition handoff begin with the official PRC/CSC source and its linked result destination. | Source URL and timestamped request evidence. | NOT RUN |
-| P1-10 | Compliant retrieval behavior | Requests are bounded and low-impact, respect robots.txt/rate limits/access controls, and do not attempt authentication or CAPTCHA circumvention. | Sanitized request log and source policy outcome. | NOT RUN |
+| P1-04 | Peak Week KV flag | The Watcher reads the `PEAK_WEEK` flag from Cloudflare KV and selects the correct mode. | Production KV diagnostics observed `PEAK_WEEK=true`; subsequent PR #32 live event performed two Peak Week scans. KV-read/branch selection has live evidence; retain raw invocation record for full audit. | PARTIAL |
+| P1-05 | Peak Week 30-second loop | In Peak Week, the Watcher performs its first check, waits 30 seconds, and performs the second check. | PR #18 automated Peak Week simulation passed the 30-second wait/two-scan behavior. PR #32 production event reported two scans, but retained audit does not show exact inter-scan timestamps. | PARTIAL |
+| P1-06 | Preemptive HEAD test | The Watcher identifies a candidate result resource through a lightweight HEAD request before the official HTML announcement page updates. This is the explicit Part 17 Preemptive Test. | Synthetic fixture HEAD tests verify code behavior; production `preemptive_url_templates` remain empty. No genuine official result resource was detected before its announcement changed. | BLOCKED |
+| P1-07 | Change detection | A relevant change at an approved monitored official source is detected. | PRC homepage baseline and scheduled unchanged checks were verified live; no newly released official result article/change was observed during the audit window. | PARTIAL |
+| P1-08 | Webhook dispatch | On a qualifying detection, the Watcher sends the configured `repository_dispatch` event to GitHub Actions. | PR #18: two synthetic diagnostic `source-detected` events reached the production receiver and generated validation-only runs. No genuine scheduled production source detection dispatch has been observed. | PARTIAL |
+| P1-09 | Official-source priority | Monitoring and acquisition handoff begin with the official PRC/CSC source and its linked result destination. | PRC homepage is enabled as official baseline/discovery source; CSC Region V remains safely disabled after HTTP 403. Complete PRC/CSC coverage and result-content acquisition remain outstanding; see Phase 1 audit §12. | PARTIAL |
+| P1-10 | Compliant retrieval behavior | Requests are bounded and low-impact, respect robots.txt/rate limits/access controls, and do not attempt authentication or CAPTCHA circumvention. | PRC `robots.txt` returned HTTP 200 and public result article paths were not disallowed; CSC HTTP 403 security verification caused automated polling to be disabled rather than bypassed. See Phase 1 audit §12. | PASS |
 
 **Phase 1 acceptance note:** Part 16 explicitly calls for the 30-second loop, Peak Week KV check, preemptive HEAD requests, and webhook dispatch. Part 17 separately requires proof that the preemptive HEAD detection happens before the HTML page updates.
 
@@ -53,11 +55,11 @@
 
 | ID | Live acceptance test | Pass condition | Evidence to retain | Status |
 |---|---|---|---|---|
-| P2-01 | Workflow trigger | GitHub Actions starts the processing workflow from a valid Watcher `repository_dispatch` event or an authorized `manual-drop/` push. | GitHub Actions run URL and triggering event. | NOT RUN |
-| P2-02 | Official-first acquisition | The pipeline attempts the official announcement and its linked result destination before considering third-party sources. | Machine-readable official-attempt record. | NOT RUN |
-| P2-03 | Result-content acquisition | The pipeline obtains the actual passer names and their corresponding official sequence numbers from an authorized source. | Source reference and acquired content/sample. | NOT RUN |
-| P2-04 | Content-format flexibility | A readable official webpage, portal response, embedded/public dataset, CSV, or other compliant format can be used; PDF possession is not required. | Input format and successful name/sequence output. | NOT RUN |
-| P2-05 | PDF parsing when applicable | When PDF is the practical authorized source, the parser extracts the required records from a representative PDF. | Input fixture/source reference and parser output. | NOT RUN |
+| P2-01 | Workflow trigger | GitHub Actions starts the processing workflow from a valid Watcher `repository_dispatch` event or an authorized `manual-drop/` push. | PR #18 synthetic production `repository_dispatch` receiver events started successful validation-only runs. `manual-drop/` currently acknowledges only; no real Watcher-originated result event or manual processing run is proven. | PARTIAL |
+| P2-02 | Official-first acquisition | The pipeline attempts the official announcement and its linked result destination before considering third-party sources. | Official-first policy and bounded official retrieval are implemented and covered by automated tests (PRs #48–#52); actual PRC/CSC linked result contents remain inaccessible/unverified in the inspected live path. | PARTIAL |
+| P2-03 | Result-content acquisition | The pipeline obtains the actual passer names and their corresponding official sequence numbers from an authorized source. | No authorized official sample containing actual name/sequence pairs has been acquired; PRC Drive view showed loading/sign-in and CSC access returned HTTP 403. Manual handoff is implemented but awaits Owner-reviewed pairs. | BLOCKED |
+| P2-04 | Content-format flexibility | A readable official webpage, portal response, embedded/public dataset, CSV, or other compliant format can be used; PDF possession is not required. | Content-first/manual-handoff architecture is implemented, but no representative official name/sequence content has yet passed through it. | BLOCKED |
+| P2-05 | PDF parsing when applicable | When PDF is the practical authorized source, the parser extracts the required records from a representative PDF. | Parser and normalization code have automated fixture/staging coverage (including earlier staging extraction work and PR #51); no representative official PDF layout has been validated. | PARTIAL |
 | P2-06 | Text cleaning / OCR handling | Where the chosen input requires cleaning or OCR, the pipeline either produces reviewable records or fails safely; it must not silently invent uncertain values. | Sanitized extraction output and warnings/failure report. | NOT RUN |
 | P2-07 | Normalization integrity | Name normalization does not change a person's identity or merge distinct records. | Before/after mapping sample and tests. | NOT RUN |
 | P2-08 | Sequence preservation | Every output record retains its exact source sequence value; no inferred or silently renumbered sequence is accepted. | Input/output pair comparison. | NOT RUN |
@@ -70,14 +72,14 @@
 | P2-15 | Official failure evidence | Before fallback, the system records source/article URLs, timestamps, methods, HTTP status, content type, final URL, PDF/signature outcome where relevant, and concise failure reason/classification. | Persisted official-attempt evidence record. | NOT RUN |
 | P2-16 | Provenance | Every import and published dataset is labelled `official_direct` or `third_party_fallback`; fallback is never described as official PDF extraction. | Batch metadata, validation report, and dataset provenance. | NOT RUN |
 | P2-17 | Clean-batch Greenlight | A clean representative batch meeting every Greenlight and applicable Part 20 validation condition receives 100% and is eligible for the automated GitOps path. | Full validation report and test run. | NOT RUN |
-| P2-18 | Missing-sequence safety test | A test input with missing sequence numbers fails Greenlight and automatic publication/merge is aborted. This is the explicit Part 17 Extraction Safety criterion. | Test fixture, failed validation report, and proof no auto-merge occurred. | NOT RUN |
+| P2-18 | Missing-sequence safety test | A test input with missing sequence numbers fails Greenlight and automatic publication/merge is aborted. This is the explicit Part 17 Extraction Safety criterion. | **Automated PASS:** PR #55 merged; deterministic extracted-table fixture omits sequence 002; `publish_batch` raises `PipelineError`, GitOps client is not initialized, no manifest is produced, missing sequence is reported. PR CI #41594622630 and main CI #41594733732 passed (112 Python tests). This is not a live official-PDF test. | AUTOMATED PASS |
 | P2-19 | Messy-data safety | A batch with unresolved anomalies or uncertain records is not auto-published and is routed for Owner review. | Validation report and open PR/manual-review evidence. | NOT RUN |
 | P2-20 | Array-of-Arrays dataset | Valid records are generated in the approved compact JSON structure, including the name and sequence fields and the defined dataset columns. | Generated JSON and schema validation. | NOT RUN |
 | P2-21 | Dataset sharding | A dataset exceeding 10 MB is split into the required alphabetic shards; each generated data shard remains strictly below 10 MiB as implemented. | File sizes, shard names, and record coverage check. | NOT RUN |
 | P2-22 | Manifest and hashes | `manifest.json` routes to the correct datasets/shards and includes cache-busting hashes matching the generated files. | Manifest and independently computed hash comparison. | NOT RUN |
 | P2-23 | D1 metadata handling | Operational metadata is written through the Cloudflare D1 REST API; no direct SQL driver or public frontend database query is introduced. | Sanitized API/workflow evidence and architecture check. | NOT RUN |
-| P2-24 | GitOps PR creation | Python creates a PR containing the generated dataset and its validation/provenance information. | PR URL, changed files, and validation report. | NOT RUN |
-| P2-25 | Conditional auto-merge | Only a 100% Greenlight batch can enter auto-merge, and merge occurs only after all required GitHub checks pass. | Exact PR/commit, check results, and merge record. | NOT RUN |
+| P2-24 | GitOps PR creation | Python creates a PR containing the generated dataset and its validation/provenance information. | GitOps integration and PR-generation path are implemented and automated-tested in PRs #48 and #50; no real official-result dataset PR has been created. | PARTIAL |
+| P2-25 | Conditional auto-merge | Only a 100% Greenlight batch can enter auto-merge, and merge occurs only after all required GitHub checks pass. | Exact-commit CI polling and fail-closed merge logic are implemented and automated-tested in PRs #48/#50; no real official-result batch has traversed this path. | PARTIAL |
 | P2-26 | Below-100% handling | A score below 100% aborts auto-merge, leaves the PR for manual review, and triggers the configured Owner alert. | PR state, score, and sanitized alert evidence. | NOT RUN |
 | P2-27 | Last-known-good preservation | Acquisition, extraction, comparison, or validation failure leaves the currently published dataset unchanged. | Before/after deployed dataset version/hash. | NOT RUN |
 
@@ -136,7 +138,7 @@
 | P5-06 | End-to-end broadcasting | After merge/deployment, the configured Facebook and Telegram announcements are sent. | Deployment and message/post references with timestamps. | NOT RUN |
 | P5-07 | End-to-end deployment and search | The dataset is deployed to Pages and a visitor can search for a test passer and see the correct sequence number. | Pages deployment and live search evidence. | NOT RUN |
 | P5-08 | Broken-input safety | A broken test input missing sequence numbers fails Greenlight and does not auto-merge or replace the public dataset. | Failed run, PR state, and unchanged public dataset hash. | NOT RUN |
-| P5-09 | CAPTCHA / human-verification stop | When an official source presents CAPTCHA or another human-verification barrier, automated retrieval stops; no bypass is attempted. | Sanitized blocked-attempt record and manual handoff evidence. | NOT RUN |
+| P5-09 | CAPTCHA / human-verification stop | When an official source presents CAPTCHA or another human-verification barrier, automated retrieval stops; no bypass is attempted. | Live CSC Region V HTTP 403 security-verification barrier led to source disablement/manual handling; PRC proxy/browser verification response was rejected as a source. No bypass attempted. Manual processing route remains incomplete. | PARTIAL |
 | P5-10 | Manual-drop override | An Owner-authorized manual content/file handoff in `/manual-drop/` triggers the processing workflow and still undergoes Greenlight validation. | Commit/run URL and validation report. | NOT RUN |
 | P5-11 | Secret protection | No API tokens, credentials, or private operational identifiers are exposed in public source code or frontend assets. | Secret scan and source/build inspection. | NOT RUN |
 | P5-12 | Worker secret storage | The Watcher's GitHub credential is stored as a Cloudflare Worker secret, not in source code. | Sanitized configuration/deployment evidence. | NOT RUN |
@@ -177,7 +179,41 @@ Verified by:
 
 ---
 
-## 9. Current project position (reference only)
+## 9. Historical testing and verification transferred — 2026-11-03
+
+This section records prior evidence so earlier tests are not repeated merely because this register was created later. Statuses above distinguish automated evidence from live acceptance.
+
+### Confirmed historical evidence
+
+- **Phase 1 automated Watcher:** PR #18 records 21 Watcher tests passed and 9 approved-Drive retrieval tests passed. The read-only diagnostics workflow completed successfully.
+- **Phase 1 production diagnostics:** production cron and Worker runtime were observed; standard-mode execution had no exceptions; production KV was inspected; two synthetic receiver events succeeded but performed metadata validation only (`pdf_acquired=false`, `extraction_performed=false`, `published=false`).
+- **Peak Week:** automated simulation verified the 30-second wait and two-scan behavior. A later production event observed `PEAK_WEEK=true` and two scans, but the retained record does not establish exact 30-second timestamps for that live invocation.
+- **Official-source compliance:** PRC robots.txt was checked (HTTP 200) and public result article paths were not disallowed. CSC Region V returned HTTP 403 security verification and automated polling was paused. The system did not attempt to bypass either barrier.
+- **Python/GitOps CI progression:** PR #48/#50 recorded 90 Python tests; PR #51 recorded 98; PR #52 recorded 104; PR #55 and its merged main-branch run recorded 112 Python tests passing. These are automated tests, not proof of a real result batch publication.
+- **Extraction Safety:** PR #55 is the specific end-to-end pipeline regression test for a missing sequence. It passes with a deterministic extracted-table fixture and proves fail-closed publication behavior.
+- **Owner verification:** The Owner explicitly confirmed personally testing Phase 1. This is retained as owner-reported verification in Blueprint Part 16; it does not replace independently retained logs for each acceptance test.
+
+### Historical evidence that must not be overstated
+
+- Synthetic HEAD fixtures do not satisfy the genuine Part 17 preemptive test.
+- Synthetic receiver events do not prove a genuine official source detection dispatched the receiver.
+- Staging parser tests do not prove extraction from a representative official result layout.
+- An earlier 50,000-record Node/GitHub-runner search timing (66.69 ms) is not a browser UI-frame benchmark and does not satisfy P4-11.
+- No complete real released-result batch has passed official acquisition, exact name/sequence validation, Greenlight, dataset generation, GitOps merge, and deployment.
+- No Facebook/Telegram publication, production Pages search, or complete end-to-end result release acceptance is evidenced by the records reviewed.
+
+### Evidence links
+
+- [Phase 1 live acceptance audit](docs/PHASE_1_ACCEPTANCE_AUDIT_2026-11-03.md)
+- [PR #18 — read-only Cloudflare production diagnostics](https://github.com/maraniejabertahil-lgtm/PH-EXAM-RESULTS/pull/18)
+- [PR #48 — Python/GitOps integration](https://github.com/maraniejabertahil-lgtm/PH-EXAM-RESULTS/pull/48)
+- [PR #51 — explicit PDF normalization](https://github.com/maraniejabertahil-lgtm/PH-EXAM-RESULTS/pull/51)
+- [PR #52 — bounded official PDF acquisition](https://github.com/maraniejabertahil-lgtm/PH-EXAM-RESULTS/pull/52)
+- [PR #55 — extraction safety regression test](https://github.com/maraniejabertahil-lgtm/PH-EXAM-RESULTS/pull/55)
+- [PR #55 CI](https://github.com/github/actions/runs/41594622630)
+- [Merged main CI](https://github.com/github/actions/runs/41594733732)
+
+## 10. Current project position (reference only)
 
 At the time this register was created, `PROGRESS_TRACKER.md` identifies **Phase 2 — The Extractor & Greenlight** as the active phase. The first unchecked task is to identify and validate a compliant official-content access path that provides passer names with their exact sequence numbers. The tracker also lists representative official-content mapping validation and a real released-result batch as remaining Phase 2 tasks.
 
