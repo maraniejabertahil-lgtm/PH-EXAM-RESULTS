@@ -275,7 +275,7 @@ PH-EXAM-RESULTS/
 
 ⸻
 
-PART 16 — IMPLEMENTATION ROADMAP
+PART 16 — IMPLEMENTATION ROADMAP & DELIVERY STATUS
 
 1. Phase 1: The Watcher - Build watcher-bot/. Test the 30-sec loop, Peak Week KV check, Preemptive HEAD requests, and Webhook dispatch to GitHub.
 2. Phase 2: The Extractor & Greenlight - Build Python logic. Must successfully grade messy vs clean PDFs. Build the GitOps PR creation and Auto-Merge logic.
@@ -295,7 +295,7 @@ The live PROGRESS_TRACKER.md remains the operational source of truth for task co
 
 ⸻
 
-PART 17 — REQUIRED TESTING AND ACCEPTANCE CRITERIA
+PART 17 — TESTING, VERIFICATION & ACCEPTANCE STATUS
 
 • Extraction Safety: The Greenlight Protocol MUST fail on a test PDF missing sequence numbers. Auto-publish must abort.
 • Performance: 50,000-record dataset searchable in browser without dropping UI frames.
