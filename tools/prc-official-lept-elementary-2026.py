@@ -134,17 +134,50 @@ def main():
         except Exception as error:
             log("download_attempt_error", attempt=index, error=repr(error))
     if pdf is None:
-        raise RuntimeError("Official file not publicly retrievable; no third-party fallback attempted")
-    (OUT / "official-result.pdf").write_bytes(pdf)
-
-    import pdfplumber
-    page_text = []
-    with pdfplumber.open(OUT / "official-result.pdf") as doc:
-        for page in doc.pages:
-            page_text.append(page.extract_text(layout=True) or page.extract_text() or "")
-    text = "\n\f\n".join(page_text)
-    (OUT / "official-layout-text.txt").write_text(text, encoding="utf-8")
-    log("pdf_text_extracted", pages=len(page_text), characters=len(text))
+        # Content-first alternative: ordinary public Google Drive preview UI.
+        # No download endpoint, private API, or access-control circumvention.
+        preview_url = "https://drive.google.com/file/d/" + DRIVE_ID + "/preview"
+        preview_text = []
+        with sync_playwright() as p:
+            browser = p.chromium.launch(headless=True)
+            page = browser.new_page(user_agent=UA, viewport={"width": 1600, "height": 1200})
+            response = page.goto(preview_url, wait_until="domcontentloaded", timeout=60000)
+            page.wait_for_timeout(5000)
+            final_url = page.url
+            if (urlparse(final_url).hostname or "") not in {"drive.google.com", "docs.google.com"}:
+                browser.close()
+                raise RuntimeError("Unexpected public-preview redirect host")
+            for frame in page.frames:
+                try:
+                    body = frame.locator("body").inner_text(timeout=4000)
+                    if body.strip():
+                        preview_text.append(body)
+                except Exception:
+                    pass
+            preview_html = page.content()
+            page.screenshot(path=str(OUT / "official-preview.png"), full_page=True)
+            browser.close()
+        combined = "\\n".join(preview_text)
+        low = (combined + preview_html[:100000]).lower()
+        if any(term in low for term in ("request access", "sign in to continue", "verify you are human", "captcha", "access denied")):
+            raise RuntimeError("Official public preview requires permission or human verification; manual handoff required")
+        log("official_public_preview", url=preview_url, final_url=final_url,
+            status=response.status if response else None, visible_text_characters=len(combined))
+        (OUT / "official-preview.html").write_text(preview_html, encoding="utf-8")
+        (OUT / "official-preview-text.txt").write_text(combined, encoding="utf-8")
+        text = combined
+        if len(text.strip()) < 100:
+            raise RuntimeError("Public preview did not expose readable document text; OCR prototype required")
+        (OUT / "official-layout-text.txt").write_text(text, encoding="utf-8")
+    else:
+        # Parse the response in memory. The source PDF is not written to disk.
+        import pymupdf
+        doc = pymupdf.open(stream=pdf, filetype="pdf")
+        page_text = [page.get_text("text", sort=True) for page in doc]
+        text = "\\n\\f\\n".join(page_text)
+        doc.close()
+        (OUT / "official-layout-text.txt").write_text(text, encoding="utf-8")
+        log("pdf_text_extracted_in_memory", pages=len(page_text), characters=len(text))
 
     # Conservative explicit sequence/name parsing. Sequence values are never inferred.
     rows = {}
