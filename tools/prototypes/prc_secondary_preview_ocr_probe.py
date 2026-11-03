@@ -70,15 +70,27 @@ def main():
             number = target["viewer_page"]
             control.fill(str(number))
             control.press("Enter")
-            page.wait_for_function(
-                """(n) => {
-                    const e = document.querySelector('input[aria-label^="Page is"]');
-                    return e && e.getAttribute('aria-label') === 'Page is ' + n;
-                }""",
-                arg=number, timeout=20000,
-            )
-            page.wait_for_timeout(1500)
-            visible = body.inner_text(timeout=10000)
+            deadline = __import__("time").monotonic() + 35
+            stable_samples = 0
+            previous_text = None
+            visible = ""
+            while __import__("time").monotonic() < deadline:
+                current_value = control.input_value(timeout=3000)
+                visible = body.inner_text(timeout=10000)
+                if current_value == str(number) and f"Page {number} of {page_count}" in visible:
+                    if visible == previous_text:
+                        stable_samples += 1
+                    else:
+                        stable_samples = 0
+                    previous_text = visible
+                    if stable_samples >= 2:
+                        break
+                else:
+                    stable_samples = 0
+                    previous_text = visible
+                page.wait_for_timeout(500)
+            else:
+                raise RuntimeError(f"Public viewer text did not stabilize on page {number}")
             if blocked(visible):
                 raise RuntimeError("Access challenge appeared during page navigation")
             marker = f"Page {number} of {page_count}"
