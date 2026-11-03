@@ -12,6 +12,7 @@ on:
       - "python-engine/retrieval/**"
       - "python-engine/extractor/**"
       - "python-engine/acquisition/**"
+      - "python-engine/processor/**"
       - "python-engine/requirements.txt"
       - "python-engine/tests/**"
   pull_request:
@@ -23,6 +24,10 @@ on:
       - ".github/workflows/watcher-ci.yml"
       - "python-engine/config/sources.json"
       - "python-engine/retrieval/**"
+      - "python-engine/extractor/**"
+      - "python-engine/acquisition/**"
+      - "python-engine/processor/**"
+      - "python-engine/requirements.txt"
       - "python-engine/tests/**"
   workflow_dispatch:
 
