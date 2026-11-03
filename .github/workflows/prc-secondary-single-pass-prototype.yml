@@ -1,0 +1,39 @@
+name: PRC Secondary Single-Pass Public Preview Prototype
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - optimization/post-proposal-secondary
+    paths:
+      - "tools/prototypes/prc_secondary_single_pass_probe.py"
+      - ".github/workflows/prc-secondary-single-pass-prototype.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  single-pass-prototype:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: "pip"
+          cache-dependency-path: python-engine/requirements.txt
+      - name: Install browser experiment dependencies
+        run: |
+          python -m pip install playwright
+          python -m playwright install --with-deps chromium
+      - name: Measure one-pass public preview capture
+        run: python tools/prototypes/prc_secondary_single_pass_probe.py
+      - name: Preserve prototype evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: prc-secondary-single-pass-prototype
+          path: official-prc-secondary-one-pass-prototype/
+          if-no-files-found: warn
+          retention-days: 7
