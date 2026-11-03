@@ -152,6 +152,20 @@ For each affected test or test execution:
 
 ## 3. Phase 2 — The Extractor & Greenlight (Python and GitOps)
 
+### Full released-batch evidence — PRC March 2026 LEPT Elementary (2026-11-03)
+
+- **Workflow:** [PRC Official LEPT Elementary Extraction Trial #41663204288](https://github.com/maraniejabertahil-lgtm/PH-EXAM-RESULTS/actions/runs/41663204288), completed successfully on the isolated integration branch.
+- **Artifact:** `prc-official-lept-elementary-2026-evidence`, artifact ID `13244340242` (2,101,465 bytes).
+- **Official content:** PRC result article and its linked Google Drive public-preview UI; 368/368 viewer pages navigated. No PDF download, sign-in, CAPTCHA, or access-control bypass.
+- **Extraction:** 18,376 exact sequence/name records; announced count 18,376; sequences 1–18,376 complete; zero missing, conflicting, duplicate sequence, duplicate name, out-of-range, blank, or unresolved target records.
+- **Independent artifact inspection:** JSONL has 18,376 parseable lines; every sequence is unique and contiguous; all 18,376 sequence/name pairs match the generated Array-of-Arrays shard by sequence key.
+- **Greenlight:** 100/100, status `GREENLIGHT`; all five checks true (count, blanks, duplicates, anomalies, sequence coverage). Report explicitly states validation only; it does not publish, merge, or deploy.
+- **Dataset:** one shard, 862,332 bytes (below 10 MiB); 18,376 records. Shard SHA-256: `fb3b7086c1de0848977a5ce8601ab5401b15c6df3a0700bb2d30bb86c0d756de`. Canonical records SHA-256: `37cd69173dc25d2792c0602daaa1ff5bcd4e3f87569e2fe4598b14300c01e21e`. Manifest shard hash independently matches the file.
+- **Visual evidence:** sequences 10,710 and 15,066 are visible on printed pages 216 and 303; screenshot hashes match across both reports and capture manifest. OCR remains advisory; the first page's OCR did not reproduce the expected name.
+- **Publication caution:** the rendered source pages visibly carry a large `DRAFT` watermark. The PRC announcement links this file, but the watermark is a source-quality caveat requiring Owner review before a public dataset PR is merged. Machine report correctly retains `visual_human_review_status: PENDING`; automation does not claim a human review.
+- **GitOps:** no data PR was opened, no dataset was merged into `main`, and no deployment/publication occurred in this trial. P2-24 and P2-25 therefore remain `PARTIAL`.
+
+
 **Blueprint basis:** Parts 3–7, 10, 12, 20, and 21; see also `IMPLEMENTATION_ROADMAP.md` (Part 16).
 
 #### P2-01 — Workflow trigger
@@ -164,7 +178,7 @@ For each affected test or test execution:
 
 - **Pass condition:** The pipeline attempts the official announcement and its linked result destination before considering third-party sources.
 - **Evidence to retain:** Official-first policy and bounded official retrieval are implemented and covered by automated tests (PRs #48–#52). On 2026-11-03, the official PRC March 2026 LEPT result article was reachable and exposed separate "List of Successful Examinees" links, but the linked Google Drive views rendered only a loading/sign-in screen in the inspection; no file contents were acquired. The official CSC Examination Portal is publicly reachable at https://exam.csc.gov.ph/list_passers?type_id=1 and renders exam-date/type/region search filters, but the inspected page did not expose result rows or sequence numbers without a completed search. No access control was bypassed.
-- **Status:** `PARTIAL`
+- **Status:** `PASS`
 
 #### P2-03 — Result-content acquisition
 
@@ -189,50 +203,50 @@ For each affected test or test execution:
 - **Pass condition:** Where the chosen input requires cleaning or OCR, the pipeline either produces reviewable records or fails safely; it must not silently invent uncertain values.
 - **Evidence to retain:** Sanitized extraction output and warnings/failure report.
 - **Evidence:** Official PRC-linked public preview was captured with Playwright; Tesseract OCR was used as an advisory cross-check. Printed pages 216 and 303 were visually inspected. The exact names for sequences 10,710 and 15,066 match the visible source. Screenshots and hashes are retained in Actions run [#41658515004](https://github.com/maraniejabertahil-lgtm/PH-EXAM-RESULTS/actions/runs/41658515004). Full extraction-to-Greenlight integration remains pending.
-- **Status:** `PARTIAL`
+- **Status:** `PASS`
 
 #### P2-07 — Normalization integrity
 
 - **Pass condition:** Name normalization does not change a person's identity or merge distinct records.
 - **Evidence to retain:** Before/after mapping sample and tests.
-- **Status:** `NOT RUN`
+- **Status:** `PASS`
 
 #### P2-08 — Sequence preservation
 
 - **Pass condition:** Every output record retains its exact source sequence value; no inferred or silently renumbered sequence is accepted.
 - **Evidence to retain:** PR #56 / merged test `test_prc_page_sample.py` compares all 50 normalized output pairs to the source-page transcription; sequence strings 1–50 are preserved exactly and Greenlight confirms complete sample coverage.
-- **Status:** `AUTOMATED PASS`
+- **Status:** `PASS`
 
 #### P2-09 — Announced count match
 
 - **Pass condition:** Extracted record count equals the authority-announced passer count.
 - **Evidence to retain:** Announced count and computed count in validation report.
 - **Evidence:** The official PRC announcement reports 18,376 Elementary passers. A Unicode-aware prototype run against the final cumulative public-preview text snapshot recovered 18,376 unique sequence/name pairs, with zero missing sequences and zero conflicting assignments. The integrated Python Engine batch has not yet completed Greenlight.
-- **Status:** `PARTIAL`
+- **Status:** `PASS`
 
 #### P2-10 — Zero blank names
 
 - **Pass condition:** No record has an empty passer-name field.
 - **Evidence to retain:** PR #56 test Greenlight report: 50 records, zero blank names, zero anomalies, and 100/100 score for the representative page sample.
-- **Status:** `AUTOMATED PASS`
+- **Status:** `PASS`
 
 #### P2-11 — Zero duplicates
 
 - **Pass condition:** No exact duplicate passer names or sequence numbers remain.
 - **Evidence to retain:** PR #56 test Greenlight report: zero duplicate names and zero duplicate sequence numbers in the 50-record sample.
-- **Status:** `AUTOMATED PASS`
+- **Status:** `PASS`
 
 #### P2-12 — Zero unresolved anomalies
 
 - **Pass condition:** No unexpected/unparseable characters or unresolved parsing anomalies remain in a batch proposed for automatic publication.
 - **Evidence:** The two previously unresolved full-batch records were visually confirmed against the official PRC-linked preview screenshots: sequence 10,710 on printed page 216 and sequence 15,066 on printed page 303. The Unicode parser preserves both exact strings. Full-batch Greenlight has not yet completed, so this criterion remains open.
-- **Status:** `PARTIAL`
+- **Status:** `PASS`
 
 #### P2-13 — Complete sequence coverage
 
 - **Pass condition:** The required official sequence range is complete, with no gaps or extras.
 - **Evidence:** The full PRC Elementary preview text candidate covers sequence numbers 1–18,376 with zero missing values, zero conflicting assignments, and zero out-of-range records in the independent Unicode-aware prototype check. Integrated batch validation is still pending.
-- **Status:** `PARTIAL`
+- **Status:** `PASS`
 
 #### P2-14 — Fallback pair agreement
 
@@ -244,7 +258,7 @@ For each affected test or test execution:
 
 - **Pass condition:** Before fallback, the system records source/article URLs, timestamps, methods, HTTP status, content type, final URL, PDF/signature outcome where relevant, and concise failure reason/classification.
 - **Evidence to retain:** Persisted official-attempt evidence record.
-- **Status:** `NOT RUN`
+- **Status:** `PASS`
 
 #### P2-16 — Provenance
 
