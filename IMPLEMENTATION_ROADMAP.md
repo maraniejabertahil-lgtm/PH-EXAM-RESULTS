@@ -61,9 +61,8 @@ Build the Python processing pipeline to acquire official result contents, extrac
 **Current delivery status:** Core extractor, Greenlight validation, dataset builder/sharding, GitOps integration, reviewed normalization, and bounded same-origin acquisition are implemented. PR #55 added a missing-sequence publication-abort regression test; the PR and main-branch CI passed with 112 Python tests.
 
 **Remaining Phase 2 tasks:**
-- Identify and validate a compliant PRC-only official-content access path that provides passer names and exact sequence numbers. CSC-specific source discovery, portal access, acquisition, and testing are excluded by Owner decision D-003. A downloadable PDF is not required. The PRC-linked Drive view inspected so far did not expose the records; owner-reviewed manual handoff is available.
-- Validate the extraction/normalization mapping against a representative PRC official content sample and prove exact name/sequence pairs.
-- Process one real, publicly released PRC result batch through acquisition, extraction, Greenlight, dataset generation, GitOps PR, CI, and merge. CSC-specific tests are excluded by D-003.
+- Completed: a compliant PRC owner-reviewed manual-content handoff yielded 50 name/sequence pairs from page 2 of the March 2026 LEPT Elementary roll; a regression test validates exact mapping and sample Greenlight (PR #56, CI run #119 passed). This does not establish automated Drive retrieval or full PDF/OCR extraction.
+- Remaining: process one complete, publicly released PRC result batch through acquisition/content handoff, extraction, Greenlight, dataset generation, GitOps PR, CI, and merge. The 50-row page sample is not the complete announced result batch. CSC-specific testing remains excluded by D-003.
 
 ---
 
