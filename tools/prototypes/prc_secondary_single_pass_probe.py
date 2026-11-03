@@ -46,6 +46,8 @@ def main() -> int:
             raise RuntimeError("Unexpected public-preview redirect host: " + host)
         text = page.locator("body").inner_text(timeout=20000)
         html = page.content()
+        screenshot_path = OUT / "single-pass-preview.png"
+        page.screenshot(path=str(screenshot_path), full_page=False)
         browser.close()
 
     lowered = (text + html[:100000]).lower()
@@ -75,16 +77,7 @@ def main() -> int:
     last_ok = records.get(EXPECTED) == EXPECTED_LAST
     text_path = OUT / "single-pass-visible-text.txt"
     text_path.write_text(text, encoding="utf-8")
-    screenshot_path = OUT / "single-pass-preview.png"
-    page_screenshot_hash = None
-    # Screenshot is intentionally captured from the same ordinary viewer load.
-    with sync_playwright() as playwright:
-        browser = playwright.chromium.launch(headless=True)
-        page = browser.new_page(user_agent=UA, viewport={"width": 1600, "height": 1200})
-        page.goto(URL, wait_until="domcontentloaded", timeout=60000)
-        page.wait_for_timeout(3500)
-        page.screenshot(path=str(screenshot_path), full_page=False)
-        browser.close()
+    # The screenshot and text are captured from the same single browser load.
     screenshot_bytes = screenshot_path.read_bytes()
     page_screenshot_hash = hashlib.sha256(screenshot_bytes).hexdigest()
     elapsed = round(time.perf_counter() - started, 3)
