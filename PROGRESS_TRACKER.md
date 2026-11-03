@@ -15,14 +15,14 @@
 
 ## Phase 2: The Extractor & Greenlight (Python & GitOps)
 - [x] Build Python `extractor/` using `pdfplumber` and `pandas` (raw text/table extraction; explicit mapping-based normalization is tracked separately; OCR is not implemented)
-- [x] Implement Part 20 Official-First Policy (persist official-attempt evidence before fallback; block fallback on authentication/CAPTCHA; same-origin official PDF acquisition is integrated; external Drive links remain manual pending access verification)
+- [x] Implement Part 20 Official-First Policy (persist official-attempt evidence before fallback; block fallback on authentication/CAPTCHA; same-origin PDF acquisition is available as an optional method; external Drive links remain manual pending access verification)
 - [x] Build `processor/` & Greenlight Protocol (100/0 fail-closed score; count, blanks, duplicates, anomalies, sequence coverage, and two-source fallback agreement)
 - [x] Implement Array-of-Arrays JSON builder and sharding logic (each data shard strictly below 10 MiB; Greenlight fingerprint required)
 - [x] Integrate the GitOps Manager with the processing workflow so a 100/100 Greenlight batch opens a PR and auto-merges only after all GitHub checks pass (reviewed-batch workflow and Python entry point merged in PRs #48 and #50; exact-commit CI dispatch and fail-closed merge; 90 Python tests passed; live result publication not yet run)
 - [x] Add explicit, reviewed PDF table-to-record normalization and connect it to Greenlight (PR #51 merged; 98 Python tests passed; mapping-driven, preserves sequence strings, never guesses or renumbers; real official PDF layout validation remains pending)
 - [x] Integrate bounded same-origin official PDF acquisition into the Python pipeline with robots.txt checks, article-link verification, PDF signature checks, and persisted HEAD/GET evidence (PR #52 merged; 104 Python tests passed; external Drive links remain manual-drop until public access policy is verified)
-- [ ] Verify whether official PRC/CSC linked Google Drive PDFs are publicly downloadable without authentication; the inspected official PRC sample link displayed Google's sign-in page, so no automated download or bypass was attempted; retain manual-drop until public access is verified
-- [ ] Validate at least one approved table mapping against a representative publicly accessible official PDF before enabling automated normalization for that source (no PDF fixture is present in the repository; requires a publicly accessible sample or owner-supplied manual-drop PDF)
+- [ ] Identify and validate a compliant official-content access path that yields passer names and their exact sequence numbers; PDF download is not required. The inspected PRC Drive sample displayed Google's sign-in page, so do not pursue PDF download unless it is genuinely needed and publicly authorized; investigate other official public content formats or an authorized manual content handoff.
+- [ ] Validate the extraction/normalization mapping against a representative official result-content sample (page, portal data, embedded dataset, CSV, or PDF) and prove exact passer-name/sequence-number pairs; PDF is optional.
 - [ ] Run a real, publicly released result batch through acquisition, extraction, Greenlight, dataset generation, GitOps PR, CI, and merge
 
 ## Phase 3: Automated Broadcasting
