@@ -162,7 +162,7 @@ def main():
             if page_input.count() != 1:
                 browser.close()
                 raise RuntimeError("Public viewer page navigation control not found")
-            if os.environ.get("PRC_PREVIEW_DIAGNOSTIC_ONLY") == "1":
+            if True:  # temporary isolated UI diagnostic; removed after inspection
                 inputs = page.locator("input").evaluate_all("(els) => els.map(e => ({outerHTML:e.outerHTML, value:e.value, disabled:e.disabled, readOnly:e.readOnly, type:e.type}))")
                 buttons = page.locator("button").evaluate_all("(els) => els.map(e => ({text:e.innerText, aria:e.getAttribute('aria-label'), title:e.title, disabled:e.disabled}))")
                 diagnostic = {"inputs": inputs, "buttons": buttons, "iframes": page.locator("iframe").count(), "control_before": page_input.evaluate("(e) => e.outerHTML"), "body_excerpt": initial[:2500]}
