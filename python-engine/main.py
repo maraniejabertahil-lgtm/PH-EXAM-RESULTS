@@ -127,6 +127,7 @@ def process_batch(batch_path: str | Path, *, root: str | Path | None = None) -> 
                     article_url=article_url,
                     content_url=document_url,
                     evidence_path=evidence_path,
+                    owner_reviewed=True,
                 )
             except OfficialContentError as exc:
                 raise PipelineError(f"Official content handoff stopped safely: {exc}") from exc
