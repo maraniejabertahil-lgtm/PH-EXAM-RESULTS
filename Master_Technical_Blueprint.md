@@ -16,7 +16,7 @@ Build a reliable, automated examination results platform for the Philippine Regu
 The platform must:
 
 1. Monitor and attempt authorized official examination-result sources first. Use verified third-party websites only as a fallback after compliant official retrieval has been confirmed unavailable.
-2. Acquire available official result documents or datasets.
+2. Acquire the official result CONTENTS in any compliant, publicly accessible format. The required information is each passer's name paired with the official sequence number. Downloading or storing a PDF is optional and is never a goal by itself.
 3. Process and extract examination information using Python.
 4. Validate extracted information before publication.
 5. Detect duplicates and prevent incorrect records.
@@ -31,6 +31,7 @@ The platform must:
 
 • Use free services only. Do not introduce a paid subscription, server, API, database, or automation platform.
 • Python must be the primary processing language.
+• CONTENT-FIRST RULE: The system needs passer names and their corresponding official sequence numbers, not PDF files. Use the most reliable compliant official content source and format available. Do not block progress merely because a linked PDF cannot be downloaded. PDF parsing remains an optional acquisition method when it is the authorized practical route.
 • Do not require a Cloudflare Worker or backend server for public searching.
 • Do not expose database credentials, API tokens, or private records to the browser.
 • Do not publish unverified examination results.
@@ -68,7 +69,7 @@ PART 3 — COMPLETE SYSTEM ARCHITECTURE
 [ GITHUB ACTIONS (The Worker) ] ── Wakes up Python Engine
            ↓
 [ PYTHON ENGINE ] 
- ├─ 1. Acquire: Downloads PDFs/CSVs.
+ ├─ 1. Acquire: Obtain official result contents from a compliant public source (page, portal data, embedded dataset, CSV, or PDF); downloading a PDF is optional.
  ├─ 2. Extract: Parses data (pdfplumber/pandas).
  ├─ 3. Validate (Greenlight Protocol): Calculates Confidence Score.
  ├─ 4. Store Metadata: Writes run status to CF D1 (via REST API).
@@ -357,3 +358,33 @@ The website, owner review report, logs, and any public source attribution must p
 - Preserve the last known-good public dataset whenever acquisition, extraction, comparison, or validation fails.
 
 This policy governs PRC and CSC. It does not authorize processing an examination or authority outside the requested/approved task scope.
+
+
+⸻
+
+PART 21 — CONTENT-FIRST RESULT ACQUISITION (OWNER RULE)
+
+21.1 Required output, not required file type
+
+The system's objective is to obtain and publish accurate passer records, specifically:
+- passer name; and
+- the corresponding official sequence number.
+
+A PDF file is NOT a required deliverable. Do not spend time trying to download, store, or validate a PDF merely for the sake of possessing the file. If the official result contents are available through a compliant public webpage, portal response, embedded/public dataset, CSV, or another readable official format, acquire and process those contents directly.
+
+21.2 Preferred acquisition behavior
+
+1. Check the official PRC/CSC announcement and its linked result destination.
+2. Determine where the actual passer names and sequence numbers are exposed.
+3. Use the simplest reliable, low-impact, authorized method to read those contents.
+4. Preserve the exact name–sequence pair. Do not invent, infer, or renumber sequence values.
+5. Validate announced totals, sequence coverage, blanks, duplicates, and anomalies before publication.
+6. Use PDF download/parsing only when it is a practical and compliant way to obtain the required contents—not as a mandatory gate.
+
+21.3 Access and provenance safeguards
+
+This rule does not authorize bypassing login, CAPTCHA, MFA, permissions, robots.txt, rate limits, or other access restrictions. If a portal requires authentication or human verification that the system is not authorized to use, stop automated access and use an owner-authorized manual content handoff/review path. Record the source, access method, timestamp, and provenance. Continue to apply the official-first and third-party fallback requirements in Part 20.
+
+21.4 Tracker interpretation
+
+Any task phrased as “verify whether an official PDF is downloadable” must be interpreted as superseded by this content-first rule. The active task is to identify and validate a compliant way to obtain the official passer names and sequence numbers. PDF downloadability is not a project acceptance criterion.
