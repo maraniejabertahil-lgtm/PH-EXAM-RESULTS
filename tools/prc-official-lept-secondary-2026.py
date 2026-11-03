@@ -125,7 +125,15 @@ def main():
         # No download endpoint, private API, or access-control circumvention.
         preview_url = "https://drive.google.com/file/d/" + DRIVE_ID + "/preview"
         final_visible_text = ""
-        page_count_match = re.search(r"Page 1 of\\s+(\\d+)", initial)\n        if not page_count_match:\n            browser.close()\n            raise RuntimeError("Could not read the public viewer's page count")\n        page_count = int(page_count_match.group(1))\n        if page_count < 1 or page_count > 2000:\n            browser.close()\n            raise RuntimeError("Public viewer page count is outside the safe bound")\n        target_pages = {}
+        page_count_match = re.search(r"Page 1 of\s+(\d+)", initial)
+        if not page_count_match:
+            browser.close()
+            raise RuntimeError("Could not read the public viewer's page count")
+        page_count = int(page_count_match.group(1))
+        if page_count < 1 or page_count > 2000:
+            browser.close()
+            raise RuntimeError("Public viewer page count is outside the safe bound")
+        target_pages = {}
         with sync_playwright() as p:
             browser = p.chromium.launch(headless=True)
             page = browser.new_page(user_agent=UA, viewport={"width": 1600, "height": 1200})
