@@ -283,6 +283,16 @@ PART 16 — IMPLEMENTATION ROADMAP
 4. Phase 4: Frontend Web Worker Search - Build UI, IndexedDB caching, and Web Worker search processing Array-of-Arrays JSON.
 5. Phase 5: End-to-End Simulation - Drop a dummy PDF on a target URL. Verify Worker detects it in <30s, wakes Python, auto-grades 100%, auto-merges, broadcasts, and deploys.
 
+### Implementation status recorded from PROGRESS_TRACKER.md — 2026-11-03
+
+This is an execution-status snapshot, not a change to the roadmap or its acceptance requirements.
+
+- **Phase 1 — Watcher:** All six Phase 1 implementation items are checked in PROGRESS_TRACKER.md. The Owner confirms personally testing the completed Phase 1 work. The tracker still distinguishes implementation tests from genuine production acceptance: genuine PRC result-release detection/dispatch acceptance remains to be revisited when an official release is available, and production preemptive URL templates remain unverified.
+- **Phase 2 — Extractor & Greenlight:** The tracker records the Python extractor, fail-closed Greenlight checks, Array-of-Arrays builder/sharding, GitOps integration, reviewed PDF normalization, and bounded same-origin PDF acquisition as implemented. PR #55 adds the missing-sequence publication-abort regression test; its merged main-branch CI run passed with 112 Python tests. Official-content access validation, representative official-content mapping validation, and a real released-result batch remain open.
+- **Phases 3–5:** Remain unchecked in the progress tracker and are not represented as implemented or accepted here.
+
+The live PROGRESS_TRACKER.md remains the operational source of truth for task completion. This snapshot must be reconciled when that tracker changes.
+
 ⸻
 
 PART 17 — REQUIRED TESTING AND ACCEPTANCE CRITERIA
@@ -290,6 +300,14 @@ PART 17 — REQUIRED TESTING AND ACCEPTANCE CRITERIA
 • Extraction Safety: The Greenlight Protocol MUST fail on a test PDF missing sequence numbers. Auto-publish must abort.
 • Performance: 50,000-record dataset searchable in browser without dropping UI frames.
 • Preemptive Test: Worker successfully identifies a PDF via HEAD request before the HTML page updates.
+
+### Recorded test status — 2026-11-03
+
+- **Extraction Safety:** Automated regression test added in PR #55 and merged to main. It supplies a simulated extracted-PDF-table fixture with a missing sequence (002), invokes the publication pipeline, and verifies Greenlight fails, GitOps is not initialized, no dataset manifest is produced, and the missing sequence is reported. Main-branch CI passed with 112 Python tests. **Status: PASS for the automated extracted-table safety test.** A real official PDF/layout validation remains separate and pending.
+- **Performance:** No 50,000-record browser/Web Worker performance evidence is recorded yet. **Status: NOT RUN.**
+- **Preemptive Test:** Phase 1 implementation work is checked in the progress tracker and the Owner confirms personally testing the Phase 1 work. However, the tracker and Phase 1 audit do not record a genuine result-resource HEAD success occurring before the official HTML announcement changed. **Status: implementation/owner-tested; formal Part 17 acceptance remains pending live evidence.**
+
+These statuses report the evidence currently recorded in the progress tracker, merged test, and Phase 1 audit. They do not waive any Part 17 pass condition or convert an implementation checkbox into live acceptance.
 
 ⸻
 
