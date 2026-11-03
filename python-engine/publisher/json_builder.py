@@ -95,15 +95,21 @@ def _atomic_write(path: Path, content: bytes) -> None:
 
 
 def _partition_rows(rows: list[list[Any]], max_bytes: int) -> list[list[list[Any]]]:
+    """Partition rows in linear time using exact incremental UTF-8 JSON sizing."""
     if not rows:
         return [[]]
     chunks: list[list[list[Any]]] = []
     current: list[list[Any]] = []
+    base_size = len(_json_bytes({"columns": COLUMNS, "data": []}))
+    current_size = base_size
     for row in rows:
-        candidate = current + [row]
-        candidate_size = len(_json_bytes({"columns": COLUMNS, "data": candidate}))
+        row_size = len(
+            json.dumps(row, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+        )
+        candidate_size = current_size + (1 if current else 0) + row_size
         if candidate_size <= max_bytes:
-            current = candidate
+            current.append(row)
+            current_size = candidate_size
             continue
         if not current:
             raise DatasetBuildError(
@@ -111,10 +117,10 @@ def _partition_rows(rows: list[list[Any]], max_bytes: int) -> list[list[list[Any
             )
         chunks.append(current)
         current = [row]
-        single_size = len(_json_bytes({"columns": COLUMNS, "data": current}))
-        if single_size > max_bytes:
+        current_size = base_size + row_size
+        if current_size > max_bytes:
             raise DatasetBuildError(
-                f"A single record requires {single_size} bytes, exceeding the {max_bytes}-byte shard limit."
+                f"A single record requires {current_size} bytes, exceeding the {max_bytes}-byte shard limit."
             )
     if current:
         chunks.append(current)

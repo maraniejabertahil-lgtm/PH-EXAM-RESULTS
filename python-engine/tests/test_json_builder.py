@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import tempfile
 import unittest
@@ -115,6 +116,26 @@ class ArrayJsonBuilderTests(unittest.TestCase):
         self.assertEqual(manifest["source_a_id"], "mirror-a")
         self.assertEqual(manifest["source_b_id"], "mirror-b")
         self.assertTrue(manifest["comparison_records_sha256"])
+
+    def test_large_batch_uses_exact_incremental_shard_sizing(self) -> None:
+        records = [
+            {"name": f"PERSON {index:05d}, SAMPLE ÑAME", "sequence_number": str(index)}
+            for index in range(1, 12001)
+        ]
+        report = validate_records(records, announced_count=len(records))
+        limit = 10 * 1024 * 1024
+        manifest = build_dataset(
+            records, authority="PRC", exam="LET", year=2026,
+            output_dir=self.output, greenlight_report=report, max_shard_bytes=limit,
+        )
+        total = 0
+        for entry in manifest["shards"]:
+            path = self.output / entry["file"]
+            self.assertEqual(path.stat().st_size, entry["size_bytes"])
+            self.assertEqual(hashlib.sha256(path.read_bytes()).hexdigest(), entry["sha256"])
+            self.assertLessEqual(path.stat().st_size, limit)
+            total += entry["record_count"]
+        self.assertEqual(total, len(records))
 
     def test_builder_preserves_original_name_spacing(self) -> None:
         rows = [{"name": "  ALPHA, ANN  ", "sequence_number": "001"}]
