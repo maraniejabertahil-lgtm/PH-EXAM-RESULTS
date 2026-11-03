@@ -19,7 +19,9 @@
 - [x] Build `processor/` & Greenlight Protocol (100/0 fail-closed score; count, blanks, duplicates, anomalies, sequence coverage, and two-source fallback agreement)
 - [x] Implement Array-of-Arrays JSON builder and sharding logic (each data shard strictly below 10 MiB; Greenlight fingerprint required)
 - [x] Integrate the GitOps Manager with the processing workflow so a 100/100 Greenlight batch opens a PR and auto-merges only after all GitHub checks pass (reviewed-batch workflow and Python entry point merged in PRs #48 and #50; exact-commit CI dispatch and fail-closed merge; 90 Python tests passed; live result publication not yet run)
-- [ ] Integrate compliant official PDF acquisition and table-to-record normalization into the Python pipeline (current PDF parser remains raw-text/table extraction only; validate against a representative official PRC/CSC PDF before automating normalization)
+- [x] Add explicit, reviewed PDF table-to-record normalization and connect it to Greenlight (PR #51 merged; 98 Python tests passed; mapping-driven, preserves sequence strings, never guesses or renumbers; real official PDF layout validation remains pending)
+- [ ] Integrate compliant official PRC/CSC PDF acquisition into the Python pipeline with persisted official-attempt evidence and no access-control bypass
+- [ ] Validate at least one approved table mapping against a representative publicly accessible official PDF before enabling automated normalization for that source
 - [ ] Run a real, publicly released result batch through acquisition, extraction, Greenlight, dataset generation, GitOps PR, CI, and merge
 
 ## Phase 3: Automated Broadcasting
