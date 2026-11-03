@@ -8,7 +8,7 @@
 ## Phase 1: The Watcher (Cloudflare Worker)
 - [x] Initialize `watcher-bot/` directory and `wrangler.toml` config
 - [x] Implement standard 1-minute cron check against approved official PRC/CSC sources (PRC monitored; CSC safely paused pending compliant access)
-- [ ] Implement Peak Week Mode (Cloudflare KV check, 30-sec loop)
+- [x] Implement Peak Week Mode (Cloudflare KV check, 30-sec loop)
 - [ ] Add Preemptive Strike logic (HEAD requests predicting PDF URLs)
 - [ ] Configure `repository_dispatch` Webhook to wake GitHub Actions
 
