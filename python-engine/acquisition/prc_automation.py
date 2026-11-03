@@ -154,7 +154,7 @@ def parse_official_article(article_url: str, html: bytes):
     counts = {}
     for level in ("elementary", "secondary"):
         match = re.search(
-            rf"([0-9][0-9,]*)\s+{level}\s+(?:teachers|passers|examinees)?[\\s\\S]{0,240}?\bpassed\b",
+            rf"([0-9][0-9,]*)\s+{level}\s+(?:teachers|passers|examinees)?[\s\S]{0,240}?\bpassed\b",
             page_text, re.I,
         )
         if match:
