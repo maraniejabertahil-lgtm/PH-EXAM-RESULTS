@@ -1,15 +1,16 @@
 #!/usr/bin/env python3
-"""Capture source-page canvases for human review using the ordinary public preview UI.
+"""Capture official PRC preview pages for human visual review.
 
+Uses only the ordinary public Google Drive preview UI and visible page-number control.
 No PDF download endpoint, private API, login, CAPTCHA solving, or access-control bypass.
-The visible viewer text is used only to confirm navigation; OCR is advisory and never
-changes names or sequence values.
+Viewer text confirms navigation only. OCR is advisory and never changes a record.
 """
 import hashlib
 import json
 import subprocess
 from pathlib import Path
 from urllib.parse import urlparse
+from PIL import Image
 from playwright.sync_api import sync_playwright
 
 DRIVE_ID = "1kY0CTSuwdxDwnf1UEvWe27HDEXU3rolE"
@@ -74,26 +75,16 @@ def main():
                     f"Expected sequence/name not exposed by viewer text on page {number}"
                 )
 
-            # Screenshot the actual largest visible PDF canvas, not the viewer chrome.
-            canvases = page.locator("canvas")
-            candidates = canvases.evaluate_all("""els => els.map((el, index) => {
-              const r = el.getBoundingClientRect();
-              const style = getComputedStyle(el);
-              return {index, area: r.width * r.height,
-                visible: r.width > 150 && r.height > 150 &&
-                  style.display !== 'none' && style.visibility !== 'hidden' &&
-                  r.bottom > 0 && r.right > 0 && r.top < innerHeight && r.left < innerWidth,
-                x: r.x, y: r.y, width: r.width, height: r.height};
-            })""")
-            candidates = [item for item in candidates if item["visible"]]
-            if not candidates:
-                raise RuntimeError(f"No visible source-page canvas on viewer page {number}")
-            candidates.sort(key=lambda item: item["area"], reverse=True)
-            selected = candidates[0]
+            # Full viewer screenshot includes the rendered document page even when
+            # Google hosts its page canvas inside an inaccessible nested frame.
             screenshot = OUT / f"official-source-page-{target['printed_page']:03}.png"
-            canvases.nth(selected["index"]).screenshot(path=str(screenshot), timeout=20000)
+            page.screenshot(path=str(screenshot), full_page=True, timeout=30000)
+            with Image.open(screenshot) as image:
+                width, height = image.size
+                if width < 500 or height < 500:
+                    raise RuntimeError("Captured preview screenshot is unexpectedly small")
+                image.verify()
             digest = hashlib.sha256(screenshot.read_bytes()).hexdigest()
-
             ocr = subprocess.run(
                 ["tesseract", str(screenshot), "stdout", "--psm", "6"],
                 check=True, capture_output=True, text=True, timeout=60
@@ -102,16 +93,15 @@ def main():
             ocr_path.write_text(ocr, encoding="utf-8")
             visible_path = OUT / f"official-source-page-{target['printed_page']:03}-viewer.txt"
             visible_path.write_text(visible, encoding="utf-8")
-
             results.append({
                 **target,
                 "http_status": response.status if response else None,
                 "viewer_marker": marker,
                 "viewer_text_confirmed": True,
-                "canvas_capture": str(screenshot),
-                "canvas_sha256": digest,
-                "canvas_bytes": screenshot.stat().st_size,
-                "canvas_geometry": selected,
+                "screenshot": str(screenshot),
+                "screenshot_dimensions": [width, height],
+                "screenshot_sha256": digest,
+                "screenshot_bytes": screenshot.stat().st_size,
                 "ocr_text_file": str(ocr_path),
                 "ocr_contains_expected_name": target["expected_visible_text"] in ocr,
                 "human_visual_verification": "PENDING",
@@ -120,7 +110,7 @@ def main():
 
     report = {
         "source": URL,
-        "method": "ordinary public preview UI; visible page control; largest visible PDF canvas screenshot",
+        "method": "ordinary public preview UI; visible page control; full-page rendered viewer screenshot",
         "pdf_downloaded": False,
         "access_controls_bypassed": False,
         "ocr_is_advisory_only": True,
