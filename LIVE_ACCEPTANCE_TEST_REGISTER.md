@@ -318,7 +318,7 @@ For each affected test or test execution:
 
 **Related Owner decisions:** `D-001`, `D-002`, and `D-003` in Part 16. D-003 excludes CSC-specific testing; these Phase 2 acceptance checks apply to PRC only.
 
-**Phase 2 acceptance note:** The active project task is to find and validate a compliant official-content access path yielding exact passer-name/sequence-number pairs. A downloadable PDF is not a pass condition. Representative official-content mapping validation and a real released batch are separate acceptance milestones.
+**Phase 2 acceptance note:** The active project task is to find and validate a compliant PRC-only official-content access path yielding exact passer-name/sequence-number pairs. A downloadable PDF is not a pass condition. Representative PRC content mapping validation and a real PRC released batch are separate acceptance milestones. CSC-specific tests are excluded by D-003.
 
 ---
 
