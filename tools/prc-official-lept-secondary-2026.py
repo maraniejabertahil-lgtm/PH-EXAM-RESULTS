@@ -143,18 +143,31 @@ def capture(shard, shards):
             browser.close()
             raise RuntimeError("Unexpected public-preview redirect host")
         body = page.locator("body")
-        # Poll for the viewer instead of a fixed 4 s sleep.
+        # Poll for the viewer instead of a fixed 4 s sleep. If the ordinary
+        # public preview is temporarily blank, reload it once; never solve a
+        # challenge or repeat requests indefinitely.
         initial, count_match = "", None
-        ready_deadline = time.monotonic() + 25
-        while time.monotonic() < ready_deadline:
-            initial = body.inner_text(timeout=10000)
-            count_match = re.search(r"Page 1 of\s+(\d+)", initial)
+        for viewer_attempt in range(2):
+            ready_deadline = time.monotonic() + 25
+            while time.monotonic() < ready_deadline:
+                initial = body.inner_text(timeout=10000)
+                count_match = re.search(r"Page 1 of\s+(\d+)", initial)
+                if count_match:
+                    break
+                low_initial = initial.lower() + page.content()[:100000].lower()
+                if any(term in low_initial for term in CHALLENGE_TERMS):
+                    browser.close()
+                    raise RuntimeError("Official public preview requires permission or human verification")
+                page.wait_for_timeout(250)
             if count_match:
                 break
-            page.wait_for_timeout(250)
+            if viewer_attempt == 0:
+                print("[viewer] page count not visible; retrying the ordinary preview load once", flush=True)
+                page.reload(wait_until="domcontentloaded", timeout=60000)
+                page.wait_for_timeout(1000)
         if not count_match:
             browser.close()
-            raise RuntimeError("Could not read the public viewer's page count")
+            raise RuntimeError("Could not read the public viewer's page count after one safe reload")
         page_count = int(count_match.group(1))
         if page_count < 1 or page_count > 2000:
             browser.close()
