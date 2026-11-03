@@ -163,7 +163,7 @@ For each affected test or test execution:
 - **Dataset:** one shard, 862,332 bytes (below 10 MiB); 18,376 records. Shard SHA-256: `fb3b7086c1de0848977a5ce8601ab5401b15c6df3a0700bb2d30bb86c0d756de`. Canonical records SHA-256: `37cd69173dc25d2792c0602daaa1ff5bcd4e3f87569e2fe4598b14300c01e21e`. Manifest shard hash independently matches the file.
 - **Visual evidence:** sequences 10,710 and 15,066 are visible on printed pages 216 and 303; screenshot hashes match across both reports and capture manifest. OCR remains advisory; the first page's OCR did not reproduce the expected name.
 - **Publication caution:** the rendered source pages visibly carry a large `DRAFT` watermark. The PRC announcement links this file, but the watermark is a source-quality caveat requiring Owner review before a public dataset PR is merged. Machine report correctly retains `visual_human_review_status: PENDING`; automation does not claim a human review.
-- **GitOps:** no data PR was opened, no dataset was merged into `main`, and no deployment/publication occurred in this trial. P2-24 and P2-25 therefore remain `PARTIAL`.
+- **GitOps attempt:** [run #41665288366](https://github.com/maraniejabertahil-lgtm/PH-EXAM-RESULTS/actions/runs/41665288366) regenerated the Greenlight-approved dataset and staged it on `data/greenlight-37cd69173dc2` (commit `7c44df77b94f494d6e74bdc46ad547017272cbf1`). PR creation then failed with GitHub API HTTP 403: `GitHub Actions is not permitted to create or approve pull requests.` The repository's Actions setting must be enabled by the Owner. No data PR was opened, no dataset was merged into `main`, and no deployment/publication occurred. The source file's DRAFT watermark also remains an Owner-review caveat before public merge. P2-24 and P2-25 therefore remain `PARTIAL`.
 
 
 **Blueprint basis:** Parts 3–7, 10, 12, 20, and 21; see also `IMPLEMENTATION_ROADMAP.md` (Part 16).
@@ -269,7 +269,7 @@ For each affected test or test execution:
 #### P2-17 — Clean-batch Greenlight
 
 - **Pass condition:** A clean representative batch meeting every Greenlight and applicable Part 20 validation condition receives 100% and is eligible for the automated GitOps path.
-- **Evidence:** Run #41663204288 produced a complete 18,376-record batch with Greenlight 100/100 and all five required checks true. The report explicitly states validation only; GitOps publication was not performed.
+- **Evidence:** Runs #41663204288 and #41664546615 each produced the complete 18,376-record batch with Greenlight 100/100 and all five required checks true. Run #41664546615 used the linear-time shard builder; the Python Engine validation/dataset step completed in 5 seconds versus 73 seconds in the prior run, with identical canonical records hash. The later GitOps attempt #41665288366 was blocked at PR creation by repository Actions permissions.
 - **Status:** `PASS`
 
 #### P2-18 — Missing-sequence safety test
@@ -311,13 +311,13 @@ For each affected test or test execution:
 #### P2-24 — GitOps PR creation
 
 - **Pass condition:** Python creates a PR containing the generated dataset and its validation/provenance information.
-- **Evidence to retain:** GitOps integration and PR-generation path are implemented and automated-tested in PRs #48 and #50; no real official-result dataset PR has been created.
+- **Evidence:** The real dataset branch `data/greenlight-37cd69173dc2` was created and contains the generated shard and manifest. The GitHub Actions job then received HTTP 403 from `POST /pulls`: `GitHub Actions is not permitted to create or approve pull requests.` No PR exists yet. Owner action required: enable the repository setting allowing GitHub Actions to create and approve pull requests.
 - **Status:** `PARTIAL`
 
 #### P2-25 — Conditional auto-merge
 
 - **Pass condition:** Only a 100% Greenlight batch can enter auto-merge, and merge occurs only after all required GitHub checks pass.
-- **Evidence to retain:** Exact-commit CI polling and fail-closed merge logic are implemented and automated-tested in PRs #48/#50; no real official-result batch has traversed this path.
+- **Evidence:** The 100/100 report passed `GitOps.validate_greenlight`, and the data branch was staged. The PR creation permission error stopped execution before PR CI dispatch, exact-commit checks, or merge. The existing exact-commit CI/merge logic remains covered by unit tests but has not yet run against this real dataset PR.
 - **Status:** `PARTIAL`
 
 #### P2-26 — Below-100% handling
