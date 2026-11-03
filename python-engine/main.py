@@ -18,6 +18,7 @@ if str(ENGINE_DIR) not in sys.path:
     sys.path.insert(0, str(ENGINE_DIR))
 
 from acquisition.official_first_policy import third_party_fallback_gate
+from acquisition.official_pdf import AcquisitionError, acquire_official_pdf
 from extractor.pdf_parser import extract_pdf
 from processor.greenlight import validate_records, write_validation_report
 from processor.normalizer import NormalizationError, normalize_extracted_tables
@@ -111,7 +112,20 @@ def process_batch(batch_path: str | Path, *, root: str | Path | None = None) -> 
             document_host == "drive.google.com" and source.get("allow_linked_drive_documents") is True
         ):
             raise PipelineError("Official document URL is outside the approved source origin or allowed Drive links.")
-        pdf_path = _repo_path(batch.get("source_pdf", ""), repository_root)
+        if isinstance(batch.get("source_pdf"), str) and batch["source_pdf"].strip():
+            pdf_path = _repo_path(batch["source_pdf"], repository_root)
+            acquisition_log_path = None
+        else:
+            article_url = _https_url(batch.get("official_article_url"), "official_article_url")
+            acquired = acquire_official_pdf(
+                source=source,
+                article_url=article_url,
+                document_url=document_url,
+                output_path=repository_root / "python-engine" / "artifacts" / "official-source.pdf",
+                attempt_log_path=repository_root / "python-engine" / "artifacts" / "official-attempt-log.json",
+            )
+            pdf_path = Path(acquired["path"])
+            acquisition_log_path = acquired["attempt_log_path"]
         extraction = extract_pdf(pdf_path)
         expected_hash = batch.get("source_pdf_sha256")
         if expected_hash and expected_hash != extraction["source_file_sha256"]:
@@ -172,6 +186,8 @@ def process_batch(batch_path: str | Path, *, root: str | Path | None = None) -> 
     report["official_source_url"] = batch.get("official_source_url")
     report["official_document_url"] = batch.get("official_document_url")
     report["source_pdf_sha256"] = source_pdf_sha256
+    report["official_article_url"] = batch.get("official_article_url")
+    report["official_attempt_log"] = acquisition_log_path if provenance == "official_direct" else batch.get("official_attempt_log")
     report["source_a_url"] = batch.get("source_a_url") if provenance == "third_party_fallback" else None
     report["source_b_url"] = batch.get("source_b_url") if provenance == "third_party_fallback" else None
 
@@ -235,7 +251,7 @@ def main() -> int:
     args = parser.parse_args()
     try:
         result = publish_batch(args.batch)
-    except (PipelineError, GitOpsError, ValueError, TypeError) as exc:
+    except (PipelineError, AcquisitionError, GitOpsError, ValueError, TypeError) as exc:
         print(f"PUBLICATION STOPPED: {exc}", file=sys.stderr)
         return 1
     print(json.dumps(result, ensure_ascii=False, indent=2))
