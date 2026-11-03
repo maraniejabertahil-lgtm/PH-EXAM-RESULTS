@@ -71,6 +71,35 @@ jobs:
               exit 1
               ;;
           esac
+      - name: Verify active production Worker deployment and version
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
+        run: |
+          set -euo pipefail
+          endpoint="https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/workers/scripts/ph-exam-results-watcher/deployments?per_page=5"
+          code="$(curl -sS -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" -H "Accept: application/json" -o /tmp/worker-deployments.json -w '%{http_code}' "$endpoint")"
+          echo "Production Worker deployments API: HTTP $code"
+          if [ "$code" = "200" ]; then
+            python - <<'PY'
+          import json
+          with open("/tmp/worker-deployments.json", encoding="utf-8") as handle:
+              payload = json.load(handle)
+          if not payload.get("success"):
+              raise SystemExit("Cloudflare did not confirm deployment query success")
+          deployments = payload.get("result", {}).get("deployments", [])
+          if not deployments:
+              raise SystemExit("Cloudflare returned no Worker deployments")
+          active = deployments[0]
+          print("Latest active deployment:", active.get("id"))
+          print("Deployment created:", active.get("created_on"))
+          print("Deployment source:", active.get("source"))
+          for item in active.get("versions", []):
+              print("Traffic version:", item.get("version_id"), "traffic percentage:", item.get("percentage"))
+          PY
+          else
+            echo "::warning::Could not read active deployment list (HTTP $code); compare remains unresolved. No production settings were changed."
+          fi
       - name: Verify deployed production Worker Cron schedule
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
