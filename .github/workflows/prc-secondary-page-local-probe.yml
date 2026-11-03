@@ -1,6 +1,12 @@
 name: PRC Secondary Page-Local DOM Performance Probe
 
 on:
+  push:
+    branches:
+      - optimization/secondary-page-local-probe-20261104
+    paths:
+      - tools/prototypes/prc_secondary_page_local_probe.py
+      - .github/workflows/prc-secondary-page-local-probe.yml
   workflow_dispatch:
 
 permissions:
