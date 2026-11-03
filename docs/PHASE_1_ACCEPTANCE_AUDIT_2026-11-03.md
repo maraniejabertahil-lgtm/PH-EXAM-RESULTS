@@ -184,3 +184,61 @@ The latest main-branch audit update records a post-PR #32 live scheduled Worker 
 The owner-triggered manual-drop processing route remains unimplemented: the current push workflow only acknowledges a file change and explicitly performs no acquisition, extraction, or publication. Track this under the processing/worker integration phase and keep publication disabled until its own validation and approval gates pass.
 
 **Corrected Phase 1 decision: NOT ACCEPTED.** The live cron and PRC baseline check are verified, but full owner-approved source coverage, a genuine live detection-to-receiver event with duplicate evidence, and genuine preemptive URL detection remain unproven. Peak Week two-scan execution is already evidenced by the recorded production event.
+
+
+## 14. Superseding live-source and implementation correction — 2026-11-03
+
+This section supersedes older statements in Sections 9–13 that describe the configured PRC source as the general homepage, say PRC pagination is not traversed, or describe the PRC article-discovery cap as three articles total. Those statements do not match the current `main` source registry and Worker implementation.
+
+### Current PRC configuration and crawler
+
+The current `main` registry configures the enabled PRC source at the dedicated official exam-results listing:
+
+`https://www.prc.gov.ph/articles/exam-results`
+
+The current source settings are:
+
+- `result_listing_page_count: 3` — base listing plus `?page=1` and `?page=2`.
+- `max_result_articles_per_page: 10` — at most ten matching result articles per listing page.
+- `max_new_result_articles_per_scan: 3` — at most three newly discovered articles processed per scan.
+- `track_new_articles_only: true` — initial snapshot skips historical articles.
+- Attachment filter: “List of Successful Examinees”.
+- Linked documents must pass the existing PDF verification before dispatch.
+
+The Worker implementation confirms the three-page cap, ten-article-per-page cap, same-origin article URL validation, and three-new-article batch size. Therefore the earlier claim that the crawler does not traverse pagination is superseded and must not be used for current status reporting.
+
+The CSC Region V source remains disabled. This follow-up did not perform any CSC-side live request.
+
+### Current official CPALE check
+
+The official PRC Exam Results listing, checked on 2026-11-03, still displays the 26 October 2026 Metallurgical Engineers result as its newest entry; it does not display an October 2026 CPALE result announcement.
+
+The official 2026 schedule lists 3 November 2026 as the target CPALE result-release date. This is a target date, not a guaranteed publication time.
+
+The official PRC Downloads catalogue contains an October 2026 CPALE PDF in its Board Programs section. Opening the PDF confirms that it is the examination program, not the results or list of passers. It is not a result signal and must not be dispatched as one.
+
+### Latest production runtime evidence
+
+The latest captured production observation in read-only diagnostics (2026-11-03 02:29:14 UTC) reported:
+
+- `mode: peak_week`
+- `configured_sources: 2`
+- `approved_enabled_sources: 1`
+- `outbound_subrequests_used: 6` against a safety limit of 45
+- PRC listing check 1: `unchanged`
+- PRC listing check 2: `unchanged`
+- No Worker exceptions in the captured tail.
+
+The implementation waits 30 seconds between the two Peak Week scans. The captured two-scan execution is valid evidence of Peak Week scheduling behavior, but it is not evidence of a genuine preemptive PDF hit, a new article detection, or a successful production `repository_dispatch`.
+
+The production deployment/version reconciliation and cron evidence are recorded in the read-only diagnostics run:
+https://github.com/maraniejabertahil-lgtm/PH-EXAM-RESULTS/actions/runs/41566334357
+
+### Corrected outstanding acceptance items
+
+1. Observe a genuine new official PRC result article/PDF passing through production detection and the production receiver; retain event and duplicate-suppression evidence.
+2. Establish and verify an official preemptive URL pattern before enabling any template; no template is currently configured.
+3. Expand owner-approved source coverage beyond the current bounded PRC listing integration. CSC remains disabled and excluded from this live test.
+4. Keep PDF acquisition, extraction, validation, and publication as downstream processing responsibilities; Phase 1 Watcher acceptance must not be overstated as end-to-end result publication.
+
+**Current decision: PHASE 1 REMAINS NOT ACCEPTED.** The PRC listing integration and two-scan Peak Week runtime are verified, but no genuine new-result dispatch or genuine preemptive detection has been demonstrated, and complete approved source coverage is not established.
