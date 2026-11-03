@@ -229,8 +229,15 @@ def main():
                     if candidate:
                         sequence = int(candidate.group(1))
                         candidate_name = " ".join(candidate.group(2).split()).strip(" .")
-                        if sequence in {1, EXPECTED} and target_name_is_valid(candidate_name) and sequence not in target_pages:
-                            target_pages[sequence] = {"name": candidate_name, "viewer_page": page_no}
+                        if (
+                            (sequence == 1 and page_no == 1)
+                            or (sequence == EXPECTED and page_no == page_count)
+                        ) and target_name_is_valid(candidate_name) and sequence not in target_pages:
+                            target_pages[sequence] = {
+                                "name": candidate_name,
+                                "viewer_page": page_no,
+                                "printed_page": page_no + 1,
+                            }
                 final_visible_text = visible
             # Union distinct lines from each stable snapshot. This retains text
             # exposed incrementally by the viewer while deduplicating cumulative DOM.
@@ -324,7 +331,7 @@ def main():
     expected_visual_records = {
         str(sequence): {
             "name": target_pages[sequence]["name"],
-            "printed_page": target_pages[sequence]["viewer_page"],
+            "printed_page": target_pages[sequence]["printed_page"],
             "viewer_page": target_pages[sequence]["viewer_page"],
             "screenshot_sha256": "",
         }
