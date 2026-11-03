@@ -61,7 +61,7 @@ Build the Python processing pipeline to acquire official result contents, extrac
 **Current delivery status:** Core extractor, Greenlight validation, dataset builder/sharding, GitOps integration, reviewed normalization, and bounded same-origin acquisition are implemented. PR #55 added a missing-sequence publication-abort regression test; the PR and main-branch CI passed with 112 Python tests.
 
 **Remaining Phase 2 tasks:**
-- Identify and validate a compliant official-content access path that provides passer names and exact sequence numbers. A downloadable PDF is not required. The PRC-linked Drive view inspected so far did not expose the records; owner-reviewed manual handoff is available.
+- Identify and validate a compliant PRC-only official-content access path that provides passer names and exact sequence numbers. CSC-specific source discovery, portal access, acquisition, and testing are excluded by Owner decision D-003. A downloadable PDF is not required. The PRC-linked Drive view inspected so far did not expose the records; owner-reviewed manual handoff is available.
 - Validate the extraction/normalization mapping against a representative official content sample and prove exact name/sequence pairs.
 - Process one real, publicly released result batch through acquisition, extraction, Greenlight, dataset generation, GitOps PR, CI, and merge.
 
@@ -106,7 +106,8 @@ This register records explicit decisions made by the Owner that affect a phase, 
 | Decision ID | Date | Phase / task | Owner decision | Reason / effect | Status |
 |---|---|---|---|---|---|
 | D-001 | 2026-11-03 | Phase 2 — official result-content acquisition | The required result is the passer's name paired with its official sequence number. Downloading or storing a PDF is not required. | Pursue compliant official content in any available format, including an official portal/page or structured data. PDF acquisition is optional and only used when it is a practical authorized way to obtain the contents. | Active |
-| D-002 | 2026-11-03 | Phase 2 — CSC-side release/source assessment | Skip the specific CSC-side PDF-release path because passer details are provided through a portal rather than a passer-list PDF; assess the portal as the relevant content source instead. | This is a source/path decision only. It does not mean all CSC sources or portal access are permanently excluded. Continue only through compliant, publicly accessible access; never bypass authentication or human verification. | Active |
+| D-002 | 2026-11-03 | Phase 2 — CSC-side release/source assessment | Skip the specific CSC-side PDF-release path because passer details are provided through a portal rather than a passer-list PDF; assess the portal as the relevant content source instead. | This was the earlier source/path direction; it is superseded in testing scope by D-003. | Superseded |
+| D-003 | 2026-11-03 | All phases — CSC testing scope | Skip all CSC-related testing. Continue current result-content acquisition and validation work using PRC sources only. | Do not run CSC portal, source-access, acquisition, extraction, PDF, Watcher-source, or CSC-specific acceptance tests. Preserve existing CSC code and architecture; this decision excludes testing, not future CSC support or deletion of implementation. No CSC tests are required for the current Phase 2 path. | Active |
 
 ---
 
