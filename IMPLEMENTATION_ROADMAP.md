@@ -1,5 +1,26 @@
 # PART 16 — IMPLEMENTATION ROADMAP & DELIVERY STATUS
 
+> **Document role:** Implementation roadmap and current delivery position.
+>
+> **Companion documents:** `PROGRESS_TRACKER.md` is the operational task checklist. Part 17, `LIVE_ACCEPTANCE_TEST_REGISTER.md`, contains the detailed acceptance tests and evidence.
+>
+> **Governance:** The Master Technical Blueprint remains the governing architecture. This document does not replace it or the task tracker.
+
+---
+
+## Contents
+
+1. [Purpose](#purpose)
+2. [Phase roadmap](#phase-roadmap)
+   - [Phase 1 — The Watcher](#phase-1--the-watcher-cloudflare-worker)
+   - [Phase 2 — The Extractor & Greenlight](#phase-2--the-extractor--greenlight-python-and-gitops)
+   - [Phase 3 — Automated Broadcasting](#phase-3--automated-broadcasting)
+   - [Phase 4 — Frontend Web Worker Search](#phase-4--frontend-web-worker-search)
+   - [Phase 5 — End-to-End Simulation & Security](#phase-5--end-to-end-simulation--security)
+3. [Delivery governance](#delivery-governance)
+
+---
+
 ## Purpose
 
 This document contains the implementation roadmap and current delivery position for PH-EXAM-RESULTS. The task checklist in `PROGRESS_TRACKER.md` is the operational source of truth for completed and remaining tasks. This document summarizes the phase objectives and current delivery state; it is not a historical activity log.
@@ -12,6 +33,8 @@ Build and verify the Cloudflare Worker that monitors approved official PRC/CSC s
 
 **Current delivery status:** Implementation checklist completed and Owner reports personally testing the phase. Genuine production acceptance remains open: a real official result-release detection and dispatch has not yet been demonstrated, and production preemptive URL templates remain unverified. CSC Region V remains paused after an HTTP 403 security-verification response; no access-control bypass is permitted.
 
+---
+
 ### Phase 2 — The Extractor & Greenlight (Python and GitOps)
 
 Build the Python processing pipeline to acquire official result contents, extract passer names with their exact official sequence numbers, validate the records through Greenlight, generate Array-of-Arrays datasets, and open/merge GitOps pull requests only when all required checks pass. PDF acquisition is optional; the required output is the accurate name/sequence pair.
@@ -23,11 +46,15 @@ Build the Python processing pipeline to acquire official result contents, extrac
 - Validate the extraction/normalization mapping against a representative official content sample and prove exact name/sequence pairs.
 - Process one real, publicly released result batch through acquisition, extraction, Greenlight, dataset generation, GitOps PR, CI, and merge.
 
+---
+
 ### Phase 3 — Automated Broadcasting
 
 Build and verify the Python broadcaster integrations for Facebook Graph API and Telegram Bot API. Broadcasts must occur only after a validated result dataset has merged and deployment has succeeded.
 
 **Current delivery status:** Not started; tasks remain unchecked in `PROGRESS_TRACKER.md`.
+
+---
 
 ### Phase 4 — Frontend Web Worker Search
 
@@ -35,11 +62,15 @@ Build the static HTML/CSS frontend, IndexedDB dataset caching, JavaScript Web Wo
 
 **Current delivery status:** Not started; tasks remain unchecked in `PROGRESS_TRACKER.md`.
 
+---
+
 ### Phase 5 — End-to-End Simulation & Security
 
 Run end-to-end dummy and safety tests, verify secrets are not exposed, and validate the authorized manual-drop workflow.
 
 **Current delivery status:** Not started; tasks remain unchecked in `PROGRESS_TRACKER.md`.
+
+---
 
 ## Delivery governance
 
@@ -48,3 +79,7 @@ Run end-to-end dummy and safety tests, verify secrets are not exposed, and valid
 - Do not begin a later phase until the Owner approves the phase transition, as required by `AI_BLUEPRINT.md`.
 - Preserve the last known-good published dataset whenever acquisition, extraction, validation, or publication fails.
 - Keep this document aligned with `PROGRESS_TRACKER.md`; do not use this summary as a substitute for the tracker.
+
+---
+
+**Related register:** [Part 17 — Live Acceptance Test Register](LIVE_ACCEPTANCE_TEST_REGISTER.md) · **Operational checklist:** [Progress Tracker](PROGRESS_TRACKER.md)
