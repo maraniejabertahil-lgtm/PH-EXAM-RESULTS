@@ -13,14 +13,24 @@ Extract each officially printed sequence number and its corresponding passer nam
 - Expected passer count is a validation reference, never a value used to create, pad, truncate, or repair records.
 - A sequence number must be physically present in the source and geometrically paired with a name.
 
-## Candidate engines
-1. **Primary: PyMuPDF**. Read word/span text and exact page coordinates from native PDF text. Preserve font, baseline, bounding boxes, and block structure.
-2. **Independent layout/OCR: PaddleOCR PP-StructureV3**. Detect text regions, table/layout regions, and reading order on rendered pages. Use as a separate candidate, not as an authority over native PDF text.
-3. **Independent OCR cross-check: Surya**. Compare detected words, names, sequence tokens, regions, and reading order on pages where native text is missing or suspicious.
-4. **Fallback: Tesseract TSV/hOCR**. Use word-level coordinates and confidence; do not rely on flattened PSM 6 output for final pairing.
-5. **Optional table candidate: Camelot**. Evaluate only if the PDF contains stable table rules or regular whitespace columns. It must not replace geometry-based extraction if its table structure is wrong.
+## Technology-neutral discovery and proof rule
+- No parser, OCR engine, library, model, framework, runtime, or custom/invented technology is preselected or approved by this specification.
+- Do not add a technology to the approved architecture, dependency files, workflows, or long-term documentation merely because it is popular, available, open-source, or theoretically suitable.
+- First establish the actual PDF characteristics and failure mode from authorized real PRC input. Then investigate and prototype the strongest compliant approaches, including a newly invented method where useful.
+- A prototype may use temporary isolated dependencies and code on a private experimental branch. Keep experiments disposable until they pass the proof gates below.
+- Compare alternatives on the same real PRC pages and, where possible, against independently reviewed ground truth. Synthetic fixtures may test logic but cannot prove real-document extraction accuracy.
+- Approve and retain only the smallest method or combination that demonstrably meets the acceptance criteria, works within the $0 budget, and complies with source authorization, robots.txt, rate limits, privacy, and security rules.
+- If no candidate passes, do not designate a winner. Record the measured failure and continue research or require manual review.
 
-All engines must be evaluated on identical representative pages before selecting the final combination. Use CPU/free open-source execution in GitHub Actions. Avoid paid APIs and external services.
+### Proof gates before adoption
+1. **Input proof:** Successfully acquire the authorized original PDF and verify its signature, page count, byte size, and SHA-256.
+2. **Layout proof:** Demonstrate correct page, physical-column, row, and reading-order reconstruction against the actual rendered pages.
+3. **Pairing proof:** Demonstrate exact printed sequence-number-to-name pairing, including leading zeroes, either-side number placement, multi-column pages, and any wrapped names present.
+4. **Accuracy proof:** Reconcile every record against the official expected passer count and independently reviewed page/row evidence; report omissions, extras, duplicates, and unresolved records separately.
+5. **Reliability proof:** Repeat the run and confirm deterministic output, explainable exceptions, and no silent guesses.
+6. **Efficiency proof:** Measure runtime and peak memory on the free CI runner; remain within the project budget and execution limits.
+7. **Compliance proof:** Confirm the method uses only authorized public results and permitted access; no CAPTCHA, access-control, rate-limit, or privacy bypass.
+8. **Retention decision:** Only after all applicable gates pass may the proven implementation and its exact dependencies be recorded as adopted. Otherwise keep it experimental or discard it.
 
 ## Pipeline
 
@@ -111,10 +121,10 @@ Measure:
 
 Required acceptance for automated approval: 100% exact records and pairs across the full document, zero unresolved rows, zero duplicates, zero omissions/extras, exact official count, and verified original layout order. Otherwise manual review; never publish.
 
-## Implementation order
-1. Add a Python geometry extractor using PyMuPDF and unit fixtures for row/column pairing.
-2. Add word-level PaddleOCR as an independent layout/OCR candidate.
-3. Add Surya only if PaddleOCR/native extraction leaves unresolved pages or the benchmark shows meaningful improvement.
-4. Keep Tesseract TSV as fallback; test Camelot only on table-like pages.
-5. Run the private benchmark, inspect the generated overlays, and tune thresholds using the real PRC PDF.
-6. Integrate the validated Python engine into the existing private PRC staging workflow. Do not modify main or CSC as part of this experiment.
+## Implementation sequence
+1. Inspect the actual authorized PRC PDF and document its text/image structure, page geometry, column patterns, and difficult regions without assuming a parser or OCR engine.
+2. Define a small, auditable benchmark and independently reviewable ground-truth sample from the real document. Keep synthetic fixtures for unit tests only.
+3. Research and prototype at least two strongest compliant approaches, including a custom/invented approach if evidence suggests it may work better. Keep all prototypes isolated and temporary.
+4. Run identical real-page tests, compare exact record/pair accuracy, layout/order fidelity, unresolved cases, runtime, and memory. Inspect visual overlays and raw evidence.
+5. Apply the proof gates. If none passes, do not adopt any technology and do not integrate an unproven extractor.
+6. Only after a method passes, retain the minimal implementation and exact dependencies, then integrate it into the private PRC staging workflow. Do not modify main or CSC as part of this experiment.
