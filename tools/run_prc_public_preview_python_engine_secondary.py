@@ -57,7 +57,9 @@ def main() -> int:
         raise RuntimeError("Captured article or linked Drive document does not match the approved PRC Secondary result.")
     if preview.get("url") != PREVIEW_URL or preview.get("final_url") != PREVIEW_URL:
         raise RuntimeError("Captured preview URL does not match the official linked Secondary document.")
-    viewer_pages = extraction.get("viewer_pages")
+    # The extraction report records the page traversal in attempt-evidence.json;
+    # the report itself intentionally stores record validation, not viewer metadata.
+    viewer_pages = preview.get("viewer_pages")
     if (
         preview.get("status") != 200
         or not isinstance(viewer_pages, int)
@@ -84,7 +86,9 @@ def main() -> int:
         if actual_hash != item.get("screenshot_sha256") or item.get("viewer_text_confirmed") is not True:
             raise RuntimeError("Visual screenshot hash or viewer text confirmation failed.")
         sequence = str(item["sequence"])
-        expected_name = item["expected_visible_text"].split(" ", 1)[-1]
+        expected_name = item.get("name")
+        if not isinstance(expected_name, str) or not expected_name.strip():
+            raise RuntimeError(f"Visual evidence is missing the visible name for sequence {sequence}.")
         entry = extraction.get("visual_verification_evidence", {}).get(sequence)
         if not isinstance(entry, dict) or entry.get("name") != expected_name:
             raise RuntimeError(f"Visual source evidence does not match extraction sequence {sequence}.")
