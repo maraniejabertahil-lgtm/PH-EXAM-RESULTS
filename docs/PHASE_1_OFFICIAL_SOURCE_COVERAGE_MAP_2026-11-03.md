@@ -2,67 +2,65 @@
 
 **Audit date:** 2026-11-03  
 **Repository branch reviewed:** `main`  
-**Scope:** Public, official PRC and CSC result-discovery entry points. This is a read-only source-coverage assessment; it does not authorize new scraping behavior or change production configuration.
+**Scope:** Read-only assessment of the official PRC result-listing integration and CSC source state. This document does not authorize new scraping behavior or change production configuration.
 
 ## Executive finding
 
-The production Watcher registry is not yet a complete PRC/CSC source map. It currently contains one enabled PRC record whose configured URL is the general homepage, and one disabled CSC Region V record. The official PRC result listing and the official CSC examination portal provide stronger source candidates, but neither is yet proven end-to-end from the deployed Watcher.
+The production Watcher has one enabled official PRC source and one disabled official CSC source. The PRC source is configured to the **dedicated exam-results listing**, not the general PRC homepage. Its current implementation fetches up to three listing pages, discovers bounded batches of new result articles, and follows only approved result-document links. This is meaningful PRC monitoring coverage, but it is not complete coverage of every PRC examination or any claim of full CSC coverage.
 
 ## Evidence-based source matrix
 
-| Authority | Official entry point | What the public page establishes | Watcher compatibility | Current decision |
-|---|---|---|---|---|
-| PRC | `https://www.prc.gov.ph/articles/exam-results` | Official, dated exam-result announcements; the listing has pagination (for example, `?page=1`). Result detail pages expose separate links including “List of Successful Examinees”. | Strong candidate. Existing discovery code recognizes same-origin `/article/` and numeric `/node/{id}` links, and filters Drive attachment labels. However, the production registry currently points at `https://www.prc.gov.ph/`, not this dedicated listing. The crawler follows at most three matching article links from one page and rejects query-string article links; it does not crawl listing pagination. | Prefer the dedicated listing as the PRC monitoring entry point, after isolated tests and bounded-request analysis. Do not claim full PRC coverage yet. |
-| CSC | `https://exam.csc.gov.ph/list_passers.php` | The official CSC portal exposes sections for CSE Pen and Paper, Computer Examination, CS Digital Exam, FOE, POE, BCLTE, CSE-FSO, MISE, and non-CSE tests. CSE search uses exam date and region filters. CSC official release/advisory pages direct examinees to this portal and warn against unofficial copies. | Candidate only. Public browser/search visibility does not prove that Cloudflare Worker requests can retrieve the page or any underlying result records. The page appears to be a filter/search interface, not a verified bulk PDF feed. No request should be sent to guessed internal endpoints. | Conduct one compliant, low-rate, read-only availability/content-type check through an authorized diagnostic path. If blocked, stop and retain manual fallback. |
-| CSC regional pages | Example: `https://csc.gov.ph/regional-offices/region-v/examination` | Official regional information pages exist and may link to result announcements/documents. | Production and GitHub-runner diagnostics previously received HTTP 403 security verification on CSC regional URLs and canonical/www variants. | Keep CSC automated regional polling disabled. Do not bypass CAPTCHA, Cloudflare, or other access controls. |
+| Authority | Configured official entry point | Current Watcher behavior | Current decision |
+|---|---|---|---|
+| PRC | `https://www.prc.gov.ph/articles/exam-results` | Enabled. Fetches the listing and up to two paginated pages (`?page=1`, `?page=2`); searches up to 10 matching result articles per page; tracks newly discovered article URLs; scans at most 3 new articles per invocation; filters article attachments for “List of Successful Examinees”; validates the linked file as a PDF before dispatch. | Keep enabled. Coverage is bounded to the configured listing pages and matching article titles/attachments; do not claim all PRC exams are covered. |
+| CSC Region V | `https://csc.gov.ph/regional-offices/region-v/examination` | Disabled with `manual_drop_required: true`. The source record preserves two exact owner-approved Drive IDs. Prior diagnostics recorded HTTP 403 security verification. | Keep disabled. No CSC live request was made during this follow-up. Do not bypass access controls or infer coverage of other regions/exam types. |
 
-## Relevant official evidence
+## PRC implementation details verified in current `main`
 
-### PRC
+1. `python-engine/config/sources.json` contains exactly two records: PRC (enabled) and CSC Region V (disabled).
+2. The PRC source URL is the dedicated official result listing: `https://www.prc.gov.ph/articles/exam-results`.
+3. PRC source settings include:
+   - `discover_official_result_articles: true`
+   - `allow_linked_drive_documents: true`
+   - `drive_link_text_patterns: ["list of successful examinees"]`
+   - `result_listing_page_count: 3`
+   - `max_result_articles_per_page: 10`
+   - `max_new_result_articles_per_scan: 3`
+   - `track_new_articles_only: true`
+4. `findOfficialResultArticleLinks()` builds the base listing URL plus `?page=1` and `?page=2`, with a hard maximum of three pages and ten matching articles per page.
+5. Article URLs must be HTTPS, same-origin, and use `/article/` or a numeric `/node/{id}` path. Query strings and fragments on article URLs are rejected.
+6. The article snapshot prevents historical announcements from being imported during initial baseline creation. New articles are processed in batches of at most three per invocation; articles are only marked processed after their matching document reaches a terminal successful dispatch state.
+7. The Worker validates the linked document as a real PDF (including the PDF byte signature) before dispatch. A Drive viewer/sign-in page or non-PDF response is not accepted as a result PDF.
+8. The two Peak Week scans share the invocation's outbound-subrequest budget. The configured hard safety limit is 45 subrequests per invocation.
 
-- Official listing: https://www.prc.gov.ph/articles/exam-results
-- The current listing shows dated announcements for multiple professions and examination types.
-- A paginated listing page is also publicly exposed at: https://www.prc.gov.ph/articles/exam-results?page=1
-- Example official result detail page: https://www.prc.gov.ph/node/9450
-- PRC result detail pages expose distinct result-document labels, including “List of Successful Examinees”.
+## Official PRC checks relevant to the CPALE watch
 
-### CSC
+- The official result listing currently shows 26 October 2026 Metallurgical Engineers as its newest result announcement; no October 2026 CPALE result announcement appears in the listing at this check.
+- The official 2026 examination schedule lists 3 November 2026 as the *target* CPALE result-release date. A target date is not a guarantee that results will be published that day.
+- The official PRC Downloads page contains an “October 2026 Certified Public Accountants Licensure Examination” PDF in its Board Programs section. Opening it identifies it as the **examination program**, not the results or list of passers. It must not be mistaken for a result document.
+- The official result listing and official downloads catalogue are different resources. The current Watcher monitors the result listing; it does not treat every newly listed board-program PDF as an examination result.
 
-- Official CSC portal: https://exam.csc.gov.ph/list_passers.php
-- The portal presents exam-type categories and, for CSE, date and region filters.
-- Official CSC release page: https://www.csc.gov.ph/csc-releases-results-of-8-march-2026-civil-service-exam
-- Official CSC advisory example: https://www.csc.gov.ph/examination-advisories/examination-advisory-no-17-s-2026-update-on-the-release-of-examination-results-for-the-09-august-2026-career-service-examination-pen-and-paper-test
-- CSC states that only its own List of Passers is official and cautions against unauthorized reposts.
+## CSC status and test boundary
 
-## Implementation findings from current `main`
+- CSC Region V remains disabled because earlier direct requests encountered HTTP 403 security verification.
+- This follow-up performed no CSC-side live request, in accordance with the owner’s exclusion of CSC live testing.
+- No undocumented CSC endpoints, guessed URLs, CAPTCHA workarounds, or security-verification bypasses are authorized.
+- The two existing owner-approved Drive IDs remain preserved in the disabled source record.
 
-1. `python-engine/config/sources.json` currently has exactly two records: CSC Region V (disabled) and PRC homepage (enabled).
-2. PRC is configured with `discover_official_result_articles: true`, `allow_linked_drive_documents: true`, and the “list of successful examinees” attachment-label filter.
-3. `findOfficialResultArticleLinks()` in `watcher-bot/src/index.js`:
-   - searches only the supplied page;
-   - accepts same-origin `/article/` or numeric `/node/{id}` paths;
-   - stops after three matching links;
-   - rejects links containing a query string or fragment.
-4. Consequently, the dedicated PRC listing's `?page=1` pagination is not traversed by the current discovery routine. The current production source URL is also the general homepage rather than the dedicated result listing.
-5. The current audit evidence confirms a live scheduled PRC baseline check, not a genuine newly announced result PDF detection or dispatch.
-6. No official CSC portal request from the deployed Worker has been verified in this audit. A page appearing in a public search result is not proof of Worker access or a machine-readable result endpoint.
+## Remaining Phase 1 evidence gaps
 
-## Safe next implementation sequence
-
-1. Add focused tests for the dedicated PRC listing page, including pagination links, article discovery, result-label filtering, duplicate article URLs, and bounded page/article counts.
-2. Design the PRC crawler budget against the existing hard limits: 10 targets and 45 outbound subrequests per invocation, with both Peak Week scans sharing the invocation budget. Avoid unbounded pagination or broad link crawling.
-3. On an isolated branch, update the PRC source entry to the dedicated official result listing only after tests prove the discovery path and baseline behavior. Preserve the existing source identity/deduplication behavior or provide an explicit migration strategy so historical dispatch keys are not accidentally reset.
-4. For CSC, test only the public portal's documented landing page with a disclosed User-Agent and a single low-rate request from the authorized diagnostic environment. Do not reverse-engineer or call undocumented search endpoints. If a security challenge or 403 appears, stop automated access and keep the source disabled.
-5. Do not enable guessed preemptive URL templates. CSC's region/date result pages and PRC's descriptive article slugs do not establish stable future PDF URL patterns.
-6. Acceptance still requires a genuine new official result detection-to-receiver event, duplicate-suppression evidence, and approved coverage across the intended PRC exam catalogue and CSC examination types/regions.
+1. **Complete approved source coverage:** The current PRC listing path is bounded and does not establish coverage of every PRC exam category. CSC remains disabled, and no all-region coverage is claimed.
+2. **Genuine detection-to-receiver proof:** A newly published official PRC result article/PDF must be observed by the production Watcher and accepted by the production receiver. Preserve evidence of the real event and duplicate suppression.
+3. **Genuine preemptive proof:** No official future-PDF URL template is currently configured. Do not enable guessed templates; first establish a stable official pattern from historical evidence and then observe a genuine pre-announcement PDF.
+4. **Peak Week behavior:** The production log evidence already records both scans with `mode=peak_week` and `PEAK_WEEK=true`. The implementation waits 30 seconds between the two scans. This proves execution of the two-scan path, not a genuine preemptive PDF hit.
 
 ## Explicit non-claims
 
-- This document does not claim all PRC examination categories are covered.
-- This document does not claim all 16 CSC regions or all CSC examination types are monitored.
-- It does not claim that the CSC portal is accessible from Cloudflare Workers.
-- It does not claim that the PRC crawler has dispatched a new result PDF in production.
+- This document does not claim complete coverage of all PRC examinations.
+- It does not claim coverage of all CSC regions or examination types.
+- It does not claim a genuine new PRC result PDF has been dispatched in production.
+- It does not claim a preemptive official PDF has been detected.
 - It does not authorize CAPTCHA/anti-bot bypass, undocumented endpoint use, or guessed URL probing.
 - It does not change production Worker code, source registry, KV, secrets, or deployment.
 
-**Status: source mapping advanced; Phase 1 remains NOT ACCEPTED.**
+**Status: PRC official listing integration verified; Phase 1 remains NOT ACCEPTED pending genuine live detection-to-receiver and preemptive evidence plus complete owner-approved coverage.**
