@@ -1,0 +1,108 @@
+name: Private Mock - PRC September 2026 CELE
+
+on:
+  push:
+    branches:
+      - mock/prc-cele-sep2026-0335
+    paths:
+      - .github/workflows/mock-prc-cele.yml
+      - tools/mock-prc-cele-extract.py
+
+permissions:
+  contents: read
+
+concurrency:
+  group: private-prc-cele-mock
+  cancel-in-progress: false
+
+jobs:
+  extract-validate-preview:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      MOCK_RELEASE_TIME: "2026-11-03T03:35:00+03:00"
+    steps:
+      - name: Check out isolated mock branch
+        uses: actions/checkout@v5
+        with:
+          ref: mock/prc-cele-sep2026-0335
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Install free PDF inspection utility
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y poppler-utils
+
+      - name: Run official-first and dual-source extraction mock
+        run: |
+          set -euo pipefail
+          python tools/mock-prc-cele-extract.py
+
+      - name: Install the actual website Python engine dependencies
+        run: |
+          python -m pip install --disable-pip-version-check -r python-engine/requirements.txt
+
+      - name: Run the actual website Python engine against the extracted full list
+        working-directory: python-engine
+        run: |
+          set -euo pipefail
+          python main.py process \
+            --input ../private-prc-extraction/PRC_CELE_2026_September_Sequence_Name.csv \
+            --authority PRC \
+            --exam CELE \
+            --year 2026 \
+            --source-reference "https://www.prc.gov.ph/node/9410" \
+            --output ../private-prc-extraction/website-engine-processing-report.json
+
+      - name: Build a private website dataset preview without touching public data
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          import sys
+          from pathlib import Path
+
+          sys.path.insert(0, "python-engine")
+          from publisher.json_builder import build_public_datasets
+          from publisher.manifest import build_manifest
+
+          report_path = Path("private-prc-extraction/website-engine-processing-report.json")
+          report = json.loads(report_path.read_text(encoding="utf-8"))
+          records = report["records"]
+          data_root = Path("private-prc-extraction/site-preview/public/data")
+          entries = build_public_datasets(records, data_root, "PRC", "CELE", 2026)
+          manifest = build_manifest(data_root, data_root / "manifest.json")
+          count = sum(item["record_count"] for item in entries)
+          assert count == len(records), (count, len(records))
+          assert count == 6337, f"Expected 6337 records, got {count}"
+          assert manifest["authorities"]["PRC"]["examinations"]["CELE"]["years"]["2026"]
+          print(json.dumps({
+              "preview_record_count": count,
+              "shard_count": len(entries),
+              "shards": entries,
+              "manifest_path": str(data_root / "manifest.json"),
+              "public_data_modified": False
+          }, ensure_ascii=False, indent=2))
+          PY
+
+      - name: Run website Python tests
+        run: |
+          python -m unittest discover -s python-engine/tests -v
+
+      - name: Run actual website browser-search and loader validation tests
+        run: |
+          node tests/search-worker.test.mjs
+          node tests/loader-validation.test.mjs
+
+      - name: Upload mock evidence and full passer list
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: PRC-CELE-September-2026-Mock-Full-List
+          path: private-prc-extraction/
+          if-no-files-found: warn
+          retention-days: 1
