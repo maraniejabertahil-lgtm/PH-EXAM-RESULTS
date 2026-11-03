@@ -105,7 +105,8 @@ def browser_fetch(url):
         body_text = page.locator("body").inner_text(timeout=10000)
         html = page.content().encode("utf-8")
         browser.close()
-        if not (urlparse(final_url).hostname or "").endswith("prc.gov.ph"):
+        host = (urlparse(final_url).hostname or "").lower()
+        if host != "prc.gov.ph" and not host.endswith(".prc.gov.ph"):
             raise RuntimeError("Unexpected official-page redirect host")
         low = body_text.lower()
         if any(x in low for x in CHALLENGE_TERMS):
@@ -323,9 +324,11 @@ def merge(shards):
     if set(target_pages) != {1, EXPECTED}:
         raise RuntimeError("Could not bind first and last announced records to visible viewer pages")
 
-    merged_lines = list(dict.fromkeys(
+    # Preserve every page occurrence. Deduplicating identical lines here would
+    # hide a repeated sequence/name pair and could falsely pass duplicate checks.
+    merged_lines = [
         line for snapshot in page_snapshots for line in snapshot["text"].splitlines()
-    ))
+    ]
     text = "\n".join(merged_lines)
     (OUT / "page-capture-index.json").write_text(json.dumps([
         {k: v for k, v in s.items() if k != "text"} for s in page_snapshots
