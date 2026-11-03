@@ -1,10 +1,13 @@
 #!/usr/bin/env python3
-"""Capture exact official PRC public-preview pages for human visual verification.
+"""Capture source-page canvases for human review using the ordinary public preview UI.
 
-Uses only the ordinary public Google Drive preview UI and its visible page control.
-No download endpoint, private API, login, CAPTCHA solving, or access-control bypass.
+No PDF download endpoint, private API, login, CAPTCHA solving, or access-control bypass.
+The visible viewer text is used only to confirm navigation; OCR is advisory and never
+changes names or sequence values.
 """
-import hashlib, json
+import hashlib
+import json
+import subprocess
 from pathlib import Path
 from urllib.parse import urlparse
 from playwright.sync_api import sync_playwright
@@ -13,7 +16,6 @@ DRIVE_ID = "1kY0CTSuwdxDwnf1UEvWe27HDEXU3rolE"
 URL = f"https://drive.google.com/file/d/{DRIVE_ID}/preview"
 OUT = Path("official-prc-visual-check")
 OUT.mkdir(exist_ok=True)
-# Viewer pages 215 and 302 correspond to printed source pages 216 and 303.
 TARGETS = [
     {"viewer_page": 215, "printed_page": 216, "sequence": 10710,
      "expected_visible_text": "10710 MAGANGCONG, MUHAMMAD_THANI PAUTE"},
@@ -34,8 +36,8 @@ def main():
         browser = p.chromium.launch(headless=True)
         page = browser.new_page(
             user_agent="PH-EXAM-RESULTS-official-content-research/1.0 (GitHub Actions)",
-            viewport={"width": 1600, "height": 1200},
-            device_scale_factor=1.5,
+            viewport={"width": 1800, "height": 1500},
+            device_scale_factor=2,
         )
         response = page.goto(URL, wait_until="domcontentloaded", timeout=60000)
         page.wait_for_timeout(4000)
@@ -50,48 +52,79 @@ def main():
             raise RuntimeError("Visible public-preview page control not found")
 
         for target in TARGETS:
-            n = target["viewer_page"]
-            control.fill(str(n))
+            number = target["viewer_page"]
+            control.fill(str(number))
             control.press("Enter")
             page.wait_for_function(
                 """(n) => {
                     const e = document.querySelector('input[aria-label^="Page is"]');
                     return e && e.getAttribute("aria-label") === "Page is " + n;
                 }""",
-                arg=n, timeout=20000,
+                arg=number, timeout=20000,
             )
-            page.wait_for_timeout(1200)
+            page.wait_for_timeout(1500)
             visible = body.inner_text(timeout=10000)
             if blocked(visible):
                 raise RuntimeError("Access challenge appeared during page navigation")
-            marker = f"Page {n} of 368"
+            marker = f"Page {number} of 368"
             if marker not in visible:
-                raise RuntimeError(f"Viewer did not confirm requested page {n}")
+                raise RuntimeError(f"Viewer did not confirm requested page {number}")
             if target["expected_visible_text"] not in visible:
                 raise RuntimeError(
-                    f"Expected sequence/name text not visible on viewer page {n}"
+                    f"Expected sequence/name not exposed by viewer text on page {number}"
                 )
-            shot = OUT / f"official-viewer-page-{n:03}.png"
-            page.screenshot(path=str(shot), full_page=True, timeout=20000)
-            digest = hashlib.sha256(shot.read_bytes()).hexdigest()
-            text_file = OUT / f"official-viewer-page-{n:03}.txt"
-            text_file.write_text(visible, encoding="utf-8")
+
+            # Screenshot the actual largest visible PDF canvas, not the viewer chrome.
+            canvases = page.locator("canvas")
+            candidates = canvases.evaluate_all("""els => els.map((el, index) => {
+              const r = el.getBoundingClientRect();
+              const style = getComputedStyle(el);
+              return {index, area: r.width * r.height,
+                visible: r.width > 150 && r.height > 150 &&
+                  style.display !== 'none' && style.visibility !== 'hidden' &&
+                  r.bottom > 0 && r.right > 0 && r.top < innerHeight && r.left < innerWidth,
+                x: r.x, y: r.y, width: r.width, height: r.height};
+            })""")
+            candidates = [item for item in candidates if item["visible"]]
+            if not candidates:
+                raise RuntimeError(f"No visible source-page canvas on viewer page {number}")
+            candidates.sort(key=lambda item: item["area"], reverse=True)
+            selected = candidates[0]
+            screenshot = OUT / f"official-source-page-{target['printed_page']:03}.png"
+            canvases.nth(selected["index"]).screenshot(path=str(screenshot), timeout=20000)
+            digest = hashlib.sha256(screenshot.read_bytes()).hexdigest()
+
+            ocr = subprocess.run(
+                ["tesseract", str(screenshot), "stdout", "--psm", "6"],
+                check=True, capture_output=True, text=True, timeout=60
+            ).stdout
+            ocr_path = OUT / f"official-source-page-{target['printed_page']:03}-ocr.txt"
+            ocr_path.write_text(ocr, encoding="utf-8")
+            visible_path = OUT / f"official-source-page-{target['printed_page']:03}-viewer.txt"
+            visible_path.write_text(visible, encoding="utf-8")
+
             results.append({
                 **target,
                 "http_status": response.status if response else None,
                 "viewer_marker": marker,
-                "expected_text_visible": True,
-                "screenshot": str(shot),
-                "screenshot_sha256": digest,
-                "screenshot_bytes": shot.stat().st_size,
+                "viewer_text_confirmed": True,
+                "canvas_capture": str(screenshot),
+                "canvas_sha256": digest,
+                "canvas_bytes": screenshot.stat().st_size,
+                "canvas_geometry": selected,
+                "ocr_text_file": str(ocr_path),
+                "ocr_contains_expected_name": target["expected_visible_text"] in ocr,
+                "human_visual_verification": "PENDING",
             })
         browser.close()
 
     report = {
         "source": URL,
-        "method": "ordinary public preview UI; visible page-number control; full viewport screenshot",
+        "method": "ordinary public preview UI; visible page control; largest visible PDF canvas screenshot",
         "pdf_downloaded": False,
         "access_controls_bypassed": False,
+        "ocr_is_advisory_only": True,
+        "human_visual_verification": "PENDING",
         "results": results,
     }
     (OUT / "visual-check-report.json").write_text(
