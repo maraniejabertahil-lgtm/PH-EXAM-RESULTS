@@ -4,7 +4,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from main import PipelineError, process_batch
+from main import PipelineError, _approved_source, process_batch
 
 
 class ProcessingPipelineTests(unittest.TestCase):
@@ -42,6 +42,20 @@ class ProcessingPipelineTests(unittest.TestCase):
             "extraction_status": "raw_extraction_complete",
         }):
             return process_batch("batch.json", root=self.root)
+
+    def test_prc_homepage_scope_accepts_specific_exam_identifier(self):
+        registry_path = self.root / "python-engine" / "config" / "sources.json"
+        registry = json.loads(registry_path.read_text(encoding="utf-8"))
+        registry["sources"][0]["exam_scope"] = "all"
+        registry_path.write_text(json.dumps(registry), encoding="utf-8")
+        batch = dict(self.base, exam="REAL-ESTATE-CONSULTANTS")
+        approved = _approved_source(batch, self.root)
+        self.assertEqual(approved["id"], "PRC-LET-TEST")
+
+    def test_exam_mismatch_is_rejected_without_explicit_all_exam_scope(self):
+        batch = dict(self.base, exam="REAL-ESTATE-CONSULTANTS")
+        with self.assertRaises(PipelineError):
+            _approved_source(batch, self.root)
 
     def test_clean_official_batch_builds_manifest(self):
         result = self.run_batch(self.base)

@@ -28,7 +28,17 @@ For `official_direct`, also provide:
 - `table_mapping_reviewed`: Boolean `true` when supplying `table_mapping`.
 - `source_pdf_sha256`: optional expected SHA-256 fingerprint.
 
+For `official_content_mode: "manual_handoff"`, provide:
+
+- `official_article_url`: the exact PRC/CSC official result article URL.
+- `official_content_url`: the exact linked Google Drive URL shown on that official article.
+- `official_content_reviewed`: Boolean `true` only after the owner has legitimately opened and reviewed the complete publicly released contents.
+- `record_mapping_reviewed`: Boolean `true` only after checking that every supplied name is paired with its original sequence number.
+- `records`: the reviewed name/sequence records.
+
 Automated PDF acquisition remains limited to same-origin HTTPS PDF links. External Google Drive files are not downloaded by the manual-handoff path. The content handoff verifies the official article-to-Drive link and records that the owner reviewed the source contents; it does not access Google Drive or bypass sign-in, permissions, or human verification.
+
+The PRC homepage registry entry is an official source for all PRC licensure examinations. Each batch must still identify its actual examination with a specific safe `exam` identifier; the generic homepage identifier must not be used as the published examination name.
 
 ## Third-party fallback fields
 
