@@ -12,11 +12,19 @@ class ProcessingPipelineTests(unittest.TestCase):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)
-        (self.root / "python-engine").mkdir()
+        (self.root / "python-engine" / "config").mkdir(parents=True)
+        (self.root / "python-engine" / "config" / "sources.json").write_text(json.dumps({
+            "sources": [{
+                "id": "PRC-LET-TEST", "authority": "PRC", "exam": "LET",
+                "source_type": "official", "authorized": True, "enabled": True,
+                "url": "https://www.prc.gov.ph/articles/exam-results",
+                "allow_linked_drive_documents": True,
+            }]
+        }), encoding="utf-8")
         (self.root / "official.pdf").write_bytes(b"%PDF-1.4\\nfixture\\n")
         self.base = {
             "authority": "PRC", "exam": "LET", "year": 2026,
-            "announced_count": 2, "provenance": "official_direct",
+            "announced_count": 2, "provenance": "official_direct", "source_id": "PRC-LET-TEST",
             "official_source_url": "https://www.prc.gov.ph/articles/exam-results",
             "official_document_url": "https://www.prc.gov.ph/files/example.pdf",
             "source_pdf": "official.pdf", "record_mapping_reviewed": True,
