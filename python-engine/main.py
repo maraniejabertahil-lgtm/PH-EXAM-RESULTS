@@ -20,6 +20,7 @@ if str(ENGINE_DIR) not in sys.path:
 from acquisition.official_first_policy import third_party_fallback_gate
 from acquisition.official_pdf import AcquisitionError, acquire_official_pdf
 from acquisition.official_content import OfficialContentError, verify_official_content_link
+from acquisition.public_preview import PublicPreviewCaptureError, load_public_preview_capture
 from extractor.pdf_parser import extract_pdf
 from processor.greenlight import validate_records, write_validation_report
 from processor.normalizer import NormalizationError, normalize_extracted_tables
@@ -132,6 +133,25 @@ def process_batch(batch_path: str | Path, *, root: str | Path | None = None) -> 
             acquisition_log_path = str(evidence_path.relative_to(repository_root))
             source_pdf_sha256 = None
             normalized_records = batch["records"]
+        elif content_mode == "public_preview_capture":
+            article_url = _https_url(batch.get("official_article_url"), "official_article_url")
+            document_url = _https_url(batch.get("official_content_url"), "official_content_url")
+            preview_url = _https_url(batch.get("public_preview_url"), "public_preview_url")
+            evidence_path = repository_root / "python-engine" / "artifacts" / "official-content-evidence.json"
+            try:
+                verify_official_content_link(
+                    source=source,
+                    article_url=article_url,
+                    content_url=document_url,
+                    evidence_path=evidence_path,
+                )
+                normalized_records, capture_evidence = load_public_preview_capture(
+                    batch=batch, root=repository_root
+                )
+            except (OfficialContentError, PublicPreviewCaptureError) as exc:
+                raise PipelineError(f"Official public-preview capture stopped safely: {exc}") from exc
+            acquisition_log_path = batch.get("capture_manifest")
+            source_pdf_sha256 = None
         else:
             document_url = _https_url(batch.get("official_document_url"), "official_document_url")
             from urllib.parse import urlsplit
@@ -218,6 +238,8 @@ def process_batch(batch_path: str | Path, *, root: str | Path | None = None) -> 
     report["source_pdf_sha256"] = source_pdf_sha256
     report["official_article_url"] = batch.get("official_article_url")
     report["official_attempt_log"] = acquisition_log_path if provenance == "official_direct" else batch.get("official_attempt_log")
+    if provenance == "official_direct" and batch.get("official_content_mode") == "public_preview_capture":
+        report["public_preview_capture"] = capture_evidence
     report["source_a_url"] = batch.get("source_a_url") if provenance == "third_party_fallback" else None
     report["source_b_url"] = batch.get("source_b_url") if provenance == "third_party_fallback" else None
 
