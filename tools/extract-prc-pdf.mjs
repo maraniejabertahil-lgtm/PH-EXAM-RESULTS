@@ -28,18 +28,26 @@ async function downloadApprovedPdf(fileId) {
   start.searchParams.set("export", "download");
   start.searchParams.set("id", fileId);
   let current = start;
+  const cookieJar = new Map();
 
   for (let redirects = 0; redirects <= MAX_REDIRECTS; redirects += 1) {
     validateDriveUrl(current, fileId);
+    const headers = {
+      "User-Agent": "PH-EXAM-RESULTS-PRC-Exam-Extractor/1.0",
+      "Accept": "application/pdf,application/octet-stream,*/*"
+    };
+    if (cookieJar.size) headers.Cookie = [...cookieJar].map(([k,v]) => `${k}=${v}`).join("; ");
     const response = await fetch(current, {
       method: "GET",
       redirect: "manual",
-      headers: {
-        "User-Agent": "PH-EXAM-RESULTS-PRC-Exam-Extractor/1.0",
-        "Accept": "application/pdf,application/octet-stream,*/*"
-      },
+      headers,
       signal: AbortSignal.timeout(30000)
     });
+    for (const raw of response.headers.getSetCookie?.() || []) {
+      const pair = raw.split(";", 1)[0];
+      const at = pair.indexOf("=");
+      if (at > 0) cookieJar.set(pair.slice(0, at), pair.slice(at + 1));
+    }
 
     if ([301, 302, 303, 307, 308].includes(response.status)) {
       const location = response.headers.get("location");
@@ -53,7 +61,32 @@ async function downloadApprovedPdf(fileId) {
       fail(`Google Drive returned HTTP ${response.status}; access was not bypassed.`);
     }
     const type = (response.headers.get("content-type") || "").split(";")[0].toLowerCase();
-    if (type === "text/html") fail("Google Drive returned an HTML interstitial, not a PDF.");
+    if (type === "text/html") {
+      const html = await response.text();
+      if (/captcha|recaptcha|accounts\\.google\\.com|sign.?in/i.test(html)) {
+        fail("Google Drive requires human verification or sign-in; no access control was bypassed.");
+      }
+      const form = html.match(/<form\\b([^>]*)>([\\s\\S]*?)<\\/form>/i);
+      if (!form) {
+        const title = (html.match(/<title[^>]*>([\\s\\S]*?)<\\/title>/i)?.[1] || "unknown").replace(/<[^>]+>/g," ").trim().slice(0,120);
+        fail(`Google Drive returned a non-download HTML page (title: ${title}); no verification bypass attempted.`);
+      }
+      const attrs = form[1];
+      const method = (attrs.match(/method=["']?([^"'\\s>]+)/i)?.[1] || "get").toLowerCase();
+      if (method !== "get") fail("Google Drive download confirmation requires an unsupported form method.");
+      const action = attrs.match(/action=["']([^"']+)["']/i)?.[1];
+      if (!action) fail("Google Drive confirmation form has no action.");
+      const next = new URL(action, current);
+      for (const input of form[2].matchAll(/<input\\b([^>]*)>/gi)) {
+        const a = input[1];
+        const name = a.match(/name=["']([^"']+)["']/i)?.[1];
+        const value = a.match(/value=["']([^"']*)["']/i)?.[1] ?? "";
+        if (name) next.searchParams.set(name, value);
+      }
+      validateDriveUrl(next, fileId);
+      current = next;
+      continue;
+    }
 
     const declaredLength = Number(response.headers.get("content-length") || 0);
     if (declaredLength > MAX_BYTES) fail("PDF exceeds the 50 MB limit.");
