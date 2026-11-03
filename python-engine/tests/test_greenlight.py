@@ -75,6 +75,67 @@ class GreenlightTests(unittest.TestCase):
         report = validate_records(rows, announced_count=2)
         self.assertEqual(report["greenlight_score"], 100)
 
+    def test_third_party_fallback_requires_exact_independent_source_pairs(self) -> None:
+        report = validate_records(
+            self.clean_records,
+            announced_count=3,
+            provenance="third_party_fallback",
+            comparison_records=self.clean_records,
+            source_a_id="mirror-a",
+            source_b_id="mirror-b",
+        )
+        self.assertEqual(report["greenlight_score"], 100)
+        self.assertTrue(report["checks"]["two_independent_sources"])
+        self.assertTrue(report["checks"]["exact_sequence_name_pair_agreement"])
+
+    def test_third_party_fallback_without_second_source_fails(self) -> None:
+        report = validate_records(
+            self.clean_records, announced_count=3, provenance="third_party_fallback"
+        )
+        self.assertEqual(report["greenlight_score"], 0)
+        self.assertFalse(report["checks"]["two_independent_sources"])
+        self.assertFalse(report["checks"]["exact_sequence_name_pair_agreement"])
+
+    def test_third_party_fallback_pair_mismatch_fails(self) -> None:
+        second_source = [dict(row) for row in self.clean_records]
+        second_source[1]["name"] = "SANTOS, MARIA X"
+        report = validate_records(
+            self.clean_records,
+            announced_count=3,
+            provenance="third_party_fallback",
+            comparison_records=second_source,
+            source_a_id="mirror-a",
+            source_b_id="mirror-b",
+        )
+        self.assertEqual(report["greenlight_score"], 0)
+        self.assertFalse(report["checks"]["exact_sequence_name_pair_agreement"])
+
+    def test_third_party_fallback_rejects_same_source_identity(self) -> None:
+        report = validate_records(
+            self.clean_records,
+            announced_count=3,
+            provenance="third_party_fallback",
+            comparison_records=self.clean_records,
+            source_a_id="same-mirror",
+            source_b_id="same-mirror",
+        )
+        self.assertEqual(report["greenlight_score"], 0)
+        self.assertFalse(report["checks"]["two_independent_sources"])
+
+    def test_third_party_comparison_source_must_also_pass_greenlight(self) -> None:
+        second_source = [dict(row) for row in self.clean_records]
+        second_source[2]["sequence_number"] = "004"
+        report = validate_records(
+            self.clean_records,
+            announced_count=3,
+            provenance="third_party_fallback",
+            comparison_records=second_source,
+            source_a_id="mirror-a",
+            source_b_id="mirror-b",
+        )
+        self.assertEqual(report["greenlight_score"], 0)
+        self.assertFalse(report["checks"]["exact_sequence_name_pair_agreement"])
+
     def test_dataframe_validation_preserves_leading_zeroes(self) -> None:
         frame = pd.DataFrame({"raw_seq": pd.Series(["001", "002"], dtype="string"), "raw_name": ["DOE, JOHN", "SMITH, JANE"]})
         report = validate_dataframe(
