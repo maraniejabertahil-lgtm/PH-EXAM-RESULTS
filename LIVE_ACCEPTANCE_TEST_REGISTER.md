@@ -188,7 +188,8 @@ For each affected test or test execution:
 
 - **Pass condition:** Where the chosen input requires cleaning or OCR, the pipeline either produces reviewable records or fails safely; it must not silently invent uncertain values.
 - **Evidence to retain:** Sanitized extraction output and warnings/failure report.
-- **Status:** `NOT RUN`
+- **Evidence:** Official PRC-linked public preview was captured with Playwright; Tesseract OCR was used as an advisory cross-check. Printed pages 216 and 303 were visually inspected. The exact names for sequences 10,710 and 15,066 match the visible source. Screenshots and hashes are retained in Actions run [#41658515004](https://github.com/maraniejabertahil-lgtm/PH-EXAM-RESULTS/actions/runs/41658515004). Full extraction-to-Greenlight integration remains pending.
+- **Status:** `PARTIAL`
 
 #### P2-07 — Normalization integrity
 
@@ -206,7 +207,8 @@ For each affected test or test execution:
 
 - **Pass condition:** Extracted record count equals the authority-announced passer count.
 - **Evidence to retain:** Announced count and computed count in validation report.
-- **Status:** `NOT RUN`
+- **Evidence:** The official PRC announcement reports 18,376 Elementary passers. A Unicode-aware prototype run against the final cumulative public-preview text snapshot recovered 18,376 unique sequence/name pairs, with zero missing sequences and zero conflicting assignments. The integrated Python Engine batch has not yet completed Greenlight.
+- **Status:** `PARTIAL`
 
 #### P2-10 — Zero blank names
 
@@ -223,14 +225,14 @@ For each affected test or test execution:
 #### P2-12 — Zero unresolved anomalies
 
 - **Pass condition:** No unexpected/unparseable characters or unresolved parsing anomalies remain in a batch proposed for automatic publication.
-- **Evidence to retain:** PR #56 test Greenlight report: zero anomalous names/sequences in the 50-record sample; names were visually checked against the uploaded page image.
-- **Status:** `AUTOMATED PASS`
+- **Evidence:** The two previously unresolved full-batch records were visually confirmed against the official PRC-linked preview screenshots: sequence 10,710 on printed page 216 and sequence 15,066 on printed page 303. The Unicode parser preserves both exact strings. Full-batch Greenlight has not yet completed, so this criterion remains open.
+- **Status:** `PARTIAL`
 
 #### P2-13 — Complete sequence coverage
 
 - **Pass condition:** The required official sequence range is complete, with no gaps or extras.
-- **Evidence to retain:** PR #56 test Greenlight confirms exact page-sample sequence coverage 1–50 with zero missing or unexpected values. This is page-level coverage only, not the full release.
-- **Status:** `AUTOMATED PASS`
+- **Evidence:** The full PRC Elementary preview text candidate covers sequence numbers 1–18,376 with zero missing values, zero conflicting assignments, and zero out-of-range records in the independent Unicode-aware prototype check. Integrated batch validation is still pending.
+- **Status:** `PARTIAL`
 
 #### P2-14 — Fallback pair agreement
 
