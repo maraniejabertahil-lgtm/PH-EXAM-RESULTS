@@ -254,8 +254,8 @@ def main():
             pages_navigated=len(page_snapshots), snapshots_retained=len(page_snapshots),
             final_document_text_characters=len(text),\n            page_snapshot_index_sha256=hashlib.sha256((OUT / "page-capture-index.json").read_bytes()).hexdigest())
         (OUT / "official-preview-page-count.json").write_text(json.dumps({
-            "viewer_pages_expected": page_count, "viewer_pages_navigated": page_count,
-            "snapshots_retained": 1, "final_document_text_characters": len(text)
+            "viewer_pages_expected": page_count, "viewer_pages_navigated": len(page_snapshots),
+            "snapshots_retained": len(page_snapshots), "final_document_text_characters": len(text)
         }, indent=2))
         (OUT / "official-layout-text.txt").write_text(text, encoding="utf-8")
     else:
