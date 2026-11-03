@@ -37,6 +37,11 @@ class OfficialFirstPolicyTests(unittest.TestCase):
             content_type="text/html", final_url="https://www.prc.gov.ph/files/result.pdf",
             body_prefix=b"<html>Access denied</html>",
         )
+        record_attempt(
+            self.log, method="GET", status_code=403,
+            content_type="text/html", final_url="https://www.prc.gov.ph/files/result.pdf",
+            body_prefix=b"<html>Access denied</html>",
+        )
 
     def test_fallback_is_denied_until_official_attempt_log_is_persisted(self) -> None:
         self.add_failed_official_attempts()
@@ -61,7 +66,7 @@ class OfficialFirstPolicyTests(unittest.TestCase):
         write_attempt_log(self.log, self.log_path)
         result = third_party_fallback_gate(self.log_path)
         self.assertTrue(result["allowed"])
-        self.assertEqual(result["attempt_count"], 2)
+        self.assertEqual(result["attempt_count"], 3)
         self.assertEqual(result["provenance"], "third_party_fallback_pending_validation")
 
     def test_human_verification_barrier_requires_manual_drop(self) -> None:
@@ -93,6 +98,22 @@ class OfficialFirstPolicyTests(unittest.TestCase):
         result = third_party_fallback_gate(self.log_path)
         self.assertFalse(result["allowed"])
         self.assertEqual(result["reason"], "manual_drop_required_access_barrier")
+
+
+    def test_partial_range_pdf_does_not_count_as_complete_official_acquisition(self) -> None:
+        record_attempt(
+            self.log, method="HEAD", status_code=200,
+            content_type="application/pdf", final_url="https://www.prc.gov.ph/files/result.pdf",
+        )
+        record_attempt(
+            self.log, method="GET_RANGE", status_code=206,
+            content_type="application/pdf", final_url="https://www.prc.gov.ph/files/result.pdf",
+            body_prefix=b"%PDF-1.7\\npartial",
+        )
+        write_attempt_log(self.log, self.log_path)
+        result = third_party_fallback_gate(self.log_path)
+        self.assertFalse(result["allowed"])
+        self.assertEqual(result["reason"], "official_attempts_lack_head_and_full_get_methods")
 
     def test_verified_full_official_pdf_blocks_fallback(self) -> None:
         record_attempt(
