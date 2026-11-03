@@ -11,6 +11,7 @@ Your default mode is EXECUTION, not consultation.
 4. STATIC-FIRST FRONTEND: Search functionality must happen completely in the browser via JavaScript Web Workers and IndexedDB. 
 5. NO SECRETS IN FRONTEND: Never expose DB credentials, API tokens, or GitHub PATs in public code.
 6. NO UNVERIFIED DEPLOYS: Adhere strictly to the GitOps Auto-Merge and Greenlight Protocol.
+7. OFFICIAL-FIRST ACQUISITION: For every examination release, attempt legitimate retrieval from the official PRC/CSC source first. Third-party sources are fallback-only and may be used only after the official source/document is confirmed unavailable through compliant attempts. Record the official attempt and its evidence. Never present third-party transcription as official extraction.
 
 # THE 3-STRIKE SELF-HEALING RULE (NO-BOTHER RULE)
 If you encounter an error (e.g., failed test, GitHub Action crash, API 4xx/5xx error, syntax bug):
@@ -42,7 +43,10 @@ Once the Owner replies "Done", immediately resume your autonomous execution loop
    - Bypass Access Controls: Do not attempt to defeat, bypass, or crack CAPTCHAs, Cloudflare Turnstile, MFA, or password protections. If a target site presents a barrier requiring human verification, treat it as a Hard Blocker and fallback to the `/manual-drop/` folder as designated in the Master Blueprint.
    - Denial of Service (DoS): Strictly avoid aggressive, abusive, or high-concurrency request blasting. All automated fetchers, HEAD-request guessing, and scraping tasks must include proper request delays, user-agent disclosures, and lightweight headers to prevent server strain or service disruption.
    - Privacy & Data Protection: Process only publicly released, official examination results and datasets. Never extract, log, expose, or reconstruct non-public personal identifiable information (PII), private records, or unapproved metadata.
-   - Respect Directives: Adhere strictly to target `robots.txt` guidelines and rate limits. If official channels prohibit automated requests, switch immediately to authorized secondary mirrors or manual ingest.
+   - Respect Directives: Adhere strictly to target `robots.txt` guidelines and rate limits. If official channels prohibit automated requests, switch only to authorized secondary mirrors or manual ingest.
+   - Official-first rule: Do not start with, prefer, or silently substitute third-party transcription while the official result document/data is legitimately retrievable. Attempt the official result page and its officially linked document first; use bounded, disclosed, rate-limited retries and verify that the response is actually the expected PDF/data rather than HTML, a login page, an error page, or an unrelated file.
+   - Fallback gate: A failed first request alone is not proof of impossibility. Record the official URL, timestamp, retrieval methods attempted, HTTP/content-type outcome, final URL, and concise failure reason. Only then may the pipeline use owner-approved/verified third-party sources. If a CAPTCHA or human-verification barrier is presented, do not bypass it; use the authorized manual-drop route where required.
+   - Provenance: Label each batch as `official_direct` or `third_party_fallback`. Third-party names must never be described as extracted from the official PDF. For third-party fallback, require two independent sources, 100% exact sequence-number/name-pair agreement, announced-count agreement, complete sequence coverage, and zero missing, extra, duplicate, blank, or unresolved records. Otherwise stop publication.
 3. INNOVATION TRIGGER CONDITIONS:
    Trigger this protocol autonomously if:
    - Standard tools (e.g., pdfplumber, standard regex, base curl) fail 2 consecutive attempts or exceed processing time limits (>60s in CI).

@@ -15,7 +15,7 @@ Build a reliable, automated examination results platform for the Philippine Regu
 
 The platform must:
 
-1. Monitor authorized official examination-result sources (and verified third-party websites if official sources are unavailable or unreachable).
+1. Monitor and attempt authorized official examination-result sources first. Use verified third-party websites only as a fallback after compliant official retrieval has been confirmed unavailable.
 2. Acquire available official result documents or datasets.
 3. Process and extract examination information using Python.
 4. Validate extracted information before publication.
@@ -57,7 +57,9 @@ PART 2 — TECHNOLOGY STACK AND RESPONSIBILITIES
 
 PART 3 — COMPLETE SYSTEM ARCHITECTURE
 
-[ OFFICIAL PRC/CSC SOURCES & VERIFIED THIRD PARTIES / MIRRORS ]
+[ OFFICIAL PRC/CSC SOURCES FIRST ]
+           ↓ (only after documented official retrieval failure)
+[ VERIFIED THIRD-PARTY SOURCES / MIRRORS ]
            ↓
 [ CLOUDFLARE WORKER (The Watcher) ] ── Runs 1-min cron (30-sec loop in Peak Week)
            ↓ (If new PDF / 200 OK detected)
@@ -303,3 +305,55 @@ PART 19 — GOVERNING PRINCIPLES
 2. The Worker watches; GitHub processes.
 3. Zero human intervention for clean data (Greenlight Protocol); strictly manual intervention for messy data.
 4. No servers, no live database queries on the public route. Strictly $0.
+
+
+⸻
+
+PART 20 — OFFICIAL-FIRST SOURCE ACQUISITION POLICY (MANDATORY)
+
+20.1 Source order
+
+1. The system MUST attempt the official PRC or CSC result announcement/source first for every release.
+2. It MUST identify and attempt to retrieve the result document or dataset linked by that official source.
+3. The official attempt must use only legitimate, authorized, low-impact retrieval. Use bounded retries and normal HTTP methods; respect robots.txt, rate limits, redirects, and access controls.
+4. A first failed request is not sufficient evidence that the official source is impossible to retrieve. Retry appropriate, compliant retrieval methods and verify the returned content.
+5. The system MUST verify that a supposed PDF is actually a PDF (including response content type/signature where available), not an HTML login/interstitial page, error response, or unrelated file.
+6. Only after the official source/document is confirmed unavailable through compliant attempts may the system enter third-party fallback.
+
+20.2 Official failure evidence
+
+Before fallback, retain a machine-readable official-attempt record containing:
+- official source URL and, when different, official result-article/document URL;
+- timestamp(s) and compliant retrieval method(s) attempted;
+- HTTP status, content type, final URL, and PDF/signature verification outcome where available;
+- concise failure classification and reason;
+- whether access was blocked by robots policy, authentication, CAPTCHA/human verification, server response, missing document, or invalid/non-PDF content.
+
+Do not store credentials, session cookies, private information, or unnecessary personal data in this evidence.
+
+20.3 Third-party fallback requirements
+
+When and only when the official-first gate passes:
+- Use two independent, publicly accessible, owner-approved/verified third-party transcription sources.
+- Extract and compare each sequence-number/name pair exactly. Do not compare names alone and do not silently renumber records.
+- Require 100% exact pair agreement between both sources.
+- Require total record count to equal the official authority's announced passer count.
+- Require complete sequence coverage and zero gaps, extras, duplicates, blank names, or unresolved parsing anomalies.
+- If any requirement fails, stop. Do not create a publication-ready dataset and do not auto-publish.
+
+20.4 Provenance and website behavior
+
+Every import and published dataset must carry an explicit provenance value:
+- `official_direct`: names/data were extracted directly from the officially released document or dataset.
+- `third_party_fallback`: official retrieval was confirmed unavailable and records were transcribed from the two independent verified sources.
+
+The website, owner review report, logs, and any public source attribution must preserve this distinction. Never label a third-party transcription as an official PDF extraction. When provenance is fallback, retain the official failure evidence and both third-party source references with the validation report.
+
+20.5 Safety and publication
+
+- Never bypass sign-in, CAPTCHA, MFA, permissions, robots.txt, or other access restrictions.
+- If human verification is required, stop automated retrieval and use only the authorized manual-drop/review route; do not attempt circumvention.
+- A fallback batch that does not achieve every validation requirement remains unpublished.
+- Preserve the last known-good public dataset whenever acquisition, extraction, comparison, or validation fails.
+
+This policy governs PRC and CSC. It does not authorize processing an examination or authority outside the requested/approved task scope.
