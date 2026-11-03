@@ -58,11 +58,12 @@ Build and verify the Cloudflare Worker that monitors approved official PRC/CSC s
 
 Build the Python processing pipeline to acquire official result contents, extract passer names with their exact official sequence numbers, validate the records through Greenlight, generate Array-of-Arrays datasets, and open/merge GitOps pull requests only when all required checks pass. PDF acquisition is optional; the required output is the accurate name/sequence pair.
 
-**Current delivery status:** Core extractor, Greenlight validation, dataset builder/sharding, GitOps integration, reviewed normalization, and bounded same-origin acquisition are implemented. PR #55 added a missing-sequence publication-abort regression test; the PR and main-branch CI passed with 112 Python tests.
+**Current delivery status:** Core extractor, Greenlight validation, dataset builder/sharding, GitOps integration, reviewed normalization, and bounded same-origin acquisition are implemented. PRs #58 and #59 integrated hash-bound official public-preview capture into the Python Engine; PR #60 optimized JSON shard sizing from quadratic to linear time. Main-branch CI passed with 116 Python tests. The March 2026 LEPT Elementary full batch (18,376 records) has passed Greenlight 100/100 and generated a hash-verified 862,332-byte dataset shard.
 
 **Remaining Phase 2 tasks:**
-- Completed: a compliant PRC owner-reviewed manual-content handoff yielded 50 name/sequence pairs from page 2 of the March 2026 LEPT Elementary roll; a regression test validates exact mapping and sample Greenlight (PR #56, CI run #119 passed). This does not establish automated Drive retrieval or full PDF/OCR extraction.
-- Remaining: process one complete, publicly released PRC result batch through acquisition/content handoff, extraction, Greenlight, dataset generation, GitOps PR, CI, and merge. The 50-row page sample is not the complete announced result batch. CSC-specific testing remains excluded by D-003.
+- Completed: a compliant PRC owner-reviewed manual-content handoff yielded 50 name/sequence pairs from page 2 of the March 2026 LEPT Elementary roll; PR #56 validates the mapping. The full Elementary batch subsequently passed official public-preview extraction, exact sequence coverage, Greenlight, and dataset generation.
+- Blocked: GitOps staged the Elementary dataset on `data/greenlight-37cd69173dc2`, but GitHub Actions received HTTP 403 because the repository does not permit Actions to create pull requests. The Owner must enable the repository setting `Allow GitHub Actions to create and approve pull requests`. The source preview also carries a DRAFT watermark; Owner review is required before merge.
+- Remaining after the Elementary publication gate: process the official PRC LEPT Secondary list (45,001 announced passers) through the same public-preview, Greenlight, dataset, and GitOps path. CSC-specific testing remains excluded by D-003.
 
 ---
 
