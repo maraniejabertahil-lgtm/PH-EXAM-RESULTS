@@ -1,0 +1,52 @@
+name: PRC Official LEPT Secondary Extraction Trial
+
+on:
+  push:
+    branches:
+      - integration/prc-public-preview-secondary
+    paths:
+      - "tools/prc-official-lept-secondary-2026.py"
+      - "tools/prototypes/prc_secondary_preview_ocr_probe.py"
+      - "tools/run_prc_public_preview_python_engine_secondary.py"
+      - "python-engine/**"
+      - ".github/workflows/prc-official-lept-secondary-2026.yml"
+
+concurrency:
+  group: prc-official-lept-secondary-\${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  official-only:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Install browser, parsers, and OCR alternative
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y tesseract-ocr
+          python -m pip install -r python-engine/requirements.txt playwright pymupdf pdfplumber pillow
+          python -m playwright install --with-deps chromium
+      - name: Capture and parse official Secondary public preview
+        run: python tools/prc-official-lept-secondary-2026.py
+      - name: Capture first and last records from the official viewer
+        run: python tools/prototypes/prc_secondary_preview_ocr_probe.py
+      - name: Run Python Engine Greenlight and dataset generation
+        run: python tools/run_prc_public_preview_python_engine_secondary.py
+      - name: Preserve Secondary extraction evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: prc-official-lept-secondary-2026-evidence
+          path: |
+            official-prc-secondary-evidence/
+            official-prc-secondary-visual-check/
+            python-engine/artifacts/
+          if-no-files-found: warn
+          retention-days: 7
