@@ -6,7 +6,7 @@
 ---
 
 ## Phase 1: The Watcher (Cloudflare Worker)
-- [ ] Initialize `watcher-bot/` directory and `wrangler.toml` config
+- [x] Initialize `watcher-bot/` directory and `wrangler.toml` config
 - [ ] Implement standard 1-minute cron check against official PRC/CSC sources
 - [ ] Implement Peak Week Mode (Cloudflare KV check, 30-sec loop)
 - [ ] Add Preemptive Strike logic (HEAD requests predicting PDF URLs)
