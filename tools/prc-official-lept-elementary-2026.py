@@ -115,24 +115,11 @@ def main():
         raise RuntimeError("Expected official Drive ID not found on PRC article")
     log("official_article", url=article_url, sha256=hashlib.sha256(article).hexdigest(), drive_link=official_link, **meta)
 
-    urls = [
-        "https://drive.google.com/uc?export=download&id=" + DRIVE_ID,
-        "https://drive.usercontent.google.com/download?id=" + DRIVE_ID + "&export=download&confirm=t",
-    ]
+    # Owner-directed content-first trial: do not call a PDF download endpoint.
+    # Read only the official document's ordinary public preview interface.
     pdf = None
-    for index, url in enumerate(urls, 1):
-        try:
-            body, info = fetch_with_retries(url, 50 * 1024 * 1024)
-            if body.startswith(b"%PDF-"):
-                pdf = body
-                log("official_pdf", attempt=index, sha256=hashlib.sha256(body).hexdigest(), bytes=len(body), **info)
-                break
-            low = body[:50000].lower()
-            log("non_pdf_response", attempt=index, prefix=body[:250].decode("utf-8", "replace"), **info)
-            if b"captcha" in low or b"verify you are human" in low or b"request access" in low or b"sign in" in low:
-                raise RuntimeError("Drive requires sign-in, permission, or human verification; stop without bypass")
-        except Exception as error:
-            log("download_attempt_error", attempt=index, error=repr(error))
+    log("pdf_download_skipped", reason="PDF storage/download is not required; public preview is the selected content path")
+
     if pdf is None:
         # Content-first alternative: ordinary public Google Drive preview UI.
         # No download endpoint, private API, or access-control circumvention.
