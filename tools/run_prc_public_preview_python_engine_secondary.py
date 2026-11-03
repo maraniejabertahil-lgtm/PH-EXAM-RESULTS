@@ -110,7 +110,7 @@ def main() -> int:
     ]
     if not article_events:
         raise RuntimeError("Capture attempt evidence does not identify the official PRC article.")
-    article_url = article_events[-1].get("url")
+    article_url = article_events[-1].get("final_url") or article_events[-1].get("url")
     if not isinstance(article_url, str) or urlsplit(article_url).hostname != "www.prc.gov.ph":
         raise RuntimeError("Official article URL is not on the approved www.prc.gov.ph origin.")
 
