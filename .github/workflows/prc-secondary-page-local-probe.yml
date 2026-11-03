@@ -1,0 +1,33 @@
+name: PRC Secondary Page-Local DOM Performance Probe
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: "pip"
+          cache-dependency-path: python-engine/requirements.txt
+      - name: Install only browser probe dependencies
+        run: |
+          python -m pip install playwright==1.64.1
+          python -m playwright install --with-deps chromium
+      - name: Inspect ordinary public preview DOM at distributed pages
+        run: python tools/prototypes/prc_secondary_page_local_probe.py
+      - name: Preserve structural performance evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: prc-secondary-page-local-dom-probe
+          path: secondary-page-local-probe/
+          if-no-files-found: warn
+          retention-days: 7
