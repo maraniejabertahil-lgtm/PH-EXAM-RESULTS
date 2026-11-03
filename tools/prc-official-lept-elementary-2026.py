@@ -219,7 +219,21 @@ def main():
                 rows[seq] = name
     missing = sorted(set(range(1, EXPECTED + 1)) - set(rows))
     records = [{"seq": str(k), "name": rows[k]} for k in sorted(rows)]
-    (OUT / "extracted-records.jsonl").write_text("".join(json.dumps(r, ensure_ascii=False) + "\n" for r in records))
+    (OUT / "extracted-records.jsonl").write_text("".join(json.dumps(r, ensure_ascii=False) + "\\n" for r in records))
+
+    from collections import Counter
+    name_counts = Counter(record["name"] for record in records)
+    duplicate_names = sorted(name for name, count in name_counts.items() if count > 1)
+
+    # These two source strings were previously flagged for human review.
+    # Keep their exact source spelling and fail closed until a reviewer compares
+    # the actual page image. Unicode acceptance must never auto-resolve ambiguity.
+    manual_review_sequences = [10710, 15066]
+    unresolved_reviews = [
+        {"seq": seq, "name": rows.get(seq)}
+        for seq in manual_review_sequences
+        if seq not in rows or rows[seq] in {"MAGANGCONG, MUHAMMAD_THANI PAUTE", "ROBLES, D9 BASUG"}
+    ]
     report = {
         "exam": "March 2026 LEPT Elementary",
         "provenance": "official_direct",
@@ -229,7 +243,17 @@ def main():
         "missing_sequence_sample": missing[:100],
         "conflict_count": len(conflicts),
         "conflict_sample": conflicts[:100],
-        "candidate_complete": len(records) == EXPECTED and not missing and not conflicts,
+        "duplicate_name_count": len(duplicate_names),
+        "duplicate_name_sample": duplicate_names[:100],
+        "blank_name_count": sum(not record["name"].strip() for record in records),
+        "unresolved_manual_review_count": len(unresolved_reviews),
+        "unresolved_manual_reviews": unresolved_reviews,
+        "candidate_complete": (
+            len(records) == EXPECTED and not missing and not conflicts
+            and not duplicate_names
+            and not any(not record["name"].strip() for record in records)
+            and not unresolved_reviews
+        ),
         "published": False
     }
     (OUT / "extraction-report.json").write_text(json.dumps(report, indent=2, ensure_ascii=False))
