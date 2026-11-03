@@ -162,19 +162,19 @@ For each affected test or test execution:
 #### P2-02 — Official-first acquisition
 
 - **Pass condition:** The pipeline attempts the official announcement and its linked result destination before considering third-party sources.
-- **Evidence to retain:** Official-first policy and bounded official retrieval are implemented and covered by automated tests (PRs #48–#52); actual PRC/CSC linked result contents remain inaccessible/unverified in the inspected live path.
+- **Evidence to retain:** Official-first policy and bounded official retrieval are implemented and covered by automated tests (PRs #48–#52). On 2026-11-03, the official PRC March 2026 LEPT result article was reachable and exposed separate "List of Successful Examinees" links, but the linked Google Drive views rendered only a loading/sign-in screen in the inspection; no file contents were acquired. The official CSC Examination Portal is publicly reachable at https://exam.csc.gov.ph/list_passers?type_id=1 and renders exam-date/type/region search filters, but the inspected page did not expose result rows or sequence numbers without a completed search. No access control was bypassed.
 - **Status:** `PARTIAL`
 
 #### P2-03 — Result-content acquisition
 
 - **Pass condition:** The pipeline obtains the actual passer names and their corresponding official sequence numbers from an authorized source.
-- **Evidence to retain:** No authorized official sample containing actual name/sequence pairs has been acquired; PRC Drive view showed loading/sign-in and CSC access returned HTTP 403. Manual handoff is implemented but awaits Owner-reviewed pairs.
+- **Evidence to retain:** No authorized official sample containing actual name/sequence pairs has been acquired. The official PRC article (https://www.prc.gov.ph/article/march-2026-licensure-examination-professional-teachers-results-released-thirty-nine-39) links elementary and secondary passer lists to Google Drive, but the inspected Drive views showed loading/sign-in rather than readable records. The official CSC portal (https://exam.csc.gov.ph/list_passers?type_id=1) is a public search interface; this inspection did not retrieve result rows or establish that it exposes the complete list with exact sequence numbers. Existing manual handoff code verifies that a supplied Drive URL is linked from an approved official article, but deliberately does not access Drive; it still requires the Owner to legitimately review the complete public contents and provide reviewed name/sequence pairs. No sign-in, CAPTCHA, or permission control was bypassed.
 - **Status:** `BLOCKED`
 
 #### P2-04 — Content-format flexibility
 
 - **Pass condition:** A readable official webpage, portal response, embedded/public dataset, CSV, or other compliant format can be used; PDF possession is not required.
-- **Evidence to retain:** Content-first/manual-handoff architecture is implemented, but no representative official name/sequence content has yet passed through it.
+- **Evidence to retain:** The official CSC portal confirms a non-PDF public search-interface candidate, and PRC official result articles expose official list links. However, no machine-readable or browser-readable representative content containing exact passer-name/sequence pairs has yet been retrieved and validated from either authority. The CSC portal's completeness and sequence-number fields remain unverified; PRC's linked Drive content remains unreadable in the inspected view. PDF possession is not treated as a requirement.
 - **Status:** `BLOCKED`
 
 #### P2-05 — PDF parsing when applicable
