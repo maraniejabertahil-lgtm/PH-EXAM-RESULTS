@@ -1,0 +1,50 @@
+# PART 16 — IMPLEMENTATION ROADMAP & DELIVERY STATUS
+
+## Purpose
+
+This document contains the implementation roadmap and current delivery position for PH-EXAM-RESULTS. The task checklist in `PROGRESS_TRACKER.md` is the operational source of truth for completed and remaining tasks. This document summarizes the phase objectives and current delivery state; it is not a historical activity log.
+
+## Phase roadmap
+
+### Phase 1 — The Watcher (Cloudflare Worker)
+
+Build and verify the Cloudflare Worker that monitors approved official PRC/CSC sources, handles Peak Week mode, performs only compliant preemptive checks, and dispatches qualifying events to GitHub Actions.
+
+**Current delivery status:** Implementation checklist completed and Owner reports personally testing the phase. Genuine production acceptance remains open: a real official result-release detection and dispatch has not yet been demonstrated, and production preemptive URL templates remain unverified. CSC Region V remains paused after an HTTP 403 security-verification response; no access-control bypass is permitted.
+
+### Phase 2 — The Extractor & Greenlight (Python and GitOps)
+
+Build the Python processing pipeline to acquire official result contents, extract passer names with their exact official sequence numbers, validate the records through Greenlight, generate Array-of-Arrays datasets, and open/merge GitOps pull requests only when all required checks pass. PDF acquisition is optional; the required output is the accurate name/sequence pair.
+
+**Current delivery status:** Core extractor, Greenlight validation, dataset builder/sharding, GitOps integration, reviewed normalization, and bounded same-origin acquisition are implemented. PR #55 added a missing-sequence publication-abort regression test; the PR and main-branch CI passed with 112 Python tests.
+
+**Remaining Phase 2 tasks:**
+- Identify and validate a compliant official-content access path that provides passer names and exact sequence numbers. A downloadable PDF is not required. The PRC-linked Drive view inspected so far did not expose the records; owner-reviewed manual handoff is available.
+- Validate the extraction/normalization mapping against a representative official content sample and prove exact name/sequence pairs.
+- Process one real, publicly released result batch through acquisition, extraction, Greenlight, dataset generation, GitOps PR, CI, and merge.
+
+### Phase 3 — Automated Broadcasting
+
+Build and verify the Python broadcaster integrations for Facebook Graph API and Telegram Bot API. Broadcasts must occur only after a validated result dataset has merged and deployment has succeeded.
+
+**Current delivery status:** Not started; tasks remain unchecked in `PROGRESS_TRACKER.md`.
+
+### Phase 4 — Frontend Web Worker Search
+
+Build the static HTML/CSS frontend, IndexedDB dataset caching, JavaScript Web Worker search, and Cloudflare Pages deployment. Search must remain browser-side and must return the passer name with its corresponding sequence number.
+
+**Current delivery status:** Not started; tasks remain unchecked in `PROGRESS_TRACKER.md`.
+
+### Phase 5 — End-to-End Simulation & Security
+
+Run end-to-end dummy and safety tests, verify secrets are not exposed, and validate the authorized manual-drop workflow.
+
+**Current delivery status:** Not started; tasks remain unchecked in `PROGRESS_TRACKER.md`.
+
+## Delivery governance
+
+- Do not mark a task complete without evidence that the task's actual acceptance condition has been met.
+- An automated test pass does not automatically establish live production acceptance.
+- Do not begin a later phase until the Owner approves the phase transition, as required by `AI_BLUEPRINT.md`.
+- Preserve the last known-good published dataset whenever acquisition, extraction, validation, or publication fails.
+- Keep this document aligned with `PROGRESS_TRACKER.md`; do not use this summary as a substitute for the tracker.
