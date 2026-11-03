@@ -81,6 +81,7 @@ For this route, create a JSON batch with:
 - `exam`: a specific examination identifier, e.g. `CSE-PPT-2026-03`
 - `source_id`: `CSC-CSE-PORTAL`
 - `official_source_url`: exact registry URL, including `?type_id=1`
+- `official_announcement_url`: the official CSC result announcement linked in the source registry
 - `official_portal_url`: the official portal page URL used for the reviewed result; same approved HTTPS host and `/list_passers` path
 - `provenance`: `official_direct`
 - `official_content_mode`: `owner_reviewed_portal_handoff`
