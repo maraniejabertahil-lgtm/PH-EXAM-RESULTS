@@ -121,11 +121,16 @@ def _extract_records(page_texts: list[str], announced_count: int) -> tuple[list[
 
 def build_python_engine_capture_manifest(
     *, capture_dir: str | Path, output_dir: str | Path,
-    batch: dict[str, Any],
+    batch: dict[str, Any], repository_root: str | Path | None = None,
 ) -> dict:
     """Verify the sharded manifest, extract exact pairs, and write hash-bound evidence."""
+    root = Path(repository_root or Path.cwd()).resolve()
     source = Path(capture_dir).resolve()
     destination = Path(output_dir).resolve()
+    try:
+        destination.relative_to(root)
+    except ValueError as exc:
+        raise ShardBridgeError("output directory must remain inside the repository root") from exc
     destination.mkdir(parents=True, exist_ok=True)
     if batch.get("provenance") != "official_direct":
         raise ShardBridgeError("only official_direct capture may use this bridge")
@@ -256,7 +261,7 @@ def build_python_engine_capture_manifest(
         "pdf_downloaded": False,
         "access_controls_bypassed": False,
         "files": {
-            key: {"path": path.relative_to(Path.cwd().resolve()).as_posix(), "sha256": _sha256(path)}
+            key: {"path": path.relative_to(root).as_posix(), "sha256": _sha256(path)}
             for key, path in {
                 "layout_text": layout_path, "records_jsonl": record_path,
                 "extraction_report": extraction_path, "visual_report": visual_path,
