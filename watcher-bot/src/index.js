@@ -502,7 +502,7 @@ async function fetchOfficialArticleMetadata(articleUrl, fetchImpl) {
     try {
       const url = new URL(match[1].replace(/&amp;/gi, "&"), finalUrl);
       if (url.protocol === "https:" && !url.username && !url.password) {
-        links.push({ url: url.href, label: "" });
+        links.push({ url: url.href, label: clean(match[2]) });
       }
     } catch { /* Ignore malformed links. */ }
   }
