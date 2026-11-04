@@ -649,7 +649,7 @@ async function scanApprovedDocuments(source, pageUrl, env, fetchImpl, now, allow
           articleResults.push({ status: "article_has_no_matching_pdf_yet" });
         }
         const terminalSuccess = articleResults.length > 0 &&
-          articleResults.every((item) => ["dispatched", "already_dispatched"].includes(item.status));
+          articleResults.every((item) => ["dispatched", "already_dispatched", "prc-release-event-dispatched"].includes(item.status));
         if (trackNewArticlesOnly && terminalSuccess) processedArticleUrls.push(articleUrl);
         results.push(...articleResults.map((item) => ({ ...item, article_url: articleUrl })));
       }
