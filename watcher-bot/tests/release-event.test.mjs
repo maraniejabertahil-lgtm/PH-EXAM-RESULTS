@@ -56,10 +56,37 @@ test("release identification never mistakes a top-ten document for the passer li
   assert.match(result.reason, /uniquely labelled successful-examinees list/);
 });
 
-test("single supported content link remains compatible with existing official articles", () => {
+test("a sole attachment with an approved passer-list label is accepted", () => {
   const result = buildReleaseEvent(source, {
     ...articleBase,
-    links: [drive("1SingleOfficialResult2026", "Official list")],
+    links: [drive("1SingleOfficialResult2026", "List of Successful Examinees")],
+  });
+  assert.equal(result.ok, true);
+  assert.equal(result.event.content_urls.length, 1);
+});
+
+test("a sole top-ten attachment is rejected rather than misidentified as the passer list", () => {
+  const result = buildReleaseEvent(source, {
+    ...articleBase,
+    links: [drive("1SingleTopTenPlaces2026", "Successful Examinees who garnered the top 10 highest places")],
+  });
+  assert.equal(result.ok, false);
+  assert.match(result.reason, /ranking or topnotcher list/);
+});
+
+test("a sole attachment with an unrelated visible label is held for review", () => {
+  const result = buildReleaseEvent(source, {
+    ...articleBase,
+    links: [drive("1SinglePerformanceSchools2026", "Performance of Schools")],
+  });
+  assert.equal(result.ok, false);
+  assert.match(result.reason, /does not identify a successful-examinees list/);
+});
+
+test("a single unlabeled legacy content link remains compatible", () => {
+  const result = buildReleaseEvent(source, {
+    ...articleBase,
+    links: [drive("1SingleLegacyOfficialResult2026", "")],
   });
   assert.equal(result.ok, true);
   assert.equal(result.event.content_urls.length, 1);
