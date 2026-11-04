@@ -69,7 +69,7 @@ export function buildReleaseEvent(source, article) {
   // labelled passer list. Topnotcher/ranking documents are never substitutes.
   const excludedLabel = /\b(?:top\s*10|top\s*ten|topnotchers?|highest\s+places?|top\s+places?)\b/i;
   const configuredPatterns = Array.isArray(source.drive_link_text_patterns)
-    ? source.successful_examinees_link_patterns
+    ? source.drive_link_text_patterns
         .filter((value) => typeof value === "string" && value.trim())
         .map((value) => value.trim().toLowerCase())
     : ["list of successful examinees", "list of passers", "successful examinees list"];
