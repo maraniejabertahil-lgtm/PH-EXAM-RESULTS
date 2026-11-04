@@ -1,7 +1,13 @@
 name: NVIDIA Autonomous Repair
 on:
   workflow_run:
-    types: [completed]
+    workflows:
+      - "Watcher Quality Checks"
+    types:
+      - completed
+    branches:
+      - "Winner-Candidate"
+      - "nvidia/repair-run-*"
 permissions: {}
 concurrency:
   group: nvidia-repair-${{ github.event.workflow_run.id }}
