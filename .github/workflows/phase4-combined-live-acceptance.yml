@@ -1,17 +1,7 @@
 name: Phase 4 Combined Live Acceptance (No Publish)
 
 on:
-  push:
-    branches:
-      - integration/phase4-combined-capture-extraction-20261104
-    paths:
-      - 'python-engine/acquisition/public_preview.py'
-      - 'python-engine/acquisition/public_preview_shards_bridge.py'
-      - 'python-engine/extractor/public_preview_shards.py'
-      - 'python-engine/main.py'
-      - 'python-engine/tests/test_public_preview_shards_bridge.py'
-      - 'tools/run_phase4_combined_live_acceptance.py'
-      - '.github/workflows/phase4-combined-live-acceptance.yml'
+  workflow_dispatch:
 
 permissions:
   contents: read
