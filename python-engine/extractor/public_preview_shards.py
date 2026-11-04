@@ -233,8 +233,11 @@ def capture_shard(
                     "sha256": hashlib.sha256(visible.encode("utf-8")).hexdigest(),
                     "characters": len(visible),
                 })
-                if page_number == 1:
-                    page.screenshot(path=str(output_dir / f"shard-{shard}-page-1.png"), full_page=True)
+                if page_number == 1 or page_number == page_count:
+                    page.screenshot(
+                        path=str(output_dir / f"shard-{shard}-page-{page_number}.png"),
+                        full_page=True,
+                    )
                 completed = page_number - start + 1
                 if completed % 25 == 0 or page_number == end:
                     print(f"[shard {shard}] page {page_number}/{end}; {time.monotonic() - loop_started:.1f}s", flush=True)
