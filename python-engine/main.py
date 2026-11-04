@@ -301,7 +301,7 @@ def process_sharded_preview_batch(
     batch["capture_manifest"] = bridged["manifest_path"].relative_to(repository_root).as_posix()
     staged_batch = repository_root / "python-engine" / "artifacts" / "sharded-preview-batch.json"
     staged_batch.parent.mkdir(parents=True, exist_ok=True)
-    staged_batch.write_text(json.dumps(batch, ensure_ascii=False, indent=2) + "\\n", encoding="utf-8")
+    staged_batch.write_text(json.dumps(batch, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     # Deliberately call process_batch(), never publish_batch(): no PR, merge, or deployment.
     result = process_batch(staged_batch.relative_to(repository_root), root=repository_root)
     result["sharded_preview_bridge"] = {
