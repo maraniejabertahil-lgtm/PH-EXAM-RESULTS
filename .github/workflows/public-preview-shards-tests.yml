@@ -1,0 +1,29 @@
+name: Public Preview Shards Tests
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'python-engine/extractor/public_preview_shards.py'
+      - 'python-engine/tests/test_public_preview_shards.py'
+      - '.github/workflows/public-preview-shards-tests.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'python-engine/extractor/public_preview_shards.py'
+      - 'python-engine/tests/test_public_preview_shards.py'
+      - '.github/workflows/public-preview-shards-tests.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  unit-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - name: Run public-preview sharding regression tests
+        run: python -m unittest discover -s python-engine/tests -p 'test_public_preview_shards.py' -v
