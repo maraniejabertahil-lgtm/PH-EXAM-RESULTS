@@ -60,6 +60,8 @@ Build the Python processing pipeline to acquire official result contents, extrac
 
 **Current delivery status:** Core extractor, Greenlight validation, dataset builder/sharding, GitOps integration, reviewed normalization, and bounded same-origin acquisition are implemented. PRs #58 and #59 integrated hash-bound official public-preview capture into the Python Engine; PR #60 optimized JSON shard sizing from quadratic to linear time. Main-branch CI passed with 116 Python tests. The March 2026 LEPT Elementary full batch (18,376 records) has passed Greenlight 100/100 and generated a hash-verified 862,332-byte dataset shard.
 
+A reusable public-preview page-capture component and callable GitHub Actions workflow are now on main. It supports 1–16 bounded parallel shards, ordinary visible-UI capture, exact page-range merge checks, per-page and archive SHA-256 validation, and a no-retry stop on access challenges. Eight local regression tests pass; the reusable workflow itself has not yet had a live invocation. This page-capture sharding is distinct from the existing 10 MiB JSON dataset sharding. Secondary trial run #36 independently demonstrated the 16-shard method against 901 pages, but that run used the earlier exam-specific script.
+
 **Remaining Phase 2 tasks:**
 - Completed: a compliant PRC owner-reviewed manual-content handoff yielded 50 name/sequence pairs from page 2 of the March 2026 LEPT Elementary roll; PR #56 validates the mapping. The full Elementary batch subsequently passed official public-preview extraction, exact sequence coverage, Greenlight, and dataset generation.
 - Blocked: GitOps staged the Elementary dataset on `data/greenlight-37cd69173dc2`, but GitHub Actions received HTTP 403 because the repository does not permit Actions to create pull requests. The Owner must enable the repository setting `Allow GitHub Actions to create and approve pull requests`. The source preview also carries a DRAFT watermark; Owner review is required before merge.
@@ -79,7 +81,7 @@ Build and verify the Python broadcaster integrations for Facebook Graph API and 
 
 Build the static HTML/CSS frontend, IndexedDB dataset caching, JavaScript Web Worker search, and Cloudflare Pages deployment. Search must remain browser-side and must return the passer name with its corresponding sequence number.
 
-**Current delivery status:** Not started; tasks remain unchecked in `PROGRESS_TRACKER.md`.
+**Current delivery status:** Not started; tasks remain unchecked in `PROGRESS_TRACKER.md`. Per Owner decision D-004, this phase also includes a future Owner-facing review experience for source evidence and extracted records; the public search route must remain read-only.
 
 ---
 
@@ -108,6 +110,7 @@ This register records explicit decisions made by the Owner that affect a phase, 
 | D-001 | 2026-11-03 | Phase 2 — official result-content acquisition | The required result is the passer's name paired with its official sequence number. Downloading or storing a PDF is not required. | Pursue compliant official content in any available format, including an official portal/page or structured data. PDF acquisition is optional and only used when it is a practical authorized way to obtain the contents. | Active |
 | D-002 | 2026-11-03 | Phase 2 — CSC-side release/source assessment | Skip the specific CSC-side PDF-release path because passer details are provided through a portal rather than a passer-list PDF; assess the portal as the relevant content source instead. | This was the earlier source/path direction; it is superseded in testing scope by D-003. | Superseded |
 | D-003 | 2026-11-03 | All phases — CSC testing scope | Skip all CSC-related testing. Continue current result-content acquisition and validation work using PRC sources only. | Do not run CSC portal, source-access, acquisition, extraction, PDF, Watcher-source, or CSC-specific acceptance tests. Preserve existing CSC code and architecture; this decision excludes testing, not future CSC support or deletion of implementation. No CSC tests are required for the current Phase 2 path. | Active |
+| D-004 | 2026-11-04 | Phase 2 Secondary candidate review / Phase 4 website | Defer the current manual visual review of the March 2026 LEPT Secondary candidate; implement an Owner-facing website review experience in a later website update. | Do not treat automated extraction or Greenlight as human visual approval. Keep the Secondary candidate unpublished until the future review process is implemented and completed and the Owner's publication gate is satisfied. Preserve the public search route as read-only; do not bypass source access controls. | Active |
 
 ---
 
