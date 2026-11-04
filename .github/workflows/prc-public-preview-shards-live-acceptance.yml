@@ -1,0 +1,87 @@
+name: PRC Public Preview 16-Shard Live Acceptance
+
+on:
+  push:
+    branches:
+      - test/public-preview-16-shard-live-20261104
+    paths:
+      - ".github/workflows/prc-public-preview-shards-live-acceptance.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  capture:
+    uses: ./.github/workflows/reusable-public-preview-shards.yml
+    with:
+      preview_url: https://drive.google.com/file/d/1RFuFGN4D1T3hkGC-iib9pRmJP1vJiJJ7/preview
+      allowed_hosts: drive.google.com,docs.google.com
+      shard_count: 16
+
+  verify-live-capture:
+    needs: capture
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Download merged public-preview evidence
+        uses: actions/download-artifact@v4
+        with:
+          name: public-preview-capture-evidence
+          path: public-preview-capture
+      - name: Verify live 901-page capture and benchmark
+        run: |
+          python - <<'PY'
+          import json
+          from datetime import datetime, timezone
+          from pathlib import Path
+
+          root = Path("public-preview-capture")
+          manifest = json.loads((root / "capture-manifest.json").read_text(encoding="utf-8"))
+          assert manifest.get("capture_method") == "ordinary_public_preview_ui"
+          assert manifest.get("page_coverage_complete") is True
+          assert manifest.get("viewer_pages_expected") == 901
+          assert manifest.get("viewer_pages_captured") == 901
+          assert manifest.get("shards") == 16
+          assert manifest.get("pdf_downloaded") is False
+          assert manifest.get("access_controls_bypassed") is False
+
+          metadata = manifest.get("shard_metadata")
+          assert isinstance(metadata, list) and len(metadata) == 16
+          starts, finishes, total_pages = [], [], 0
+          for shard in metadata:
+              assert shard["pages_captured"] == shard["page_end"] - shard["page_start"] + 1
+              assert shard["http_status"] is None or shard["http_status"] < 400
+              end = datetime.fromisoformat(shard["captured_at_utc"])
+              starts.append(end.timestamp() - float(shard["loop_seconds"]))
+              finishes.append(end.timestamp())
+              total_pages += shard["pages_captured"]
+          assert total_pages == 901
+          capture_span = max(finishes) - min(starts)
+          summary = {
+              "status": "LIVE_ACCEPTANCE_PASS",
+              "source_article": "https://www.prc.gov.ph/articles/exam-results",
+              "official_preview": "https://drive.google.com/file/d/1RFuFGN4D1T3hkGC-iib9pRmJP1vJiJJ7/preview",
+              "shards": 16,
+              "pages_expected": 901,
+              "pages_captured": total_pages,
+              "capture_span_seconds": round(capture_span, 3),
+              "shard_loop_seconds_min": round(min(float(x["loop_seconds"]) for x in metadata), 3),
+              "shard_loop_seconds_max": round(max(float(x["loop_seconds"]) for x in metadata), 3),
+              "page_coverage_complete": True,
+              "access_controls_bypassed": False,
+              "pdf_downloaded": False,
+              "human_visual_review": "NOT_ASSESSED_BY_AUTOMATION",
+              "published": False
+          }
+          (root / "live-acceptance-benchmark.json").write_text(
+              json.dumps(summary, indent=2) + "\n", encoding="utf-8"
+          )
+          print(json.dumps(summary, indent=2))
+          PY
+      - name: Preserve live acceptance benchmark
+        uses: actions/upload-artifact@v4
+        with:
+          name: prc-public-preview-16-shard-live-acceptance
+          path: public-preview-capture/
+          if-no-files-found: error
+          retention-days: 7
