@@ -4,7 +4,6 @@ import json
 import os
 import re
 import subprocess
-import tarfile
 import urllib.request
 from pathlib import Path
 
@@ -31,20 +30,28 @@ def validate_patch(patch):
     if re.search(r"^(?:old mode|new mode|deleted file mode|new file mode|rename from|rename to|copy from|copy to) ", patch, re.M):
         raise ValueError("Mode changes, renames, copies, and symlink changes are not allowed.")
     headers = re.findall(r"^diff --git a/(.*?) b/(.*?)$", patch, re.M)
-    if not headers:
-        raise ValueError("No unified diff file headers found.")
-    for old, new in headers:
+    unified = re.findall(r"^(---|\+\+\+) (.*?)$", patch, re.M)
+    if not headers or len(unified) != 2 * len(headers):
+        raise ValueError("Patch must have exactly two unified path headers per file.")
+    seen = set()
+    for index, (old, new) in enumerate(headers):
         for path in (old, new):
             p = Path(path)
-            if (p.is_absolute() or "\\" in path or ".." in p.parts or
-                path.startswith("/") or not path.startswith(ALLOWED) or
-                not path.endswith(EXTENSIONS)):
+            if (not re.fullmatch(r"[A-Za-z0-9_./-]+", path) or p.is_absolute()
+                or ".." in p.parts or not path.startswith(ALLOWED)
+                or not path.endswith(EXTENSIONS)):
                 raise ValueError("Out-of-scope or unsafe path: " + path)
-        if old != new:
-            raise ValueError("File renames are not allowed.")
-    if len({new for _, new in headers}) != len(headers):
-        raise ValueError("Duplicate file headers are not allowed.")
-
+        if old != new or new in seen:
+            raise ValueError("Renames and duplicate file headers are not allowed.")
+        seen.add(new)
+        old_kind, old_path = unified[index * 2]
+        new_kind, new_path = unified[index * 2 + 1]
+        old_path = old_path.split("\t", 1)[0]
+        new_path = new_path.split("\t", 1)[0]
+        if old_kind != "---" or new_kind != "+++":
+            raise ValueError("Malformed unified diff headers.")
+        if old_path not in ("/dev/null", "a/" + old) or new_path != "b/" + new:
+            raise ValueError("Unified paths do not match the validated diff paths.")
 failed_logs = run(["gh", "run", "view", RUN_ID, "--repo", REPO, "--log-failed"],
                  capture=True, check=False).stdout[-30000:]
 run(["git", "fetch", "--no-tags", "origin", FAILED_SHA])
