@@ -12,6 +12,7 @@ const valid = {
 };
 
 assert.equal(validateDatasetPayload(valid, 1), valid);
+assert.throws(() => validateDatasetPayload({ columns: valid.columns, data: [["JUAN DELA CRUZ", 85.5, "NCR", 1]] }), /invalid record/);
 assert.throws(() => validateDatasetPayload(valid, 2), /record count/);
 
 const shardFiles = {
@@ -33,19 +34,19 @@ assert.equal(
   validManifestFile
 );
 assert.throws(
-  () => validateManifestFileEntry({ ...validManifestFile, path: "/outside/2026-a.json" }, "PRC", "LET", "2026", "A-M"),
+  () => validateManifestFileEntry({ ...validManifestFile, path: "/outside/2026-a.json" }, "PRC", "LEPT-ELEMENTARY", "2026", "S001"),
   /invalid dataset reference/
 );
 assert.throws(
-  () => validateManifestFileEntry({ ...validManifestFile, hash: "bad" }, "PRC", "LET", "2026", "A-M"),
+  () => validateManifestFileEntry({ ...validManifestFile, hash: "bad" }, "PRC", "LEPT-ELEMENTARY", "2026", "S001"),
   /invalid dataset reference/
 );
 assert.throws(
-  () => validateManifestFileEntry({ ...validManifestFile, record_count: 0 }, "PRC", "LET", "2026", "A-M"),
+  () => validateManifestFileEntry({ ...validManifestFile, record_count: 0 }, "PRC", "LEPT-ELEMENTARY", "2026", "S001"),
   /invalid dataset reference/
 );
 assert.throws(
-  () => validateManifestFileEntry({ ...validManifestFile, size_bytes: 11 * 1024 * 1024 }, "PRC", "LET", "2026", "A-M"),
+  () => validateManifestFileEntry({ ...validManifestFile, size_bytes: 11 * 1024 * 1024 }, "PRC", "LEPT-ELEMENTARY", "2026", "S001"),
   /invalid dataset reference/
 );
 assert.throws(
