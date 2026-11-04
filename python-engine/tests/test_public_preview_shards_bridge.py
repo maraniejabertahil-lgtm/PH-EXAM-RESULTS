@@ -158,7 +158,7 @@ class PublicPreviewShardBridgeTests(unittest.TestCase):
         from unittest.mock import patch
         with patch("main.verify_official_content_link") as verify:
             result = process_sharded_preview_batch(
-                "batch.json", capture_dir="capture",
+                "batch.json", capture_dir=self.capture,
                 evidence_dir=self.root / "python-engine" / "artifacts" / "sharded-preview",
                 root=self.root,
             )
