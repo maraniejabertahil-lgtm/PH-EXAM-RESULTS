@@ -159,7 +159,7 @@ def capture_shard(
     page_control_selector: str = 'input[aria-label^="Page is"]',
     page_count_regex: str = r"Page 1 of\s+(\d+)",
     page_marker_template: str = "Page {page} of {count}",
-    per_page_deadline: int = 35, poll_ms: int = 50,
+    per_page_deadline: int = 15, poll_ms: int = 50,
 ) -> dict:
     """Capture one contiguous shard using the viewer's visible page controls."""
     _validate_url(preview_url, allowed_hosts)
@@ -341,7 +341,7 @@ def main() -> int:
     parser.add_argument("--page-control-selector", default='input[aria-label^="Page is"]')
     parser.add_argument("--page-count-regex", default=r"Page 1 of\s+(\d+)")
     parser.add_argument("--page-marker-template", default="Page {page} of {count}")
-    parser.add_argument("--per-page-deadline", type=int, default=35)
+    parser.add_argument("--per-page-deadline", type=int, default=15)
     parser.add_argument("--poll-ms", type=int, default=50)
     args = parser.parse_args()
     if args.merge:
