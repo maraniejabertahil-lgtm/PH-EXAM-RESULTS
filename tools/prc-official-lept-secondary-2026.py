@@ -38,11 +38,13 @@ events = []
 MODE = "legacy"
 
 # Viewer-loop tuning
-POLL_MS = 150
+POLL_MS = 50
 STABLE_REQUIRED = 2
 PER_PAGE_DEADLINE_S = 35
 DEEP_CHALLENGE_CHECK_EVERY = 100
 PROGRESS_EVERY = 25
+READY_TIMEOUT_S = 25
+LOAD_ATTEMPTS = 3
 CHALLENGE_TERMS = (
     "request access", "sign in to continue", "verify you are human",
     "captcha", "access denied",
@@ -105,8 +107,7 @@ def browser_fetch(url):
         body_text = page.locator("body").inner_text(timeout=10000)
         html = page.content().encode("utf-8")
         browser.close()
-        host = (urlparse(final_url).hostname or "").lower()
-        if host != "prc.gov.ph" and not host.endswith(".prc.gov.ph"):
+        if not (urlparse(final_url).hostname or "").endswith("prc.gov.ph"):
             raise RuntimeError("Unexpected official-page redirect host")
         low = body_text.lower()
         if any(x in low for x in CHALLENGE_TERMS):
@@ -119,7 +120,7 @@ def browser_fetch(url):
 def target_name_is_valid(value):
     if len(value) < 5:
         return False
-    punctuation = set(" ,.'\u2019\u2018-\u2010\u2011\u2012\u2013\u2014_")
+    punctuation = set(" ,.'’‘-‐‑‒–—_")
     return all(
         unicodedata.category(char)[0] in {"L", "M", "N"} or char.isspace() or char in punctuation
         for char in value
@@ -129,45 +130,67 @@ def target_name_is_valid(value):
 # ---------------------------------------------------------------------------
 # CAPTURE (one shard = one contiguous range of viewer pages)
 # ---------------------------------------------------------------------------
+def launch_browser(p):
+    """Use the runner's preinstalled Google Chrome when present (saves the ~300 MB
+    Playwright download); fall back to Playwright's bundled Chromium."""
+    try:
+        return p.chromium.launch(channel="chrome", headless=True)
+    except Exception:
+        return p.chromium.launch(headless=True)
+
+
 def capture(shard, shards):
     SHARD_DIR.mkdir(exist_ok=True)
     target_line_pattern = re.compile(r"^\s*(\d{1,5})[.)]?\s+(.+?)\s*$")
     target_pages = {}
     page_snapshots = []
     with sync_playwright() as p:
-        browser = p.chromium.launch(headless=True)
-        page = browser.new_page(user_agent=UA, viewport={"width": 1600, "height": 1200})
-        response = page.goto(PREVIEW_URL, wait_until="domcontentloaded", timeout=60000)
-        final_url = page.url
-        if (urlparse(final_url).hostname or "") not in {"drive.google.com", "docs.google.com"}:
-            browser.close()
-            raise RuntimeError("Unexpected public-preview redirect host")
+        browser = launch_browser(p)
+        context = browser.new_context(
+            user_agent=UA, locale="en-US", viewport={"width": 1600, "height": 1200},
+            extra_http_headers={"Accept-Language": "en-US,en;q=0.9"},
+        )
+        page = context.new_page()
         body = page.locator("body")
-        # Poll for the viewer instead of a fixed 4 s sleep. If the ordinary
-        # public preview is temporarily blank, reload it once; never solve a
-        # challenge or repeat requests indefinitely.
-        initial, count_match = "", None
-        for viewer_attempt in range(2):
-            ready_deadline = time.monotonic() + 25
+        count_match, initial, final_url, response = None, "", "", None
+        for attempt in range(1, LOAD_ATTEMPTS + 1):
+            response = page.goto(PREVIEW_URL, wait_until="domcontentloaded", timeout=60000)
+            final_url = page.url
+            if (urlparse(final_url).hostname or "") not in {"drive.google.com", "docs.google.com"}:
+                browser.close()
+                raise RuntimeError("Unexpected public-preview redirect host")
+            # Poll for the viewer instead of a fixed sleep.
+            initial, count_match = "", None
+            ready_deadline = time.monotonic() + READY_TIMEOUT_S
             while time.monotonic() < ready_deadline:
                 initial = body.inner_text(timeout=10000)
                 count_match = re.search(r"Page 1 of\s+(\d+)", initial)
                 if count_match:
                     break
-                low_initial = initial.lower() + page.content()[:100000].lower()
-                if any(term in low_initial for term in CHALLENGE_TERMS):
-                    browser.close()
-                    raise RuntimeError("Official public preview requires permission or human verification")
                 page.wait_for_timeout(250)
             if count_match:
                 break
-            if viewer_attempt == 0:
-                print("[viewer] page count not visible; retrying the ordinary preview load once", flush=True)
-                page.reload(wait_until="domcontentloaded", timeout=60000)
-                page.wait_for_timeout(1000)
+            # Not ready: keep evidence of exactly what the viewer showed.
+            diagnostic = {"shard": shard, "attempt": attempt, "url": page.url,
+                          "visible_text_excerpt": initial[:1600]}
+            (SHARD_DIR / f"page-count-failure-shard{shard}-attempt{attempt}.json").write_text(
+                json.dumps(diagnostic, indent=2, ensure_ascii=False), encoding="utf-8")
+            try:
+                page.screenshot(path=str(SHARD_DIR / f"page-count-failure-shard{shard}-attempt{attempt}.png"), full_page=True)
+            except Exception:
+                pass
+            print(f"[shard {shard}] attempt {attempt}/{LOAD_ATTEMPTS}: viewer page count not found. "
+                  f"Visible text starts: {initial[:300]!r}", flush=True)
+            low_init = (initial + page.content()[:100000]).lower()
+            if any(term in low_init for term in CHALLENGE_TERMS):
+                # Never retry through a permission / verification wall.
+                browser.close()
+                raise RuntimeError("Official public preview requires permission or human verification; manual handoff required")
+            if attempt < LOAD_ATTEMPTS:
+                page.wait_for_timeout(4000 * attempt)
         if not count_match:
             browser.close()
-            raise RuntimeError("Could not read the public viewer's page count after one safe reload")
+            raise RuntimeError("Could not read the public viewer's page count after " + str(LOAD_ATTEMPTS) + " attempts")
         page_count = int(count_match.group(1))
         if page_count < 1 or page_count > 2000:
             browser.close()
@@ -202,22 +225,8 @@ def capture(shard, shards):
             marker = f"Page {page_no} of {page_count}"
             deadline = time.monotonic() + PER_PAGE_DEADLINE_S
             stable_samples, previous_text, visible = 0, None, ""
-            navigation_retry_at = time.monotonic() + 8
-            navigation_retried = False
             while time.monotonic() < deadline:
                 visible = body.inner_text(timeout=10000)
-                if (
-                    not navigation_retried
-                    and time.monotonic() >= navigation_retry_at
-                    and (marker not in visible or page_input.input_value(timeout=3000) != str(page_no))
-                ):
-                    # Retry the ordinary viewer page control once after a slow
-                    # transition. This is not an access-control workaround.
-                    page_input.click()
-                    page_input.fill(str(page_no))
-                    page_input.press("Enter")
-                    navigation_retried = True
-                    print(f"[shard {shard}] retried viewer navigation to page {page_no}", flush=True)
                 if marker in visible and page_input.input_value(timeout=3000) == str(page_no):
                     if visible == previous_text:
                         stable_samples += 1
@@ -351,11 +360,9 @@ def merge(shards):
     if set(target_pages) != {1, EXPECTED}:
         raise RuntimeError("Could not bind first and last announced records to visible viewer pages")
 
-    # Preserve every page occurrence. Deduplicating identical lines here would
-    # hide a repeated sequence/name pair and could falsely pass duplicate checks.
-    merged_lines = [
+    merged_lines = list(dict.fromkeys(
         line for snapshot in page_snapshots for line in snapshot["text"].splitlines()
-    ]
+    ))
     text = "\n".join(merged_lines)
     (OUT / "page-capture-index.json").write_text(json.dumps([
         {k: v for k, v in s.items() if k != "text"} for s in page_snapshots
@@ -387,7 +394,7 @@ def merge(shards):
     def valid_name(value):
         if len(value) < 5:
             return False
-        allowed_punctuation = set(" ,.'\u2019\u2018-\u2010\u2011\u2012\u2013\u2014_()/") | {'"'}
+        allowed_punctuation = set(" ,.'’‘-‐‑‒–—_()/") | {'"'}
         for char in value:
             category = unicodedata.category(char)
             if category[0] in {"L", "M", "N"} or char.isspace():
