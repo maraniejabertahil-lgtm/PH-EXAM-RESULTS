@@ -11,7 +11,6 @@ on:
       - ".github/workflows/nvidia-autonomous-repair.yml"
       - "scripts/nvidia_autonomous_repair.py"
       - "scripts/nvidia_publish_repair.py"
-      - "scripts/nvidia_publish_repair.py"
       - "python-engine/config/sources.json"
       - "python-engine/retrieval/**"
       - "python-engine/extractor/**"
