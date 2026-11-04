@@ -63,7 +63,7 @@ jobs:
       - name: Extract failed source and apply candidate patch
         run: |
           mkdir source
-          tar -xzf repair-input/repair-output/source.tar.gz -C source --strip-components=1
+          tar -xzf repair-input/repair-output/source.tar.gz -C source
           cd source
           git init -q
           git config user.name "Isolated Test"
