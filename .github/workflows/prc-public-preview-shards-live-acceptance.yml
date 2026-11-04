@@ -6,6 +6,8 @@ on:
       - test/public-preview-16-shard-live-20261104
     paths:
       - ".github/workflows/prc-public-preview-shards-live-acceptance.yml"
+      - "python-engine/extractor/public_preview_shards.py"
+      - "python-engine/tests/test_public_preview_shards.py"
 
 permissions:
   contents: read
