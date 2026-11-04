@@ -2,34 +2,34 @@ name: NVIDIA Autonomous Repair
 on:
   workflow_run:
     types: [completed]
-permissions:
-  actions: read
-  contents: write
-  pull-requests: write
+permissions: {}
 concurrency:
   group: nvidia-repair-${{ github.event.workflow_run.id }}
   cancel-in-progress: false
+
 jobs:
-  repair:
+  propose:
     if: >-
       github.event.workflow_run.conclusion == 'failure' &&
       github.event.workflow_run.name != 'NVIDIA Autonomous Repair' &&
       (github.event.workflow_run.head_branch == 'Winner-Candidate' || startsWith(github.event.workflow_run.head_branch, 'nvidia/repair-run-')) &&
       github.event.workflow_run.head_repository.full_name == github.repository
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 10
+    permissions:
+      actions: read
+      contents: read
     steps:
       - uses: actions/checkout@v5
         with:
-          fetch-depth: 0
+          ref: ${{ github.event.repository.default_branch }}
           persist-credentials: false
       - uses: actions/setup-python@v6
         with:
           python-version: '3.12'
-      - name: Install trusted test dependencies
-        run: |
-          python -m pip install -r python-engine/requirements.txt pytest
-      - name: Run isolated NVIDIA repair cycle
+      - name: Install proposal dependencies
+        run: python -m pip install requests
+      - name: Generate a proposed patch (does not execute failed-branch code)
         env:
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           OPENROUTER_MODEL: nvidia/nemotron-3-ultra-550b-a55b:free
@@ -38,3 +38,72 @@ jobs:
           FAILED_SHA: ${{ github.event.workflow_run.head_sha }}
           GITHUB_REPOSITORY: ${{ github.repository }}
         run: python scripts/nvidia_autonomous_repair.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: nvidia-repair-candidate
+          path: |
+            repair-output/source.tar.gz
+            repair-output/patch.diff
+          if-no-files-found: error
+          retention-days: 2
+
+  isolated-test:
+    needs: propose
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions: {}
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: nvidia-repair-candidate
+          path: repair-input
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - name: Extract failed source and apply candidate patch
+        run: |
+          mkdir source
+          tar -xzf repair-input/repair-output/source.tar.gz -C source --strip-components=1
+          cd source
+          git init -q
+          git config user.name "Isolated Test"
+          git config user.email "isolated-test@example.invalid"
+          git add -A
+          git -c core.hooksPath=/dev/null commit -qm "Isolated source snapshot"
+          git apply --check ../repair-input/repair-output/patch.diff
+          git apply ../repair-input/repair-output/patch.diff
+      - name: Install test dependencies
+        working-directory: source
+        run: python -m pip install -r python-engine/requirements.txt pytest
+      - name: Run Python Engine tests without repository credentials or secrets
+        working-directory: source
+        env:
+          PYTHONPATH: python-engine/retrieval
+        run: python -m pytest python-engine/tests -q
+
+  publish-repair-pr:
+    needs: isolated-test
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      actions: read
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/download-artifact@v4
+        with:
+          name: nvidia-repair-candidate
+          path: repair-input
+      - name: Create repair PR from the tested patch (does not execute candidate code)
+        env:
+          GH_TOKEN: ${{ github.token }}
+          FAILED_RUN_ID: ${{ github.event.workflow_run.id }}
+          FAILED_SHA: ${{ github.event.workflow_run.head_sha }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          OPENROUTER_MODEL: nvidia/nemotron-3-ultra-550b-a55b:free
+        run: python scripts/nvidia_publish_repair.py
