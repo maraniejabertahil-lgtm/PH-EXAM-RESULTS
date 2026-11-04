@@ -74,7 +74,15 @@ export function buildReleaseEvent(source, article) {
         .map((value) => value.trim().toLowerCase())
     : ["list of successful examinees", "list of passers", "successful examinees list"];
   let links = candidates;
-  if (candidates.length > 1) {
+  if (candidates.length === 1 && candidates[0].label) {
+    const label = candidates[0].label;
+    if (excludedLabel.test(label)) {
+      return review("the only linked document is labelled as a ranking or topnotcher list");
+    }
+    if (!configuredPatterns.some((pattern) => label.toLowerCase().includes(pattern))) {
+      return review("the only linked document label does not identify a successful-examinees list");
+    }
+  } else if (candidates.length > 1) {
     const matches = candidates.filter((link) =>
       link.label && !excludedLabel.test(link.label) &&
       configuredPatterns.some((pattern) => link.label.toLowerCase().includes(pattern))
