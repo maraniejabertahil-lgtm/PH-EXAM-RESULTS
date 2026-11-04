@@ -93,13 +93,73 @@ def _launch_browser(playwright):
         return playwright.chromium.launch(headless=True)
 
 
+def _capture_stable_page(
+    *, page, body, page_control_selector: str, page_number: int, page_count: int, page_marker_template: str,
+    shard: int, output_dir: Path, per_page_deadline: int, poll_ms: int,
+) -> str:
+    """Read one visible page, retrying that page in place before restarting a shard."""
+    marker = page_marker_template.format(page=page_number, count=page_count)
+    diagnostic = {}
+    for attempt in range(1, 4):
+        control = page.locator(page_control_selector)
+        if control.count() != 1:
+            raise RuntimeError("public-preview page navigation control was not found uniquely")
+        if page_number > 1:
+            page.wait_for_selector(page_control_selector, state="visible", timeout=15000)
+            control.click()
+            control.fill(str(page_number))
+            control.press("Enter")
+
+        deadline = time.monotonic() + per_page_deadline
+        stable_samples, previous_text, visible = 0, None, ""
+        while time.monotonic() < deadline:
+            visible = body.inner_text(timeout=10000)
+            selected_page = control.input_value(timeout=3000).strip()
+            if marker in visible and selected_page == str(page_number):
+                if visible == previous_text:
+                    stable_samples += 1
+                else:
+                    stable_samples = 0
+                previous_text = visible
+                if stable_samples >= 2:
+                    return visible
+            else:
+                stable_samples, previous_text = 0, visible
+            if _challenge_present(visible):
+                raise AccessChallengeError("access challenge appeared during public-preview navigation")
+            page.wait_for_timeout(poll_ms)
+
+        diagnostic = {
+            "shard": shard, "requested_page": page_number,
+            "selected_page": control.input_value(timeout=3000),
+            "visible_text_excerpt": visible[:1600], "url": page.url,
+            "navigation_attempt": attempt,
+        }
+        if attempt < 3:
+            print(
+                f"[shard {shard}] page {page_number}/{page_count} did not stabilize "
+                f"(attempt {attempt}/3); retrying this page only",
+                flush=True,
+            )
+            page.wait_for_timeout(1000 * attempt)
+
+    (output_dir / f"navigation-failure-shard-{shard}.json").write_text(
+        json.dumps(diagnostic, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+    )
+    page.screenshot(
+        path=str(output_dir / f"navigation-failure-shard-{shard}.png"),
+        full_page=True,
+    )
+    raise RuntimeError("viewer page did not stabilize after 3 page-level attempts: " + json.dumps(diagnostic, ensure_ascii=False))
+
+
 def capture_shard(
     *, preview_url: str, shard: int, shard_count: int, output_dir: Path,
     allowed_hosts: set[str], user_agent: str = DEFAULT_USER_AGENT,
     page_control_selector: str = 'input[aria-label^="Page is"]',
     page_count_regex: str = r"Page 1 of\s+(\d+)",
     page_marker_template: str = "Page {page} of {count}",
-    per_page_deadline: int = 35, poll_ms: int = 50,
+    per_page_deadline: int = 15, poll_ms: int = 50,
 ) -> dict:
     """Capture one contiguous shard using the viewer's visible page controls."""
     _validate_url(preview_url, allowed_hosts)
@@ -158,43 +218,13 @@ def capture_shard(
             loop_started = time.monotonic()
 
             for page_number in range(start, end + 1):
-                if page_number > 1:
-                    control.click()
-                    control.fill(str(page_number))
-                    control.press("Enter")
-                marker = page_marker_template.format(page=page_number, count=page_count)
-                deadline = time.monotonic() + per_page_deadline
-                stable_samples, previous_text, visible = 0, None, ""
-                while time.monotonic() < deadline:
-                    visible = body.inner_text(timeout=10000)
-                    selected_page = control.input_value(timeout=3000).strip()
-                    if marker in visible and selected_page == str(page_number):
-                        if visible == previous_text:
-                            stable_samples += 1
-                        else:
-                            stable_samples = 0
-                        previous_text = visible
-                        if stable_samples >= 2:
-                            break
-                    else:
-                        stable_samples, previous_text = 0, visible
-                    if _challenge_present(visible):
-                        raise AccessChallengeError("access challenge appeared during public-preview navigation")
-                    page.wait_for_timeout(poll_ms)
-                else:
-                    diagnostic = {
-                        "shard": shard, "requested_page": page_number,
-                        "selected_page": control.input_value(timeout=3000),
-                        "visible_text_excerpt": visible[:1600], "url": page.url,
-                    }
-                    (output_dir / f"navigation-failure-shard-{shard}.json").write_text(
-                        json.dumps(diagnostic, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
-                    )
-                    page.screenshot(
-                        path=str(output_dir / f"navigation-failure-shard-{shard}.png"),
-                        full_page=True,
-                    )
-                    raise RuntimeError("viewer page did not stabilize: " + json.dumps(diagnostic, ensure_ascii=False))
+                visible = _capture_stable_page(
+                    page=page, body=body, page_control_selector=page_control_selector,
+                    page_number=page_number, page_count=page_count,
+                    page_marker_template=page_marker_template, shard=shard,
+                    output_dir=output_dir, per_page_deadline=per_page_deadline,
+                    poll_ms=poll_ms,
+                )
 
                 if page_number % 100 == 0 and _challenge_present(page.content()[:100000]):
                     raise AccessChallengeError("access challenge appeared in viewer page content")
@@ -311,7 +341,7 @@ def main() -> int:
     parser.add_argument("--page-control-selector", default='input[aria-label^="Page is"]')
     parser.add_argument("--page-count-regex", default=r"Page 1 of\s+(\d+)")
     parser.add_argument("--page-marker-template", default="Page {page} of {count}")
-    parser.add_argument("--per-page-deadline", type=int, default=35)
+    parser.add_argument("--per-page-deadline", type=int, default=15)
     parser.add_argument("--poll-ms", type=int, default=50)
     args = parser.parse_args()
     if args.merge:

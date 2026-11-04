@@ -30,6 +30,11 @@ on:
         required: false
         default: 'Page {page} of {count}'
         type: string
+      per_page_deadline:
+        description: Maximum seconds to wait for one visible page before retrying that page
+        required: false
+        default: 15
+        type: number
 
 permissions:
   contents: read
@@ -82,6 +87,7 @@ jobs:
           PAGE_CONTROL_SELECTOR: ${{ inputs.page_control_selector }}
           PAGE_COUNT_REGEX: ${{ inputs.page_count_regex }}
           PAGE_MARKER_TEMPLATE: ${{ inputs.page_marker_template }}
+          PER_PAGE_DEADLINE: ${{ inputs.per_page_deadline }}
         run: |
           # Stagger browser starts to avoid hitting the viewer in the same second.
           sleep $(( SHARD * 2 ))
@@ -92,7 +98,8 @@ jobs:
               --shard "$SHARD" --shards "$SHARD_COUNT" \
               --page-control-selector "$PAGE_CONTROL_SELECTOR" \
               --page-count-regex "$PAGE_COUNT_REGEX" \
-              --page-marker-template "$PAGE_MARKER_TEMPLATE"; then
+              --page-marker-template "$PAGE_MARKER_TEMPLATE" \
+              --per-page-deadline "$PER_PAGE_DEADLINE"; then
               exit 0
             else
               result=$?
