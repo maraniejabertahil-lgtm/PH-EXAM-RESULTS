@@ -159,7 +159,7 @@ class PublicPreviewShardBridgeTests(unittest.TestCase):
         with patch("main.verify_official_content_link") as verify:
             result = process_sharded_preview_batch(
                 "batch.json", capture_dir="capture",
-                evidence_dir="python-engine/artifacts/sharded-preview",
+                evidence_dir=self.root / "python-engine" / "artifacts" / "sharded-preview",
                 root=self.root,
             )
         verify.assert_called_once()
