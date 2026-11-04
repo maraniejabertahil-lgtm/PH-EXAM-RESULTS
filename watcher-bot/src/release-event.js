@@ -68,7 +68,7 @@ export function buildReleaseEvent(source, article) {
   // When an announcement links several documents, dispatch only the uniquely
   // labelled passer list. Topnotcher/ranking documents are never substitutes.
   const excludedLabel = /\b(?:top\s*10|top\s*ten|topnotchers?|highest\s+places?|top\s+places?)\b/i;
-  const configuredPatterns = Array.isArray(source.successful_examinees_link_patterns)
+  const configuredPatterns = Array.isArray(source.drive_link_text_patterns)
     ? source.successful_examinees_link_patterns
         .filter((value) => typeof value === "string" && value.trim())
         .map((value) => value.trim().toLowerCase())
