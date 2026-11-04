@@ -24,7 +24,8 @@
         "required": ["url", "format"],
         "properties": {
           "url": {"type": "string", "pattern": "^https://"},
-          "format": {"enum": ["pdf", "html", "csv", "json"]}
+          "format": {"enum": ["pdf", "html", "csv", "json"]},
+          "label": {"type": "string"}
         }
       }
     },
