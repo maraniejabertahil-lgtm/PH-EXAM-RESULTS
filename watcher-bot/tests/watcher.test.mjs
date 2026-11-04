@@ -667,6 +667,7 @@ test("opt-in PRC listing discovery scans only same-origin result articles and ve
     '<a href="/article/oathtaking">Face-to-Face Oathtaking of New Chemists</a>' +
     '<a href="https://evil.example/node/999">October 2026 Examination Results Released</a>';
   const articleHtml =
+    '<h1>October 2026 Certified Public Accountants Licensure Examination Results Released</h1>' +
     '<a href="https://drive.google.com/file/d/' + discoveredId + '/view?usp=sharing">List of Successful Examinees</a>';
   const { fetchImpl, dispatches } = githubFetch([source], async (url, init) => {
     if (url === listingUrl && init.method === "HEAD") {
@@ -693,12 +694,13 @@ test("opt-in PRC listing discovery scans only same-origin result articles and ve
   const report = await runScheduled({ env: envFor(), fetchImpl, scheduledTime: Date.UTC(2026, 10, 2) });
   assert.equal(report.first_check.results[0].status, "baseline_created");
   assert.equal(dispatches.length, 1);
-  assert.equal(dispatches[0].client_payload.authority, "PRC");
-  assert.equal(dispatches[0].client_payload.detection_method, "official_page_drive_link");
-  assert.equal(dispatches[0].client_payload.source_page_url, listingUrl);
-  assert.equal(dispatches[0].client_payload.source_article_url, articleUrl);
-  assert.equal(dispatches[0].client_payload.detected_url,
-    "https://drive.google.com/uc?export=download&id=" + discoveredId);
+  assert.equal(dispatches[0].event_type, "prc-release-detected");
+  assert.equal(dispatches[0].client_payload.exam_code, "CPALE");
+  assert.equal(dispatches[0].client_payload.exam_year, 2026);
+  assert.equal(dispatches[0].client_payload.article_url, articleUrl);
+  assert.equal(dispatches[0].client_payload.content_urls[0].format, "pdf");
+  assert.equal(dispatches[0].client_payload.content_urls[0].url,
+    "https://drive.google.com/file/d/" + discoveredId + "/view?usp=sharing");
 });
 
 test("PRC article discovery stays off unless explicitly enabled by the approved source", async () => {
@@ -830,7 +832,14 @@ test("PRC listing snapshots historical pages and processes newly posted result a
     }
     const articleIndex = newArticles.indexOf(url);
     if (articleIndex >= 0 && init.method === "GET") {
+      const titles = [
+        "November 2026 Certified Public Accountants Licensure Examination Results Released",
+        "November 2026 Nurse Licensure Examination Results Released",
+        "November 2026 Criminologist Licensure Examination Results Released",
+        "November 2026 Licensure Examination for Professional Teachers Secondary Results Released"
+      ];
       return new Response(
+        '<h1>' + titles[articleIndex] + '</h1>' +
         '<a href="https://drive.google.com/file/d/' + driveIds[articleIndex] + '/view">List of Successful Examinees</a>',
         { status: 200, headers: { "content-type": "text/html" } }
       );
@@ -866,6 +875,9 @@ test("PRC listing snapshots historical pages and processes newly posted result a
   const secondBatch = await runScheduled({ env, fetchImpl, scheduledTime: Date.UTC(2026, 10, 3, 0, 2) });
   assert.equal(secondBatch.first_check.results[0].status, "changed");
   assert.equal(dispatches.length, 4);
-  assert.equal(dispatches[3].client_payload.source_article_url, newArticles[3]);
+  assert.equal(dispatches[3].event_type, "prc-release-detected");
+  assert.equal(dispatches[3].client_payload.exam_code, "LEPT");
+  assert.equal(dispatches[3].client_payload.result_level, "secondary");
+  assert.equal(dispatches[3].client_payload.article_url, newArticles[3]);
   assert.ok(secondBatch.outbound_subrequests_used <= secondBatch.outbound_subrequest_safety_limit);
 });

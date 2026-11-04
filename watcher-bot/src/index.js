@@ -1,3 +1,4 @@
+import { buildReleaseEvent } from "./release-event.js";
 const GITHUB_API = "https://api.github.com";
 const GITHUB_API_VERSION = "2022-11-28";
 const USER_AGENT = "PH-EXAM-RESULTS-Watcher/1.0";
@@ -459,6 +460,80 @@ async function findOfficialResultArticleLinks(pageUrl, fetchImpl, source = {}) {
   return { links: found, errors };
 }
 
+async function fetchOfficialArticleMetadata(articleUrl, fetchImpl) {
+  const page = validateHttpsUrl(articleUrl);
+  if (!["www.prc.gov.ph", "prc.gov.ph"].includes(page.hostname.toLowerCase())) {
+    throw new Error("PRC article URL is outside the approved official host.");
+  }
+  const { response, finalUrl } = await fetchSameOrigin(page.href, {
+    method: "GET", headers: { "User-Agent": USER_AGENT, Accept: "text/html" }
+  }, fetchImpl);
+  if (!response.ok) {
+    if (response.body) await response.body.cancel();
+    throw new Error(`PRC article fetch failed (HTTP ${response.status}).`);
+  }
+  const reader = response.body?.getReader();
+  if (!reader) throw new Error("PRC article response had no readable body.");
+  const chunks = [];
+  let total = 0;
+  try {
+    while (total < MAX_HTML_BYTES) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      const part = value.subarray(0, MAX_HTML_BYTES - total);
+      chunks.push(part); total += part.length;
+      if (part.length !== value.length) break;
+    }
+  } finally { await reader.cancel().catch(() => {}); }
+  const html = new TextDecoder().decode(concatBytes(chunks, total));
+  const heading = html.match(/<h1\b[^>]*>([\s\S]*?)<\/h1>/i) ||
+    html.match(/<title\b[^>]*>([\s\S]*?)<\/title>/i);
+  const clean = (value) => value.replace(/<script\b[\s\S]*?<\/script>/gi, " ")
+    .replace(/<style\b[\s\S]*?<\/style>/gi, " ")
+    .replace(/<[^>]*>/g, " ").replace(/&nbsp;|&#160;/gi, " ")
+    .replace(/&amp;/gi, "&").replace(/&quot;/gi, '"')
+    .replace(/&#39;|&apos;/gi, "'").replace(/\s+/g, " ").trim();
+  const title = heading ? clean(heading[1]) : "";
+  const text = clean(html);
+  const links = [];
+  const anchors = /<a\b[^>]*href\s*=\s*["']([^"']+)["'][^>]*>/gi;
+  let match;
+  while ((match = anchors.exec(html))) {
+    try {
+      const url = new URL(match[1].replace(/&amp;/gi, "&"), finalUrl);
+      if (url.protocol === "https:" && !url.username && !url.password) {
+        links.push({ url: url.href, label: "" });
+      }
+    } catch { /* Ignore malformed links. */ }
+  }
+  return { title, url: finalUrl, text, links };
+}
+
+async function dispatchPrReleaseEvent(env, source, article, fetchImpl, now) {
+  const built = buildReleaseEvent(source, article);
+  if (!built.ok) return { status: "needs_human_review_no_dispatch", reason: built.reason };
+  const key = await kvKey("prc-release-event", source.id, article.url);
+  if (await env.PEAK_WEEK.get(key)) return { status: "already_dispatched", article_url: article.url };
+  const response = await fetchImpl(`${GITHUB_API}/repos/${env.GITHUB_REPOSITORY}/dispatches`, {
+    method: "POST",
+    headers: {
+      Accept: "application/vnd.github+json",
+      Authorization: `Bearer ${env.GITHUB_TOKEN}`,
+      "X-GitHub-Api-Version": GITHUB_API_VERSION,
+      "Content-Type": "application/json",
+      "User-Agent": USER_AGENT
+    },
+    body: JSON.stringify({ event_type: "prc-release-detected", client_payload: built.event }),
+    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS)
+  });
+  if (response.status !== 204) {
+    const detail = await response.text().catch(() => "");
+    throw new Error(`PRC release-event dispatch failed (HTTP ${response.status})${detail ? `: ${detail.slice(0, 200)}` : ""}.`);
+  }
+  await env.PEAK_WEEK.put(key, isoNow(now), { expirationTtl: DISPATCH_TTL_SECONDS });
+  return { status: "prc-release-event-dispatched", article_url: article.url };
+}
+
 async function scanApprovedDocuments(source, pageUrl, env, fetchImpl, now, allowArticleDiscovery = true) {
   const trackNewArticlesOnly = source.track_new_articles_only === true &&
     source.discover_official_result_articles === true;
@@ -558,7 +633,12 @@ async function scanApprovedDocuments(source, pageUrl, env, fetchImpl, now, allow
       for (const articleUrl of articlesToScan) {
         let articleResults = [];
         try {
-          articleResults = await scanApprovedDocuments(source, articleUrl, env, fetchImpl, now, false);
+          if (source.authority === "PRC" && source.source_type === "official") {
+            const article = await fetchOfficialArticleMetadata(articleUrl, fetchImpl);
+            articleResults = [await dispatchPrReleaseEvent(env, source, article, fetchImpl, now)];
+          } else {
+            articleResults = await scanApprovedDocuments(source, articleUrl, env, fetchImpl, now, false);
+          }
         } catch (error) {
           articleResults = [{
             status: "article_scan_error_manual_review_required",
@@ -569,7 +649,7 @@ async function scanApprovedDocuments(source, pageUrl, env, fetchImpl, now, allow
           articleResults.push({ status: "article_has_no_matching_pdf_yet" });
         }
         const terminalSuccess = articleResults.length > 0 &&
-          articleResults.every((item) => ["dispatched", "already_dispatched"].includes(item.status));
+          articleResults.every((item) => ["dispatched", "already_dispatched", "prc-release-event-dispatched"].includes(item.status));
         if (trackNewArticlesOnly && terminalSuccess) processedArticleUrls.push(articleUrl);
         results.push(...articleResults.map((item) => ({ ...item, article_url: articleUrl })));
       }

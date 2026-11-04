@@ -4,6 +4,7 @@ on:
   repository_dispatch:
     types:
       - source-detected
+      - prc-release-detected
   push:
     paths:
       - "manual-drop/**"
@@ -188,3 +189,26 @@ jobs:
         run: |
           set -euo pipefail
           python python-engine/main.py "$BATCH_FILE"
+
+
+  validate-prc-release-event-contract:
+    if: github.event_name == 'repository_dispatch' && github.event.action == 'prc-release-detected'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v5
+      - name: Validate PRC release event v1 (no acquisition or publication)
+        env:
+          CLIENT_PAYLOAD: ${{ toJson(github.event.client_payload) }}
+        run: |
+          set -euo pipefail
+          printf '%s' "$CLIENT_PAYLOAD" > event.json
+          python3 python-engine/prc_orchestrator.py --event event.json --validate-only
+          echo "Validated PRC release event v1. This gate does not acquire, extract, open a PR, or publish."
+      - name: Preserve validated event
+        uses: actions/upload-artifact@v4
+        with:
+          name: prc-release-event-${{ github.run_id }}
+          path: event.json
+          retention-days: 7
