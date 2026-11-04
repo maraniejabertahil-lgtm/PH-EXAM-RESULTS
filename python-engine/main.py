@@ -21,7 +21,7 @@ from acquisition.official_first_policy import third_party_fallback_gate
 from acquisition.official_pdf import AcquisitionError, acquire_official_pdf
 from acquisition.official_content import OfficialContentError, verify_official_content_link
 from acquisition.public_preview import PublicPreviewCaptureError, load_public_preview_capture
-from acquisition.public_preview_shards_bridge import build_python_engine_capture_manifest
+from acquisition.public_preview_shards_bridge import ShardBridgeError, build_python_engine_capture_manifest
 from extractor.pdf_parser import extract_pdf
 from processor.greenlight import validate_records, write_validation_report
 from processor.normalizer import NormalizationError, normalize_extracted_tables
@@ -295,7 +295,7 @@ def process_sharded_preview_batch(
             batch=batch,
             repository_root=repository_root,
         )
-    except (ValueError, TypeError, OSError) as exc:
+    except (ShardBridgeError, ValueError, TypeError, OSError) as exc:
         raise PipelineError(f"Sharded public-preview bridge stopped safely: {exc}") from exc
     batch["official_content_mode"] = "public_preview_capture"
     batch["capture_manifest"] = bridged["manifest_path"].relative_to(repository_root).as_posix()
