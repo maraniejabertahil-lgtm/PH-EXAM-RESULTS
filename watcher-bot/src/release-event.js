@@ -55,11 +55,35 @@ export function buildReleaseEvent(source, article) {
     return review("LEPT level ambiguous or missing in the article title");
   }
 
-  const links = (Array.isArray(article.links) ? article.links : [])
+  const candidates = (Array.isArray(article.links) ? article.links : [])
     .filter((link) => link && typeof link.url === "string" && /^https:\/\//i.test(link.url))
-    .map((link) => ({ url: link.url, format: guessFormat(link.url) }))
+    .map((link) => ({
+      url: link.url,
+      format: guessFormat(link.url),
+      label: typeof link.label === "string" ? link.label.replace(/\\s+/g, " ").trim() : ""
+    }))
     .filter((link) => link.format);
-  if (!links.length) return review("no supported official linked content found");
+  if (!candidates.length) return review("no supported official linked content found");
+
+  // When an announcement links several documents, dispatch only the uniquely
+  // labelled passer list. Topnotcher/ranking documents are never substitutes.
+  const excludedLabel = /\\b(?:top\\s*10|top\\s*ten|topnotchers?|highest\\s+places?|top\\s+places?)\\b/i;
+  const configuredPatterns = Array.isArray(source.successful_examinees_link_patterns)
+    ? source.successful_examinees_link_patterns
+        .filter((value) => typeof value === "string" && value.trim())
+        .map((value) => value.trim().toLowerCase())
+    : ["list of successful examinees", "list of passers", "successful examinees list"];
+  let links = candidates;
+  if (candidates.length > 1) {
+    const matches = candidates.filter((link) =>
+      link.label && !excludedLabel.test(link.label) &&
+      configuredPatterns.some((pattern) => link.label.toLowerCase().includes(pattern))
+    );
+    if (matches.length !== 1) {
+      return review("multiple linked documents require one uniquely labelled successful-examinees list");
+    }
+    links = matches;
+  }
 
   const countPatterns = [
     /\b([\d,]{3,})\s+(?:(?:elementary|secondary)\s+)?(?:teachers?\s+)?(?:out of|successfully passed|passed)\b/i,
