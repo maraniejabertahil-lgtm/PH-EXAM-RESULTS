@@ -2,13 +2,12 @@ name: NVIDIA Autonomous Repair
 on:
   workflow_run:
     types: [completed]
-    branches: [Winner-Candidate]
 permissions:
   actions: read
   contents: write
   pull-requests: write
 concurrency:
-  group: nvidia-repair-\${{ github.event.workflow_run.id }}
+  group: nvidia-repair-${{ github.event.workflow_run.id }}
   cancel-in-progress: false
 jobs:
   repair:
@@ -22,7 +21,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
         with:
-          ref: \${{ github.event.workflow_run.head_sha }}
+          ref: ${{ github.event.workflow_run.head_sha }}
           fetch-depth: 0
       - uses: actions/setup-python@v6
         with:
@@ -33,10 +32,10 @@ jobs:
           python -m pip install -r python-engine/requirements.txt pytest
       - name: Run NVIDIA autonomous repair cycle
         env:
-          OPENROUTER_API_KEY: \${{ secrets.OPENROUTER_API_KEY }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           OPENROUTER_MODEL: nvidia/nemotron-3-ultra-550b-a55b:free
-          GH_TOKEN: \${{ github.token }}
-          FAILED_RUN_ID: \${{ github.event.workflow_run.id }}
-          FAILED_SHA: \${{ github.event.workflow_run.head_sha }}
-          GITHUB_REPOSITORY: \${{ github.repository }}
+          GH_TOKEN: ${{ github.token }}
+          FAILED_RUN_ID: ${{ github.event.workflow_run.id }}
+          FAILED_SHA: ${{ github.event.workflow_run.head_sha }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
         run: python scripts/nvidia_autonomous_repair.py
