@@ -80,7 +80,7 @@ class PublicPreviewShardBridgeTests(unittest.TestCase):
 
     def test_builds_hash_bound_engine_manifest_and_exact_records(self):
         result = build_python_engine_capture_manifest(
-            capture_dir=self.capture, output_dir=self.output, batch=self.batch
+            capture_dir=self.capture, output_dir=self.output, batch=self.batch, repository_root=self.root
         )
         self.assertEqual(result["record_count"], 2)
         self.assertEqual(result["human_visual_review"], "PENDING")
@@ -104,7 +104,7 @@ class PublicPreviewShardBridgeTests(unittest.TestCase):
             stream.write("{}\n")
         with self.assertRaises(ShardBridgeError):
             build_python_engine_capture_manifest(
-                capture_dir=self.capture, output_dir=self.output, batch=self.batch
+                capture_dir=self.capture, output_dir=self.output, batch=self.batch, repository_root=self.root
             )
 
     def test_rejects_missing_sequence_without_emitting_engine_manifest(self):
@@ -130,7 +130,7 @@ class PublicPreviewShardBridgeTests(unittest.TestCase):
         (self.capture / "capture-manifest.json").write_text(json.dumps(self.capture_manifest))
         with self.assertRaises(ShardBridgeError):
             build_python_engine_capture_manifest(
-                capture_dir=self.capture, output_dir=self.output, batch=self.batch
+                capture_dir=self.capture, output_dir=self.output, batch=self.batch, repository_root=self.root
             )
         self.assertFalse((self.output / "python-engine-capture-manifest.json").exists())
 
@@ -139,7 +139,7 @@ class PublicPreviewShardBridgeTests(unittest.TestCase):
         (self.capture / "capture-manifest.json").write_text(json.dumps(self.capture_manifest))
         with self.assertRaises(ShardBridgeError):
             build_python_engine_capture_manifest(
-                capture_dir=self.capture, output_dir=self.output, batch=self.batch
+                capture_dir=self.capture, output_dir=self.output, batch=self.batch, repository_root=self.root
             )
 
 
