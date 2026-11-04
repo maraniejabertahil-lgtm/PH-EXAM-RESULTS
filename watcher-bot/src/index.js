@@ -486,17 +486,17 @@ async function fetchOfficialArticleMetadata(articleUrl, fetchImpl) {
     }
   } finally { await reader.cancel().catch(() => {}); }
   const html = new TextDecoder().decode(concatBytes(chunks, total));
-  const heading = html.match(/<h1\\b[^>]*>([\\s\\S]*?)<\\/h1>/i) ||
-    html.match(/<title\\b[^>]*>([\\s\\S]*?)<\\/title>/i);
-  const clean = (value) => value.replace(/<script\\b[\\s\\S]*?<\\/script>/gi, " ")
-    .replace(/<style\\b[\\s\\S]*?<\\/style>/gi, " ")
+  const heading = html.match(/<h1\b[^>]*>([\s\S]*?)<\/h1>/i) ||
+    html.match(/<title\b[^>]*>([\s\S]*?)<\/title>/i);
+  const clean = (value) => value.replace(/<script\b[\s\S]*?<\/script>/gi, " ")
+    .replace(/<style\b[\s\S]*?<\/style>/gi, " ")
     .replace(/<[^>]*>/g, " ").replace(/&nbsp;|&#160;/gi, " ")
     .replace(/&amp;/gi, "&").replace(/&quot;/gi, '"')
-    .replace(/&#39;|&apos;/gi, "'").replace(/\\s+/g, " ").trim();
+    .replace(/&#39;|&apos;/gi, "'").replace(/\s+/g, " ").trim();
   const title = heading ? clean(heading[1]) : "";
   const text = clean(html);
   const links = [];
-  const anchors = /<a\\b[^>]*href\\s*=\\s*["']([^"']+)["'][^>]*>/gi;
+  const anchors = /<a\b[^>]*href\s*=\s*["']([^"']+)["'][^>]*>/gi;
   let match;
   while ((match = anchors.exec(html))) {
     try {
