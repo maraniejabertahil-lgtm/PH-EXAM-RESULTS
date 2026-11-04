@@ -35,7 +35,7 @@ jobs:
 
   capture:
     needs: regression-tests
-    name: capture-shard-\${{ matrix.shard }}
+    name: capture-shard-${{ matrix.shard }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     strategy:
@@ -55,7 +55,7 @@ jobs:
           fi
       - name: Capture assigned visible pages with bounded diagnostics
         env:
-          SHARD: \${{ matrix.shard }}
+          SHARD: ${{ matrix.shard }}
         run: |
           sleep $(( SHARD * 2 ))
           for attempt in 1 2 3; do
@@ -80,7 +80,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: phase4-diagnostic-shard-\${{ matrix.shard }}
+          name: phase4-diagnostic-shard-${{ matrix.shard }}
           path: public-preview-capture/
           if-no-files-found: warn
           retention-days: 7
