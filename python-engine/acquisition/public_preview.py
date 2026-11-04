@@ -83,7 +83,7 @@ def load_public_preview_capture(
     if (
         isinstance(page_count, bool) or not isinstance(page_count, int) or page_count < 1
         or manifest.get("viewer_pages_navigated") != page_count
-        or manifest.get("snapshots_retained") != 1
+        or manifest.get("snapshots_retained") != page_count
     ):
         raise PublicPreviewCaptureError("Public-preview page navigation evidence is incomplete.")
 
