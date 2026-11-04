@@ -213,22 +213,39 @@ def build_python_engine_capture_manifest(
     record_path.write_text("".join(json.dumps(row, ensure_ascii=False) + "\n" for row in records), encoding="utf-8")
     layout_path.write_text("\n".join(page_texts), encoding="utf-8")
 
-    # The first record screenshot is evidence only; it never marks human review complete.
-    screenshot_candidates = sorted(source.glob("shard-*-page-1.png"))
-    first_page_records, _ = _extract_records([page_texts[0]], announced)
-    if not screenshot_candidates or not first_page_records or first_page_records[0]["seq"] != "1":
-        raise ShardBridgeError("first-page screenshot and sequence-1 record evidence are required")
-    screenshot_source = screenshot_candidates[0]
-    screenshot_path = destination / "first-page.png"
-    screenshot_path.write_bytes(screenshot_source.read_bytes())
-    screenshot_hash = _sha256(screenshot_path)
-    first_name = first_page_records[0]["name"]
+    # First/last source-page screenshots are evidence only; human review stays pending.
+    target_specs = ((1, 1, page_texts[0]), (announced, page_count, page_texts[-1]))
+    visual_records: dict[str, dict[str, str]] = {}
+    visual_results: list[dict[str, Any]] = []
+    seen_sequences: set[int] = set()
+    for sequence, page_number, page_text in target_specs:
+        if sequence in seen_sequences:
+            continue
+        seen_sequences.add(sequence)
+        page_records, _ = _extract_records([page_text], announced)
+        target = next((row for row in page_records if int(row["seq"]) == sequence), None)
+        screenshot_candidates = sorted(source.glob(f"shard-*-page-{page_number}.png"))
+        if target is None or len(screenshot_candidates) != 1:
+            raise ShardBridgeError(
+                f"first/last page screenshot and sequence-{sequence} record evidence are required"
+            )
+        screenshot_path = destination / f"page-{page_number}.png"
+        screenshot_path.write_bytes(screenshot_candidates[0].read_bytes())
+        screenshot_hash = _sha256(screenshot_path)
+        visual_records[str(sequence)] = {
+            "name": target["name"], "screenshot_sha256": screenshot_hash
+        }
+        visual_results.append({
+            "sequence": sequence, "name": target["name"],
+            "expected_visible_text": f"{sequence} {target['name']}",
+            "viewer_text_confirmed": True,
+            "screenshot": screenshot_path.relative_to(root).as_posix(),
+            "screenshot_sha256": screenshot_hash,
+        })
     extraction.update({
         "provenance": "official_direct",
         "announced_count": announced,
-        "visual_verification_evidence": {
-            "1": {"name": first_name, "screenshot_sha256": screenshot_hash}
-        },
+        "visual_verification_evidence": visual_records,
         "visual_human_review_status": "PENDING",
         "published": False,
     })
@@ -238,13 +255,7 @@ def build_python_engine_capture_manifest(
         "access_controls_bypassed": False,
         "ocr_is_advisory_only": True,
         "human_visual_verification": "PENDING",
-        "results": [{
-            "sequence": 1, "name": first_name,
-            "expected_visible_text": f"1 {first_name}",
-            "viewer_text_confirmed": True,
-            "screenshot": screenshot_path.relative_to(root).as_posix(),
-            "screenshot_sha256": screenshot_hash,
-        }],
+        "results": visual_results,
     }
     extraction_path.write_text(json.dumps(extraction, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     visual_path.write_text(json.dumps(visual, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
