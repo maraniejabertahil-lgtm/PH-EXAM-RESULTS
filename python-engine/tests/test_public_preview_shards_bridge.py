@@ -52,7 +52,8 @@ class PublicPreviewShardBridgeTests(unittest.TestCase):
             "".join(json.dumps(row) + "\n" for row in snapshots), encoding="utf-8"
         )
         screenshot = self.capture / "shard-0-page-1.png"
-        screenshot.write_bytes(b"fixture screenshot")
+        screenshot.write_bytes(b"fixture first-page screenshot")
+        (self.capture / "shard-0-page-2.png").write_bytes(b"fixture last-page screenshot")
         self.capture_manifest = {
             "schema_version": 1,
             "capture_method": "ordinary_public_preview_ui",
@@ -94,6 +95,8 @@ class PublicPreviewShardBridgeTests(unittest.TestCase):
             {"seq": "2", "name": "SMITH, JOHN B"},
         ])
         manifest = json.loads(result["manifest_path"].read_text())
+        visual = json.loads((self.output / "visual-report.json").read_text())
+        self.assertEqual(len(visual["results"]), 2)
         self.assertEqual(manifest["snapshots_retained"], 2)
         self.assertEqual(manifest["viewer_pages_navigated"], 2)
         for entry in manifest["files"].values():
