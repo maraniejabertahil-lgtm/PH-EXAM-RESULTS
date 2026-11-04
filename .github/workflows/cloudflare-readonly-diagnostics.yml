@@ -10,6 +10,7 @@ on:
     branches:
       - main
       - diagnostics/cloudflare-readonly-20261102
+      - integration/phase10-monitoring-20261105
     paths:
       - ".github/workflows/cloudflare-readonly-diagnostics.yml"
   workflow_dispatch:
@@ -71,6 +72,82 @@ jobs:
               exit 1
               ;;
           esac
+      - name: Verify active production Worker deployment and version
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
+        run: |
+          set -euo pipefail
+          endpoint="https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/workers/scripts/ph-exam-results-watcher/deployments?per_page=5"
+          code="$(curl -sS -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" -H "Accept: application/json" -o /tmp/worker-deployments.json -w '%{http_code}' "$endpoint")"
+          echo "Production Worker deployments API: HTTP $code"
+          if [ "$code" = "200" ]; then
+            python - <<'PY'
+          import json
+          with open("/tmp/worker-deployments.json", encoding="utf-8") as handle:
+              payload = json.load(handle)
+          if not payload.get("success"):
+              raise SystemExit("Cloudflare did not confirm deployment query success")
+          deployments = payload.get("result", {}).get("deployments", [])
+          if not deployments:
+              raise SystemExit("Cloudflare returned no Worker deployments")
+          active = deployments[0]
+          print("Latest active deployment:", active.get("id"))
+          print("Deployment created:", active.get("created_on"))
+          print("Deployment source:", active.get("source"))
+          for item in active.get("versions", []):
+              print("Traffic version:", item.get("version_id"), "traffic percentage:", item.get("percentage"))
+          PY
+          else
+            echo "::warning::Could not read active deployment list (HTTP $code); compare remains unresolved. No production settings were changed."
+          fi
+      - name: Verify GitHub dispatch secret binding exists without reading its value
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
+        run: |
+          set -euo pipefail
+          endpoint="https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/workers/scripts/ph-exam-results-watcher/secrets/GITHUB_TOKEN"
+          code="$(curl -sS -o /dev/null -w '%{http_code}' -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" "$endpoint")"
+          echo "Worker GITHUB_TOKEN secret-binding metadata: HTTP $code"
+          if [ "$code" = "200" ]; then
+            echo "The Worker GitHub dispatch credential binding exists; its value was not retrieved or displayed."
+          else
+            echo "::warning::The Worker GitHub dispatch credential binding could not be confirmed (HTTP $code)."
+          fi
+      - name: Verify deployed production Worker Cron schedule
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
+        run: |
+          set -euo pipefail
+          code="$(curl -sS -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" -o /tmp/worker-schedules.json -w '%{http_code}' "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/workers/scripts/ph-exam-results-watcher/schedules")"
+          echo "Production Worker schedules API: HTTP $code"
+          if [ "$code" = "200" ]; then
+            python - <<'PY'
+          import json
+          with open("/tmp/worker-schedules.json", encoding="utf-8") as handle:
+              payload = json.load(handle)
+          if not payload.get("success"):
+              raise SystemExit("Cloudflare did not confirm schedule query success")
+          schedules = [item.get("cron") for item in payload.get("result", {}).get("schedules", [])]
+          print("Deployed production cron schedules:", schedules)
+          if "* * * * *" not in schedules:
+              raise SystemExit("Expected one-minute production cron trigger is missing")
+          PY
+          else
+            echo "::warning::The configured API token cannot read Worker schedules; live cron status remains unverified."
+          fi
+      - name: Check PRC robots policy before enabling article crawling
+        run: |
+          set -euo pipefail
+          code="$(curl -L -sS -A 'Mozilla/5.0 (compatible; PH-EXAM-RESULTS-Diagnostics/1.0)' -o /tmp/prc-robots.txt -w '%{http_code}' 'https://www.prc.gov.ph/robots.txt')"
+          echo "PRC robots.txt: HTTP $code"
+          if [ "$code" = "200" ]; then
+            cat /tmp/prc-robots.txt
+          else
+            echo "Robots policy could not be retrieved; automated article crawling must remain disabled."
+          fi
       - name: Run Peak Week simulation tests
         working-directory: watcher-bot
         run: npm test
@@ -81,7 +158,7 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
         run: |
           set +e
-          timeout 75s npx --yes wrangler@4.156.2 tail --format json
+          timeout --kill-after=5s 125s npx --yes wrangler@4.156.2 tail --format json
           code=$?
           set -e
           if [ "$code" -eq 124 ]; then
@@ -90,3 +167,11 @@ jobs:
             echo "::error::Production Worker tail failed (exit $code)."
             exit "$code"
           fi
+
+# Read-only diagnostic refresh: verify the live Watcher after source registry updates.
+
+# Read-only diagnostic refresh: test the canonical CSC hostname.
+
+# Read-only diagnostic refresh: verify PRC baseline and preserved CSC pause after registry merge.
+
+# Read-only diagnostic refresh: verify PRC article discovery is enabled without baseline dispatch.
