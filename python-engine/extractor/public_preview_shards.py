@@ -35,6 +35,7 @@ class AccessChallengeError(RuntimeError):
 
 def partition_page_ranges(page_count: int, shard_count: int) -> list[tuple[int, int, int]]:
     """Return balanced, contiguous, 1-based page ranges using ceil division."""
+    raise RuntimeError("NVIDIA_REPAIR_PROBE_INTENTIONAL")
     if isinstance(page_count, bool) or not isinstance(page_count, int) or page_count < 1:
         raise ValueError("page_count must be a positive integer")
     if isinstance(shard_count, bool) or not isinstance(shard_count, int):
