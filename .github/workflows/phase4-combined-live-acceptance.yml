@@ -1,0 +1,118 @@
+name: Phase 4 Combined Live Acceptance (No Publish)
+
+on:
+  push:
+    branches:
+      - integration/phase4-combined-capture-extraction-20261104
+    paths:
+      - 'python-engine/acquisition/public_preview.py'
+      - 'python-engine/acquisition/public_preview_shards_bridge.py'
+      - 'python-engine/extractor/public_preview_shards.py'
+      - 'python-engine/main.py'
+      - 'python-engine/tests/test_public_preview_shards_bridge.py'
+      - 'tools/run_phase4_combined_live_acceptance.py'
+      - '.github/workflows/phase4-combined-live-acceptance.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: phase4-combined-live-acceptance
+  cancel-in-progress: false
+
+env:
+  SHARD_COUNT: 16
+  ANNOUNCED_COUNT: 45001
+  OFFICIAL_ARTICLE_URL: https://www.prc.gov.ph/index.php/article/march-2026-licensure-examination-professional-teachers-results-released-thirty-nine-39
+  OFFICIAL_CONTENT_URL: https://drive.google.com/file/d/1RFuFGN4D1T3hkGC-iib9pRmJP1vJiJJ7/view?usp=sharing
+  PUBLIC_PREVIEW_URL: https://drive.google.com/file/d/1RFuFGN4D1T3hkGC-iib9pRmJP1vJiJJ7/preview
+
+jobs:
+  capture:
+    name: capture-shard-${{ matrix.shard }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - name: Install Playwright
+        run: |
+          python -m pip install -q playwright
+          if ! command -v google-chrome >/dev/null 2>&1; then
+            python -m playwright install --with-deps chromium
+          fi
+      - name: Capture assigned visible pages
+        env:
+          SHARD: ${{ matrix.shard }}
+        run: |
+          sleep $(( SHARD * 2 ))
+          for attempt in 1 2 3; do
+            if python python-engine/extractor/public_preview_shards.py \
+              --preview-url "$PUBLIC_PREVIEW_URL" \
+              --allowed-hosts "drive.google.com,docs.google.com" \
+              --shard "$SHARD" --shards "$SHARD_COUNT" \
+              --per-page-deadline 15; then
+              exit 0
+            else
+              result=$?
+              if [ "$result" -eq 20 ]; then
+                echo "Access challenge detected; stop for human handoff."
+                exit 20
+              fi
+            fi
+            echo "Shard $SHARD attempt $attempt/3 failed"
+            sleep $(( attempt * 10 ))
+          done
+          exit 1
+      - name: Upload shard evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase4-shard-${{ matrix.shard }}
+          path: public-preview-capture/
+          if-no-files-found: warn
+          retention-days: 7
+          compression-level: 0
+
+  extract-and-greenlight:
+    name: merge-extract-greenlight-no-publish
+    needs: capture
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: python-engine/requirements.txt
+      - name: Download all shard evidence
+        uses: actions/download-artifact@v4
+        with:
+          pattern: phase4-shard-*
+          merge-multiple: true
+          path: public-preview-capture
+      - name: Install Python Engine dependencies
+        run: python -m pip install -q -r python-engine/requirements.txt
+      - name: Merge and verify page coverage and SHA-256
+        run: |
+          python python-engine/extractor/public_preview_shards.py \
+            --merge --shards "$SHARD_COUNT"
+      - name: Verify official PRC link, bridge, extract, and run Greenlight
+        run: python tools/run_phase4_combined_live_acceptance.py
+      - name: Preserve combined acceptance evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase4-combined-live-acceptance-evidence
+          path: |
+            public-preview-capture/
+            python-engine/artifacts/
+          if-no-files-found: warn
+          retention-days: 14
