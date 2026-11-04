@@ -1,7 +1,7 @@
 // Versioned PRC release-event contract. Ambiguous metadata is a hard stop.
 const EXAMS = [
   { code: "LEPT", re: /\b(?:LEPT|licensure examination for professional teachers)\b/i },
-  { code: "CPALE", re: /\b(?:CPALE|CPA|certified public accountant)\b/i },
+  { code: "CPALE", re: /\b(?:CPALE|CPA|certified public accountants?)\b/i },
   { code: "NLE", re: /\b(?:nurse licensure|nursing)\b/i },
   { code: "CLE", re: /\b(?:criminology|criminologist)\b/i },
   { code: "ELE", re: /\b(?:engineers? licensure|engineering licensure)\b/i },
