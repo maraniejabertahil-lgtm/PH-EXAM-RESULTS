@@ -98,7 +98,7 @@ jobs:
           token = os.environ.get("GITHUB_TOKEN")
 
           if pr_num:
-              comment_body = f"### 🤖 Nvidia Nemotron Failure Analysis\\n\\n{diagnosis}"
+              comment_body = f"### 🤖 Nvidia Nemotron Failure Analysis\n\n{diagnosis}"
               url = f"https://api.github.com/repos/{repo}/issues/{pr_num}/comments"
               gh_req = urllib.request.Request(
                   url,
@@ -113,5 +113,5 @@ jobs:
                   response.read()
               print("Analysis posted to PR comment!")
           else:
-              print("\\n--- NVIDIA DIAGNOSIS ---\\n" + diagnosis)
+              print("\n--- NVIDIA DIAGNOSIS ---\n" + diagnosis)
           '
