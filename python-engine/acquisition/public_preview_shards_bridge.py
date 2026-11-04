@@ -242,7 +242,7 @@ def build_python_engine_capture_manifest(
             "sequence": 1, "name": first_name,
             "expected_visible_text": f"1 {first_name}",
             "viewer_text_confirmed": True,
-            "screenshot": "first-page.png",
+            "screenshot": screenshot_path.relative_to(root).as_posix(),
             "screenshot_sha256": screenshot_hash,
         }],
     }
