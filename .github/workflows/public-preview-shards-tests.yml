@@ -2,7 +2,7 @@ name: Public Preview Shards Tests
 
 on:
   push:
-    branches: [main, Winner-Candidate]
+    branches: [main, Winner-Candidate, integration/phase4-combined-capture-extraction-20261104]
     paths:
       - 'python-engine/extractor/public_preview_shards.py'
       - 'python-engine/tests/test_public_preview_shards.py'
@@ -24,16 +24,94 @@ permissions:
   contents: read
 
 jobs:
-  unit-tests:
+  test:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-python@v6
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
         with:
-          python-version: '3.12'
+          python-version: "3.11"
+
       - name: Install Python Engine test dependencies
-        run: python -m pip install -r python-engine/requirements.txt
-      - name: Run public-preview capture and extraction-bridge regression tests
+        run: python -m pip install -r python-engine/requirements.txt pytest
+
+      - name: Run Phase 4 Tests
+        id: run_tests
         run: |
-          python -m unittest discover -s python-engine/tests -p 'test_public_preview_shards.py' -v
-          python -m unittest discover -s python-engine/tests -p 'test_public_preview_shards_bridge.py' -v
+          set -o pipefail
+          pytest python-engine/tests/ -v 2>&1 | tee test_output.log
+
+      - name: Auto-diagnose with Nvidia on failure
+        if: failure()
+        env:
+          OPENROUTER_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number || 69 }}
+        run: |
+          python3 -c '
+          import os, json, urllib.request
+
+          if os.path.exists("test_output.log"):
+              with open("test_output.log", "r", errors="ignore") as f:
+                  error_context = "".join(f.readlines()[-60:])
+          else:
+              error_context = "No log output file found."
+
+          prompt = f"""
+          The following test failed in our CI pipeline for the PH-EXAM-RESULTS project.
+          Identify the exact cause, explain it simply, and provide the minimal safe patch:
+
+          ```text
+          {error_context}
+          ```
+          """
+
+          openrouter_key = os.environ.get("OPENROUTER_KEY", "")
+          req = urllib.request.Request(
+              "https://openrouter.ai/api/v1/chat/completions",
+              headers={
+                  "Authorization": f"Bearer {openrouter_key}",
+                  "Content-Type": "application/json"
+              },
+              data=json.dumps({
+                  "model": "nvidia/nemotron-3-ultra-550b-a55b:free",
+                  "messages": [{"role": "user", "content": prompt}]
+              }).encode("utf-8")
+          )
+
+          try:
+              with urllib.request.urlopen(req, timeout=60) as resp:
+                  res = json.loads(resp.read().decode("utf-8"))
+                  diagnosis = res["choices"][0]["message"]["content"]
+          except Exception as e:
+              diagnosis = f"Could not contact Nvidia via OpenRouter: {e}"
+
+          pr_num = os.environ.get("PR_NUMBER")
+          repo = os.environ.get("GITHUB_REPOSITORY")
+          token = os.environ.get("GITHUB_TOKEN")
+
+          if pr_num:
+              comment_body = f"### 🤖 Nvidia Nemotron Failure Analysis\\n\\n{diagnosis}"
+              url = f"https://api.github.com/repos/{repo}/issues/{pr_num}/comments"
+              gh_req = urllib.request.Request(
+                  url,
+                  headers={
+                      "Authorization": f"token {token}",
+                      "Accept": "application/vnd.github.v3+json",
+                      "Content-Type": "application/json"
+                  },
+                  data=json.dumps({"body": comment_body}).encode("utf-8")
+              )
+              with urllib.request.urlopen(gh_req, timeout=30) as response:
+                  response.read()
+              print("Analysis posted to PR comment!")
+          else:
+              print("\\n--- NVIDIA DIAGNOSIS ---\\n" + diagnosis)
+          '
