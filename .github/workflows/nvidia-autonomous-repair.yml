@@ -99,6 +99,9 @@ jobs:
         with:
           name: nvidia-repair-candidate
           path: repair-input
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
       - name: Create repair PR from the tested patch (does not execute candidate code)
         env:
           GH_TOKEN: ${{ github.token }}
