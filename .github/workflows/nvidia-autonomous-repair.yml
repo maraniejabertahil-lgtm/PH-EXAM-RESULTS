@@ -63,15 +63,15 @@ jobs:
       - name: Extract failed source and apply candidate patch
         run: |
           mkdir source
-          tar -xzf repair-input/repair-output/source.tar.gz -C source
+          tar -xzf repair-input/source.tar.gz -C source
           cd source
           git init -q
           git config user.name "Isolated Test"
           git config user.email "isolated-test@example.invalid"
           git add -A
           git -c core.hooksPath=/dev/null commit -qm "Isolated source snapshot"
-          git apply --check ../repair-input/repair-output/patch.diff
-          git apply ../repair-input/repair-output/patch.diff
+          git apply --check ../repair-input/patch.diff
+          git apply ../repair-input/patch.diff
       - name: Install test dependencies
         working-directory: source
         run: python -m pip install -r python-engine/requirements.txt pytest
