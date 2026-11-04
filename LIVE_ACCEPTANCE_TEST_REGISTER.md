@@ -332,9 +332,15 @@ For each affected test or test execution:
 - **Evidence to retain:** Before/after deployed dataset version/hash.
 - **Status:** `NOT RUN`
 
-**Related Owner decisions:** `D-001`, `D-002`, and `D-003` in Part 16. D-003 excludes CSC-specific testing; these Phase 2 acceptance checks apply to PRC only.
+#### P2-28 — Reusable parallel public-preview page capture
 
-**Phase 2 acceptance note:** The active project task is to find and validate a compliant PRC-only official-content access path yielding exact passer-name/sequence-number pairs. A downloadable PDF is not a pass condition. Representative PRC content mapping validation and a real PRC released batch are separate acceptance milestones. CSC-specific tests are excluded by D-003.
+- **Pass condition:** A configured set of parallel shards captures contiguous viewer-page ranges; merge verifies every expected page exactly once and rejects gaps, overlaps, missing shards, blank snapshots, or hash mismatches. Access challenges stop automation without retry or bypass.
+- **Evidence:** The earlier exam-specific implementation completed all 16 shards in Actions run #36 and captured all 901 pages (shards 0–14: 57 pages each; shard 15: 46 pages). The reusable implementation is on main in commits `80fe2e3`, `fd562b3`, `1988b90`, `a1bcc05`, and `5a7db2e`; eight local unit tests pass, including the 901-page partition, range coverage, challenge detection, and hash-failure checks. The reusable workflow has not yet been run against a live source.
+- **Status:** `PARTIAL`
+
+**Related Owner decisions:** `D-001`, `D-002`, `D-003`, and `D-004` in Part 16. D-003 excludes CSC-specific testing; these Phase 2 acceptance checks apply to PRC only. D-004 defers manual visual review of the Secondary candidate to a future website review experience; it does not authorize publication.
+
+**Phase 2 acceptance note:** The active project task is to find and validate a compliant PRC-only official-content access path yielding exact passer-name/sequence-number pairs. A downloadable PDF is not a pass condition. Representative PRC content mapping validation and a real PRC released batch are separate acceptance milestones. CSC-specific tests are excluded by D-003. Manual visual review of the March 2026 LEPT Secondary candidate is deferred under D-004 and remains pending until the future website review experience is implemented and completed; the candidate remains unpublished.
 
 ---
 
@@ -460,6 +466,12 @@ For each affected test or test execution:
 
 - **Pass condition:** The public Pages application has no mechanism or exposed credential that can write to internal data or repositories.
 - **Evidence to retain:** Source/configuration review and browser inspection.
+- **Status:** `NOT RUN`
+
+#### P4-14 — Owner-facing source and record review
+
+- **Pass condition:** An Owner-facing website review experience lets the Owner inspect official preview evidence alongside extracted name/sequence records and record a review outcome before publication. The public search route remains read-only and exposes no write credentials or internal controls.
+- **Evidence to retain:** Review-interface walkthrough, source/evidence references, review outcome and audit record, plus a test proving publication remains blocked until the required review gate is satisfied.
 - **Status:** `NOT RUN`
 
 ---
