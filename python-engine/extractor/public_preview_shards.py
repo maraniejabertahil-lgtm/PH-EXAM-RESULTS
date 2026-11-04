@@ -94,11 +94,11 @@ def _launch_browser(playwright):
 
 
 def _capture_stable_page(
-    *, page, body, page_control_selector: str, page_number: int, page_count: int,
+    *, page, body, page_control_selector: str, page_number: int, page_count: int, page_marker_template: str,
     shard: int, output_dir: Path, per_page_deadline: int, poll_ms: int,
 ) -> str:
     """Read one visible page, retrying that page in place before restarting a shard."""
-    marker = f"Page {page_number} of {page_count}"
+    marker = page_marker_template.format(page=page_number, count=page_count)
     diagnostic = {}
     for attempt in range(1, 4):
         control = page.locator(page_control_selector)
@@ -221,7 +221,8 @@ def capture_shard(
             for page_number in range(start, end + 1):
                 visible = _capture_stable_page(
                     page=page, body=body, page_control_selector=page_control_selector,
-                    page_number=page_number, page_count=page_count, shard=shard,
+                    page_number=page_number, page_count=page_count,
+                    page_marker_template=page_marker_template, shard=shard,
                     output_dir=output_dir, per_page_deadline=per_page_deadline,
                     poll_ms=poll_ms,
                 )

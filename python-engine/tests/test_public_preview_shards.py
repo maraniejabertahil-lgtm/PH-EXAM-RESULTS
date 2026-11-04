@@ -88,7 +88,8 @@ class NavigationRetryTests(unittest.TestCase):
             result = _capture_stable_page(
                 page=page, body=page.body,
                 page_control_selector='input[aria-label^="Page is"]',
-                page_number=2, page_count=2, shard=0,
+                page_number=2, page_count=2,
+                page_marker_template="Page {page} of {count}", shard=0,
                 output_dir=Path(temp), per_page_deadline=1, poll_ms=10,
             )
             self.assertIn("Page 2 of 2", result)
