@@ -668,7 +668,10 @@ test("opt-in PRC listing discovery scans only same-origin result articles and ve
     '<a href="https://evil.example/node/999">October 2026 Examination Results Released</a>';
   const articleHtml =
     '<h1>October 2026 Certified Public Accountants Licensure Examination Results Released</h1>' +
-    '<a href="https://drive.google.com/file/d/' + discoveredId + '/view?usp=sharing">List of Successful Examinees</a>';
+    '<a href="https://drive.google.com/file/d/1FullCPAResultDocument2026/view">Full text of the Official Result</a>' +
+    '<a href="https://drive.google.com/file/d/1CPAPerformanceSchools2026/view">Performance of Schools</a>' +
+    '<a href="https://drive.google.com/file/d/1CPATopTenPlacesDoc2026/view">Successful Examinees who garnered the top 10 highest places</a>' +
+    '<a href="https://drive.google.com/file/d/' + discoveredId + '/view?usp=sharing"><span>List of Successful Examinees</span></a>';
   const { fetchImpl, dispatches } = githubFetch([source], async (url, init) => {
     if (url === listingUrl && init.method === "HEAD") {
       return new Response(null, { status: 200, headers: { etag: '"listing-v1"', "content-type": "text/html" } });
@@ -698,7 +701,9 @@ test("opt-in PRC listing discovery scans only same-origin result articles and ve
   assert.equal(dispatches[0].client_payload.exam_code, "CPALE");
   assert.equal(dispatches[0].client_payload.exam_year, 2026);
   assert.equal(dispatches[0].client_payload.article_url, articleUrl);
+  assert.equal(dispatches[0].client_payload.content_urls.length, 1);
   assert.equal(dispatches[0].client_payload.content_urls[0].format, "pdf");
+  assert.equal(dispatches[0].client_payload.content_urls[0].label, "List of Successful Examinees");
   assert.equal(dispatches[0].client_payload.content_urls[0].url,
     "https://drive.google.com/file/d/" + discoveredId + "/view?usp=sharing");
 });
