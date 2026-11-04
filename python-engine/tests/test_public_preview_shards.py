@@ -11,6 +11,7 @@ sys.path.insert(0, str(EXTRACTOR_DIR))
 
 from public_preview_shards import (  # noqa: E402
     _challenge_present,
+    _capture_stable_page,
     merge_shards,
     partition_page_ranges,
     validate_shard_metadata,
@@ -41,6 +42,57 @@ class PartitionTests(unittest.TestCase):
         self.assertTrue(_challenge_present("Please verify you are human"))
         self.assertTrue(_challenge_present("Request access"))
         self.assertFalse(_challenge_present("Page 1 of 901"))
+
+
+
+class NavigationRetryTests(unittest.TestCase):
+    def test_navigation_retries_the_stuck_page_without_restarting_shard(self):
+        class FakeControl:
+            def __init__(self, page):
+                self.page = page
+            def count(self):
+                return 1
+            def click(self):
+                pass
+            def fill(self, value):
+                self.page.target = value
+            def press(self, key):
+                self.page.press_count += 1
+                if self.page.press_count >= 2:
+                    self.page.selected = self.page.target
+            def input_value(self, timeout=None):
+                return self.page.selected
+
+        class FakeBody:
+            def __init__(self, page):
+                self.page = page
+            def inner_text(self, timeout=None):
+                return f"Page {self.page.selected} of 2\\nVisible records"
+
+        class FakePage:
+            def __init__(self):
+                self.selected = "1"
+                self.target = "1"
+                self.press_count = 0
+                self.url = "https://drive.google.com/file/d/example/preview"
+                self.body = FakeBody(self)
+            def locator(self, selector):
+                return FakeControl(self)
+            def wait_for_selector(self, selector, state=None, timeout=None):
+                return None
+            def wait_for_timeout(self, milliseconds):
+                return None
+
+        with tempfile.TemporaryDirectory() as temp:
+            page = FakePage()
+            result = _capture_stable_page(
+                page=page, body=page.body,
+                page_control_selector='input[aria-label^="Page is"]',
+                page_number=2, page_count=2, shard=0,
+                output_dir=Path(temp), per_page_deadline=1, poll_ms=10,
+            )
+            self.assertIn("Page 2 of 2", result)
+            self.assertEqual(page.press_count, 2)
 
 
 class MergeValidationTests(unittest.TestCase):
