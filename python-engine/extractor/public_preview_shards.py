@@ -109,7 +109,6 @@ def _capture_stable_page(
             control.click()
             control.fill(str(page_number))
             control.press("Enter")
-            page.wait_for_timeout(250 * attempt)
 
         deadline = time.monotonic() + per_page_deadline
         stable_samples, previous_text, visible = 0, None, ""
