@@ -21,6 +21,7 @@ from acquisition.official_first_policy import third_party_fallback_gate
 from acquisition.official_pdf import AcquisitionError, acquire_official_pdf
 from acquisition.official_content import OfficialContentError, verify_official_content_link
 from acquisition.public_preview import PublicPreviewCaptureError, load_public_preview_capture
+from acquisition.public_preview_shards_bridge import ShardBridgeError, build_python_engine_capture_manifest
 from extractor.pdf_parser import extract_pdf
 from processor.greenlight import validate_records, write_validation_report
 from processor.normalizer import NormalizationError, normalize_extracted_tables
@@ -270,6 +271,46 @@ def process_batch(batch_path: str | Path, *, root: str | Path | None = None) -> 
         "exam": batch["exam"],
         "year": batch["year"],
     }
+
+
+
+def process_sharded_preview_batch(
+    batch_path: str | Path, *, capture_dir: str | Path,
+    evidence_dir: str | Path = "python-engine/artifacts/sharded-preview",
+    root: str | Path | None = None,
+) -> dict[str, Any]:
+    """Bridge verified shard output into the normal local-only Python Engine path."""
+    repository_root = Path(root or Path.cwd()).resolve()
+    input_path = _repo_path(str(batch_path), repository_root)
+    try:
+        batch = json.loads(input_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise PipelineError(f"Unable to read sharded-preview batch JSON: {exc}") from exc
+    if not isinstance(batch, dict):
+        raise PipelineError("Sharded-preview batch input must be a JSON object.")
+    try:
+        bridged = build_python_engine_capture_manifest(
+            capture_dir=capture_dir,
+            output_dir=evidence_dir,
+            batch=batch,
+            repository_root=repository_root,
+        )
+    except (ShardBridgeError, ValueError, TypeError, OSError) as exc:
+        raise PipelineError(f"Sharded public-preview bridge stopped safely: {exc}") from exc
+    batch["official_content_mode"] = "public_preview_capture"
+    batch["capture_manifest"] = bridged["manifest_path"].relative_to(repository_root).as_posix()
+    staged_batch = repository_root / "python-engine" / "artifacts" / "sharded-preview-batch.json"
+    staged_batch.parent.mkdir(parents=True, exist_ok=True)
+    staged_batch.write_text(json.dumps(batch, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    # Deliberately call process_batch(), never publish_batch(): no PR, merge, or deployment.
+    result = process_batch(staged_batch.relative_to(repository_root), root=repository_root)
+    result["sharded_preview_bridge"] = {
+        "capture_manifest": batch["capture_manifest"],
+        "record_count": bridged["record_count"],
+        "human_visual_review": "PENDING",
+        "published": False,
+    }
+    return result
 
 
 def publish_batch(batch_path: str | Path, *, root: str | Path | None = None) -> dict[str, Any]:
