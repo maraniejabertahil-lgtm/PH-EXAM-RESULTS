@@ -12,6 +12,7 @@ import gzip
 import hashlib
 import json
 import math
+import os
 import re
 import sys
 import time
@@ -85,6 +86,59 @@ def _challenge_present(text: str) -> bool:
     lowered = text.lower()
     return any(term in lowered for term in CHALLENGE_TERMS)
 
+
+
+def _capture_page_count_diagnostics(
+    *, page, shard: int, attempt: int, output_dir: Path,
+    response, last_body_text: str, console_events: list[dict],
+) -> Path:
+    """Persist bounded browser evidence when visible page-count detection fails."""
+    output_dir.mkdir(parents=True, exist_ok=True)
+    diagnostic = {
+        "shard": shard, "attempt": attempt,
+        "captured_at_utc": datetime.now(timezone.utc).isoformat(),
+        "url": "", "http_status": getattr(response, "status", None) if response else None,
+        "main_frame_body_text": (last_body_text or "")[:5000],
+        "frames": [], "console_logs": console_events[-50:], "screenshot_path": None,
+    }
+    try:
+        diagnostic["url"] = page.url
+    except Exception as exc:
+        diagnostic["url_error"] = str(exc)[:500]
+    try:
+        diagnostic["main_frame_body_text"] = page.locator("body").inner_text(timeout=5000)[:5000]
+    except Exception as exc:
+        diagnostic["main_frame_body_error"] = str(exc)[:500]
+    try:
+        frames = page.frames
+    except Exception as exc:
+        frames = []
+        diagnostic["frames_error"] = str(exc)[:500]
+    for index, frame in enumerate(frames[:20]):
+        item = {"index": index, "url": "", "name": "", "body_text": ""}
+        try:
+            item["url"], item["name"] = frame.url, frame.name
+            item["body_text"] = frame.locator("body").inner_text(timeout=2500)[:5000]
+        except Exception as exc:
+            item["body_text_error"] = str(exc)[:500]
+        diagnostic["frames"].append(item)
+    screenshot = output_dir / f"page-count-failure-shard-{shard}-attempt-{attempt}.png"
+    try:
+        page.screenshot(path=str(screenshot), full_page=True, timeout=10000)
+        diagnostic["screenshot_path"] = str(screenshot)
+    except Exception as exc:
+        diagnostic["screenshot_error"] = str(exc)[:500]
+    path = output_dir / f"page-count-failure-shard-{shard}-attempt-{attempt}.json"
+    path.write_text(json.dumps(diagnostic, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    print(
+        f"[DIAG] shard={shard} attempt={attempt} url={diagnostic.get('url')} "
+        f"http_status={diagnostic.get('http_status')} frames={len(diagnostic['frames'])} "
+        f"json={path} screenshot={diagnostic.get('screenshot_path')}", flush=True,
+    )
+    for frame in diagnostic["frames"]:
+        preview = frame.get("body_text", "")[:200].replace("\n", " ")
+        print(f"[DIAG] frame[{frame['index']}] url={frame.get('url')} text={preview}", flush=True)
+    return path
 
 def _launch_browser(playwright):
     try:
@@ -182,8 +236,13 @@ def capture_shard(
         )
         try:
             page = context.new_page()
+            console_events: list[dict] = []
+            page.on("console", lambda message: console_events.append({
+                "type": message.type, "text": message.text[:1000],
+            }) if len(console_events) < 100 else None)
             body = page.locator("body")
             response = page.goto(preview_url, wait_until="domcontentloaded", timeout=60000)
+            capture_attempt = max(1, int(os.environ.get("PH_CAPTURE_ATTEMPT", "1")))
             final_url = page.url
             final_host = (urlsplit(final_url).hostname or "").lower()
             if final_host not in allowed_hosts:
@@ -204,7 +263,15 @@ def capture_shard(
                     raise AccessChallengeError("public preview requires permission or human verification")
                 page.wait_for_timeout(250)
             if not count_match:
-                raise RuntimeError("could not read the public viewer page count")
+                diagnostic_path = _capture_page_count_diagnostics(
+                    page=page, shard=shard, attempt=capture_attempt,
+                    output_dir=output_dir, response=response,
+                    last_body_text=initial, console_events=console_events,
+                )
+                raise RuntimeError(
+                    "could not read the public viewer page count "
+                    f"(shard={shard}, attempt={capture_attempt}); diagnostics={diagnostic_path}"
+                )
             page_count = int(count_match.group(1))
             if not 1 <= page_count <= MAX_PAGES:
                 raise RuntimeError(f"viewer page count is outside the safe bound 1-{MAX_PAGES}")
