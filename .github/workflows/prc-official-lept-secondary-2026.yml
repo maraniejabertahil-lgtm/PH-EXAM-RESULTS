@@ -19,29 +19,43 @@ permissions:
   contents: read
 
 env:
-  # Six-way capture matrix; matrix expressions below are native GitHub Actions expressions.
-  SHARDS: 4
+  # Keep SHARDS equal to the number of entries in the matrix below (script max is 16).
+  # If Google starts showing verification pages, lower to 12 (matrix 0-11) or 8 (matrix 0-7).
+  SHARDS: 16
 
 jobs:
   capture:
     name: capture-shard-${{ matrix.shard }}
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 10
     strategy:
       fail-fast: false
       matrix:
-        shard: [0, 1, 2, 3]
+        shard: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
-      - name: Install Playwright and Chromium only
+      - name: Install Playwright (and Chromium only if Chrome is not preinstalled)
         run: |
-          python -m pip install playwright
-          python -m playwright install --with-deps chromium
+          python -m pip install -q playwright
+          if ! command -v google-chrome >/dev/null 2>&1; then
+            python -m playwright install --with-deps chromium
+          fi
       - name: Capture this shard of the official public preview
-        run: python tools/prc-official-lept-secondary-2026.py --shard ${{ matrix.shard }} --shards ${{ env.SHARDS }}
+        run: |
+          # Stagger start-up so all shards do not hit the Google viewer in the same second.
+          sleep $(( ${{ matrix.shard }} * 2 ))
+          # Retry the whole shard up to 3 times (the viewer sometimes loads slowly).
+          for attempt in 1 2 3; do
+            if python tools/prc-official-lept-secondary-2026.py --shard ${{ matrix.shard }} --shards ${{ env.SHARDS }}; then
+              exit 0
+            fi
+            echo "Shard ${{ matrix.shard }} attempt ${attempt}/3 failed"
+            sleep $(( attempt * 10 ))
+          done
+          exit 1
       - name: Upload shard capture
         if: always()
         uses: actions/upload-artifact@v4
@@ -62,23 +76,28 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
+          cache: pip
+          cache-dependency-path: python-engine/requirements.txt
       - name: Download all shard captures
         uses: actions/download-artifact@v4
         with:
           pattern: prc-shard-*
           merge-multiple: true
           path: shard-output
-      - name: Install Python Engine, browser, and OCR requirements
+      - name: Install browser, parsers, and OCR alternative (pip runs alongside apt)
         run: |
-          sudo apt-get update
-          sudo apt-get install -y tesseract-ocr
-          python -m pip install -r python-engine/requirements.txt playwright pillow
+          python -m pip install -q playwright
+          ( python -m pip install -q -r python-engine/requirements.txt pymupdf pdfplumber pillow ) &
+          PIP_PID=$!
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq tesseract-ocr
           python -m playwright install --with-deps chromium
+          wait $PIP_PID
       - name: Merge shards, parse and validate official public preview
         run: python tools/prc-official-lept-secondary-2026.py --merge --shards ${{ env.SHARDS }}
       - name: Capture first and last records from the official viewer
         run: python tools/prototypes/prc_secondary_preview_ocr_probe.py
-      - name: Run Python Engine Greenlight and local dataset generation
+      - name: Run Python Engine Greenlight and dataset generation
         run: python tools/run_prc_public_preview_python_engine_secondary.py
       - name: Preserve Secondary extraction evidence
         if: always()
