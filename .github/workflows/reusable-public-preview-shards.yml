@@ -23,7 +23,7 @@ on:
       page_count_regex:
         description: Regex whose first capture group is the viewer page count
         required: false
-        default: 'Page 1 of\\s+(\\d+)'
+        default: 'Page 1 of\s+(\d+)'
         type: string
       page_marker_template:
         description: Visible page marker template; placeholders are {page} and {count}
@@ -86,12 +86,12 @@ jobs:
           # Stagger browser starts to avoid hitting the viewer in the same second.
           sleep $(( SHARD * 2 ))
           for attempt in 1 2 3; do
-            if python python-engine/extractor/public_preview_shards.py \\
-              --preview-url "$PREVIEW_URL" \\
-              --allowed-hosts "$ALLOWED_HOSTS" \\
-              --shard "$SHARD" --shards "$SHARD_COUNT" \\
-              --page-control-selector "$PAGE_CONTROL_SELECTOR" \\
-              --page-count-regex "$PAGE_COUNT_REGEX" \\
+            if python python-engine/extractor/public_preview_shards.py \
+              --preview-url "$PREVIEW_URL" \
+              --allowed-hosts "$ALLOWED_HOSTS" \
+              --shard "$SHARD" --shards "$SHARD_COUNT" \
+              --page-control-selector "$PAGE_CONTROL_SELECTOR" \
+              --page-count-regex "$PAGE_COUNT_REGEX" \
               --page-marker-template "$PAGE_MARKER_TEMPLATE"; then
               exit 0
             else
@@ -135,7 +135,7 @@ jobs:
         env:
           SHARD_COUNT: ${{ inputs.shard_count }}
         run: |
-          python python-engine/extractor/public_preview_shards.py \\
+          python python-engine/extractor/public_preview_shards.py \
             --merge --shards "$SHARD_COUNT"
       - name: Upload merged capture evidence
         uses: actions/upload-artifact@v4
