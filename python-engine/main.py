@@ -324,6 +324,10 @@ def publish_batch(batch_path: str | Path, *, root: str | Path | None = None) -> 
         for path in sorted(processed["dataset_dir"].iterdir())
         if path.is_file()
     }
+    from publisher.site_catalogue import serialize_site_catalogue
+    artifacts["public/data/manifest.json"] = serialize_site_catalogue(
+        repository_root / "public" / "data", overlay=processed["manifest"]
+    )
     client = GitHubGitOps(os.environ.get("GITHUB_REPOSITORY", ""))
     opened = client.open_dataset_pr(
         artifacts=artifacts,

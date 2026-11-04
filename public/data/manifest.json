@@ -1,0 +1,24 @@
+{
+  "schema_version": 2,
+  "last_updated": "2026-11-05T00:00:00Z",
+  "authorities": {
+    "PRC": {
+      "examinations": {
+        "LEPT-ELEMENTARY": {
+          "years": {
+            "2026": {
+              "files": {
+                "S001": {
+                  "path": "/data/PRC/LEPT-ELEMENTARY/2026/2026-fb3b7086c1de.json",
+                  "hash": "fb3b7086c1de0848977a5ce8601ab5401b15c6df3a0700bb2d30bb86c0d756de",
+                  "record_count": 18376,
+                  "size_bytes": 862332
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
