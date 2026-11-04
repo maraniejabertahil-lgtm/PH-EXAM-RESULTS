@@ -1,0 +1,44 @@
+name: NVIDIA Repair Verification
+on:
+  pull_request:
+    branches: [Winner-Candidate]
+    paths:
+      - 'python-engine/**'
+      - 'watcher-bot/**'
+      - 'website/**'
+      - 'frontend/**'
+      - 'scripts/nvidia_autonomous_repair.py'
+      - '.github/workflows/nvidia-autonomous-repair.yml'
+      - '.github/workflows/nvidia-repair-verification.yml'
+  push:
+    branches: [Winner-Candidate]
+    paths:
+      - 'python-engine/**'
+      - 'watcher-bot/**'
+      - 'website/**'
+      - 'frontend/**'
+      - 'scripts/nvidia_autonomous_repair.py'
+      - '.github/workflows/nvidia-autonomous-repair.yml'
+      - '.github/workflows/nvidia-repair-verification.yml'
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - name: Install Python Engine dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r python-engine/requirements.txt pytest
+      - name: Validate repair-agent syntax
+        run: |
+          python -m py_compile scripts/nvidia_autonomous_repair.py
+          ruby -e 'require "yaml"; YAML.load_file(".github/workflows/nvidia-autonomous-repair.yml", aliases: true); puts "Repair workflow YAML: OK"'
+      - name: Run complete Python Engine tests
+        env:
+          PYTHONPATH: python-engine/retrieval
+        run: python -m pytest python-engine/tests -q
