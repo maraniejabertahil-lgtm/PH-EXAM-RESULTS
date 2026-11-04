@@ -1,0 +1,146 @@
+name: Reusable Public Preview Shard Capture
+
+on:
+  workflow_call:
+    inputs:
+      preview_url:
+        description: HTTPS URL of the authorized, publicly accessible preview UI
+        required: true
+        type: string
+      allowed_hosts:
+        description: Comma-separated exact hostnames allowed for the preview and redirects
+        required: true
+        type: string
+      shard_count:
+        description: Number of parallel page-capture jobs (1-16)
+        required: true
+        type: number
+      page_control_selector:
+        description: CSS selector for the visible viewer page-number control
+        required: false
+        default: 'input[aria-label^="Page is"]'
+        type: string
+      page_count_regex:
+        description: Regex whose first capture group is the viewer page count
+        required: false
+        default: 'Page 1 of\\s+(\\d+)'
+        type: string
+      page_marker_template:
+        description: Visible page marker template; placeholders are {page} and {count}
+        required: false
+        default: 'Page {page} of {count}'
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      shard_matrix: ${{ steps.matrix.outputs.value }}
+    steps:
+      - id: matrix
+        env:
+          SHARD_COUNT: ${{ inputs.shard_count }}
+        run: |
+          python - <<'PY' > /tmp/shards.json
+          import json, os
+          count = int(os.environ['SHARD_COUNT'])
+          if not 1 <= count <= 16:
+              raise SystemExit('shard_count must be between 1 and 16')
+          print(json.dumps(list(range(count))))
+          PY
+          echo "value=$(cat /tmp/shards.json)" >> "$GITHUB_OUTPUT"
+
+  capture:
+    needs: prepare
+    name: capture-shard-${{ matrix.shard }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: ${{ fromJSON(needs.prepare.outputs.shard_matrix) }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - name: Install Playwright
+        run: |
+          python -m pip install -q playwright
+          if ! command -v google-chrome >/dev/null 2>&1; then
+            python -m playwright install --with-deps chromium
+          fi
+      - name: Capture assigned contiguous page range
+        env:
+          PREVIEW_URL: ${{ inputs.preview_url }}
+          ALLOWED_HOSTS: ${{ inputs.allowed_hosts }}
+          SHARD: ${{ matrix.shard }}
+          SHARD_COUNT: ${{ inputs.shard_count }}
+          PAGE_CONTROL_SELECTOR: ${{ inputs.page_control_selector }}
+          PAGE_COUNT_REGEX: ${{ inputs.page_count_regex }}
+          PAGE_MARKER_TEMPLATE: ${{ inputs.page_marker_template }}
+        run: |
+          # Stagger browser starts to avoid hitting the viewer in the same second.
+          sleep $(( SHARD * 2 ))
+          for attempt in 1 2 3; do
+            if python python-engine/extractor/public_preview_shards.py \\
+              --preview-url "$PREVIEW_URL" \\
+              --allowed-hosts "$ALLOWED_HOSTS" \\
+              --shard "$SHARD" --shards "$SHARD_COUNT" \\
+              --page-control-selector "$PAGE_CONTROL_SELECTOR" \\
+              --page-count-regex "$PAGE_COUNT_REGEX" \\
+              --page-marker-template "$PAGE_MARKER_TEMPLATE"; then
+              exit 0
+            else
+              result=$?
+              if [ "$result" -eq 20 ]; then
+                echo "Access challenge detected; stop for human handoff without retry."
+                exit 20
+              fi
+            fi
+            echo "Shard $SHARD attempt $attempt/3 failed"
+            sleep $(( attempt * 10 ))
+          done
+          exit 1
+      - name: Upload shard evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: public-preview-shard-${{ matrix.shard }}
+          path: public-preview-capture/
+          if-no-files-found: warn
+          retention-days: 2
+          compression-level: 0
+
+  merge:
+    name: merge-and-verify-page-coverage
+    needs: capture
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - name: Download all shard captures
+        uses: actions/download-artifact@v4
+        with:
+          pattern: public-preview-shard-*
+          merge-multiple: true
+          path: public-preview-capture
+      - name: Merge and verify exact page coverage
+        env:
+          SHARD_COUNT: ${{ inputs.shard_count }}
+        run: |
+          python python-engine/extractor/public_preview_shards.py \\
+            --merge --shards "$SHARD_COUNT"
+      - name: Upload merged capture evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: public-preview-capture-evidence
+          path: public-preview-capture/
+          if-no-files-found: error
+          retention-days: 7
