@@ -13,6 +13,7 @@ from acquisition.public_preview_shards_bridge import (  # noqa: E402
     ShardBridgeError,
     build_python_engine_capture_manifest,
 )
+from main import process_sharded_preview_batch  # noqa: E402
 
 
 def sha(path):
