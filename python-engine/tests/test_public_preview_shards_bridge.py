@@ -134,6 +134,37 @@ class PublicPreviewShardBridgeTests(unittest.TestCase):
             )
         self.assertFalse((self.output / "python-engine-capture-manifest.json").exists())
 
+
+    def test_full_bridge_runs_local_greenlight_and_dataset_without_publishing(self):
+        config = self.root / "python-engine" / "config"
+        config.mkdir(parents=True)
+        (config / "sources.json").write_text(json.dumps({
+            "sources": [{
+                "id": "PRC-TEST", "authority": "PRC", "exam_scope": "all",
+                "source_type": "official", "authorized": True, "enabled": True,
+                "url": "https://www.prc.gov.ph/articles/exam-results",
+                "allow_linked_drive_documents": True,
+            }]
+        }), encoding="utf-8")
+        batch = dict(self.batch, authority="PRC", exam="LEPT-SECONDARY",
+                     year=2026, publicly_released=True, source_id="PRC-TEST",
+                     official_source_url="https://www.prc.gov.ph/articles/exam-results")
+        batch_path = self.root / "batch.json"
+        batch_path.write_text(json.dumps(batch), encoding="utf-8")
+        from unittest.mock import patch
+        with patch("main.verify_official_content_link") as verify:
+            result = process_sharded_preview_batch(
+                "batch.json", capture_dir="capture",
+                evidence_dir="python-engine/artifacts/sharded-preview",
+                root=self.root,
+            )
+        verify.assert_called_once()
+        self.assertEqual(result["report"]["greenlight_score"], 100)
+        self.assertEqual(result["report"]["record_count"], 2)
+        self.assertEqual(result["sharded_preview_bridge"]["human_visual_review"], "PENDING")
+        self.assertFalse(result["sharded_preview_bridge"]["published"])
+        self.assertTrue((result["dataset_dir"] / "manifest.json").is_file())
+
     def test_rejects_capture_with_access_bypass_flag(self):
         self.capture_manifest["access_controls_bypassed"] = True
         (self.capture / "capture-manifest.json").write_text(json.dumps(self.capture_manifest))
