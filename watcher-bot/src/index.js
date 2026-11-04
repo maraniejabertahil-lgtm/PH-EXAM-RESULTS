@@ -496,7 +496,7 @@ async function fetchOfficialArticleMetadata(articleUrl, fetchImpl) {
   const title = heading ? clean(heading[1]) : "";
   const text = clean(html);
   const links = [];
-  const anchors = /<a\b[^>]*href\s*=\s*["']([^"']+)["'][^>]*>/gi;
+  const anchors = /<a\b[^>]*href\s*=\s*["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi;
   let match;
   while ((match = anchors.exec(html))) {
     try {
