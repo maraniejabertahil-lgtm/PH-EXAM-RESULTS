@@ -27,6 +27,36 @@ def validate():
     if re.search(r"^(?:old mode|new mode|deleted file mode|new file mode|rename from|rename to|copy from|copy to) ", PATCH, re.M):
         raise SystemExit("Mode changes, renames, and copies are forbidden.")
     headers = re.findall(r"^diff --git a/(.*?) b/(.*?)$", PATCH, re.M)
+    unified = re.findall(r"^(---|\+\+\+) (.*?)$", PATCH, re.M)
+    if not headers or len(unified) != 2 * len(headers):
+        raise SystemExit("Patch must contain exactly two unified path headers per file.")
+    seen = set()
+    for index, (old, new) in enumerate(headers):
+        for path in (old, new):
+            p = Path(path)
+            if (not re.fullmatch(r"[A-Za-z0-9_./-]+", path) or p.is_absolute()
+                or ".." in p.parts or not path.startswith(ALLOWED)
+                or not path.endswith(EXTENSIONS)):
+                raise SystemExit("Unsafe or out-of-scope path: " + path)
+        if old != new or new in seen:
+            raise SystemExit("Renames and duplicate file headers are forbidden.")
+        seen.add(new)
+        old_kind, old_path = unified[index * 2]
+        new_kind, new_path = unified[index * 2 + 1]
+        old_path = old_path.split("\t", 1)[0]
+        new_path = new_path.split("\t", 1)[0]
+        if old_kind != "---" or new_kind != "+++":
+            raise SystemExit("Malformed unified diff headers.")
+        if old_path not in ("/dev/null", "a/" + old) or new_path != "b/" + new:
+            raise SystemExit("Unified paths do not match validated diff paths.")
+validate():
+    if not PATCH or len(PATCH.encode()) > 1_000_000:
+        raise SystemExit("Empty or oversized patch.")
+    if "GIT binary patch" in PATCH or "Binary files " in PATCH:
+        raise SystemExit("Binary patch rejected.")
+    if re.search(r"^(?:old mode|new mode|deleted file mode|new file mode|rename from|rename to|copy from|copy to) ", PATCH, re.M):
+        raise SystemExit("Mode changes, renames, and copies are forbidden.")
+    headers = re.findall(r"^diff --git a/(.*?) b/(.*?)$", PATCH, re.M)
     if not headers:
         raise SystemExit("Patch has no file headers.")
     for old, new in headers:
