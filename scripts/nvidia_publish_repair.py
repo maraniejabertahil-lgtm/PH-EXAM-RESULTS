@@ -9,7 +9,7 @@ from pathlib import Path
 REPO = os.environ["GITHUB_REPOSITORY"]
 RUN_ID = os.environ["FAILED_RUN_ID"]
 FAILED_SHA = os.environ["FAILED_SHA"]
-PATCH = Path("repair-input/repair-output/patch.diff").read_text()
+PATCH = Path("repair-input/patch.diff").read_text()
 ALLOWED = ("python-engine/", "watcher-bot/", "website/", "frontend/")
 EXTENSIONS = (".py", ".js", ".ts", ".tsx", ".jsx")
 BRANCH = "nvidia/repair-run-" + RUN_ID
@@ -27,7 +27,7 @@ def validate():
     if re.search(r"^(?:old mode|new mode|deleted file mode|new file mode|rename from|rename to|copy from|copy to) ", PATCH, re.M):
         raise SystemExit("Mode changes, renames, and copies are forbidden.")
     headers = re.findall(r"^diff --git a/(.*?) b/(.*?)$", PATCH, re.M)
-    unified = re.findall(r"^(---|\+\+\+) (.*?)$", PATCH, re.M)
+    unified = re.findall(r"^(---|\\+\\+\\+) (.*?)$", PATCH, re.M)
     if not headers or len(unified) != 2 * len(headers):
         raise SystemExit("Patch must contain exactly two unified path headers per file.")
     seen = set()
@@ -35,7 +35,7 @@ def validate():
         for path in (old, new):
             p = Path(path)
             if (not re.fullmatch(r"[A-Za-z0-9_./-]+", path) or p.is_absolute()
-                or ".." in p.parts or not path.startswith(ALLOWED)
+                or "\\\\" in path or ".." in p.parts or not path.startswith(ALLOWED)
                 or not path.endswith(EXTENSIONS)):
                 raise SystemExit("Unsafe or out-of-scope path: " + path)
         if old != new or new in seen:
@@ -43,32 +43,12 @@ def validate():
         seen.add(new)
         old_kind, old_path = unified[index * 2]
         new_kind, new_path = unified[index * 2 + 1]
-        old_path = old_path.split("\t", 1)[0]
-        new_path = new_path.split("\t", 1)[0]
+        old_path = old_path.split("\\t", 1)[0]
+        new_path = new_path.split("\\t", 1)[0]
         if old_kind != "---" or new_kind != "+++":
             raise SystemExit("Malformed unified diff headers.")
         if old_path not in ("/dev/null", "a/" + old) or new_path != "b/" + new:
             raise SystemExit("Unified paths do not match validated diff paths.")
-validate():
-    if not PATCH or len(PATCH.encode()) > 1_000_000:
-        raise SystemExit("Empty or oversized patch.")
-    if "GIT binary patch" in PATCH or "Binary files " in PATCH:
-        raise SystemExit("Binary patch rejected.")
-    if re.search(r"^(?:old mode|new mode|deleted file mode|new file mode|rename from|rename to|copy from|copy to) ", PATCH, re.M):
-        raise SystemExit("Mode changes, renames, and copies are forbidden.")
-    headers = re.findall(r"^diff --git a/(.*?) b/(.*?)$", PATCH, re.M)
-    if not headers:
-        raise SystemExit("Patch has no file headers.")
-    for old, new in headers:
-        for path in (old, new):
-            p = Path(path)
-            if (p.is_absolute() or "\\" in path or ".." in p.parts or
-                not path.startswith(ALLOWED) or not path.endswith(EXTENSIONS)):
-                raise SystemExit("Unsafe or out-of-scope path: " + path)
-        if old != new:
-            raise SystemExit("Renames are forbidden.")
-    if len({new for _, new in headers}) != len(headers):
-        raise SystemExit("Duplicate file headers.")
 
 validate()
 patch_path = Path(tempfile.gettempdir()) / ("nvidia-" + RUN_ID + ".patch")
@@ -95,9 +75,9 @@ run(["git", "commit", "-m", "fix: NVIDIA isolated-tested repair for run " + RUN_
 run(["gh", "auth", "setup-git"])
 run(["git", "push", "-u", "origin", BRANCH], cwd=worktree)
 body = ("Automated isolated repair for failed run https://github.com/" + REPO +
-    "/actions/runs/" + RUN_ID + "\n\nSource SHA: " + FAILED_SHA +
-    "\nModel: " + os.getenv("OPENROUTER_MODEL", "nvidia/nemotron-3-ultra-550b-a55b:free") +
-    "\n\nThe candidate patch passed the isolated Python Engine test job with no repository permissions or API secrets. " +
+    "/actions/runs/" + RUN_ID + "\\n\\nSource SHA: " + FAILED_SHA +
+    "\\nModel: " + os.getenv("OPENROUTER_MODEL", "nvidia/nemotron-3-ultra-550b-a55b:free") +
+    "\\n\\nThe candidate patch passed the isolated Python Engine test job with no repository permissions or API secrets. " +
     "This publisher job did not execute candidate source. Human review required. " +
     "No merge, publication, or deployment is performed.")
 run(["gh", "pr", "create", "--repo", REPO, "--base", "Winner-Candidate",
