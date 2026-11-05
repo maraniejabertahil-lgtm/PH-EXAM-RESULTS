@@ -44,20 +44,22 @@ These documents are connected by references, not synchronized copies. Each has a
 - [ ] Run a real, publicly released **PRC** result batch through acquisition, extraction, Greenlight, dataset generation, GitOps PR, CI, and merge. CSC-specific testing is excluded by D-003.
 
 ## Phase 3: Automated Broadcasting
-- [ ] Build `broadcaster.py` inside Python Engine
+- [x] Build `broadcaster.py` inside Python Engine (dry-run by default; release checks are implemented)
 - [ ] Connect and test Facebook Graph API integration
 - [ ] Connect and test Telegram Bot API integration
-- [ ] Ensure broadcasts only fire after successful PR merge/deployment
+- [x] Implement release checks so broadcasts require a successful Pages deployment and merged dataset PR; actual sends await authorized destination setup
 
 ## Phase 4: Frontend Web Worker Search
-- [ ] Build static HTML/CSS UI (including Peak Week "Preparing Mode" UI)
-- [ ] Implement `storage.js` for IndexedDB dataset caching
-- [ ] Implement `search.js` (Web Worker) to search 50,000+ array records without freezing UI
-- [ ] Configure Cloudflare Pages deployment via `.github/workflows/deploy-pages.yml`
+- [x] Build static HTML/CSS UI (including Peak Week "Preparing Mode" UI; existing public pages and stylesheet)
+- [x] Implement `storage.js` for IndexedDB dataset caching (browser acceptance pending)
+- [x] Implement `search.js` (Web Worker) to search 50,000+ array records without freezing UI (synthetic 50,000-row test exists; live browser acceptance pending)
+- [x] Configure Cloudflare Pages deployment via `.github/workflows/deploy-pages.yml` (Cloudflare credentials and project settings required; deployment not run from this branch)
 
 - [ ] Build an Owner-facing website review experience for official preview evidence and extracted name/sequence records before publication, while keeping the public search route read-only (deferred by D-004).
 
 ## Phase 5: End-to-End Simulation & Security
+- [x] Add a Phase 5 CI workflow to run the Python, browser-search, and Watcher regression suites; all steps passed in run #42023159818.
+- [x] Add a browser-served asset credential scan; passed in run #42023159818 (scope is `public/`, not a full repository secret audit).
 - [ ] Run Dummy Test: Drop PDF, verify Watcher detects in <30s and wakes Worker
 - [ ] Run Safety Test: Feed a broken PDF (missing sequence numbers) to verify Greenlight Protocol aborts auto-merge
 - [ ] Verify no secrets are exposed in public code or frontend
