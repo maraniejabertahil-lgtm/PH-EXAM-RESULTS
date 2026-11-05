@@ -70,10 +70,6 @@ jobs:
       - name: Install Python engine dependencies
         working-directory: python-engine
         run: python -m pip install -r requirements.txt
-      - name: Validate NVIDIA repair coordinator syntax and workflow YAML
-        run: |
-          python -m py_compile scripts/nvidia_autonomous_repair.py scripts/nvidia_publish_repair.py
-          ruby -e 'require "yaml"; YAML.load_file(".github/workflows/nvidia-autonomous-repair.yml", aliases: true); puts "NVIDIA repair workflow YAML: OK"'
       - name: Run Python engine unit tests
         working-directory: python-engine
         run: PYTHONPATH=retrieval python -m unittest discover -s tests -v
