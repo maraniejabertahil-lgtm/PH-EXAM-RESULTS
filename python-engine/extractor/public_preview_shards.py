@@ -122,13 +122,13 @@ def _capture_page_count_diagnostics(
         except Exception as exc:
             item["body_text_error"] = str(exc)[:500]
         diagnostic["frames"].append(item)
-    screenshot = output_dir / f"page-count-failure-shard-{shard}-attempt-{attempt}.png"
+    screenshot = output_dir / f"diag_shard{shard}_attempt{attempt}.png"
     try:
         page.screenshot(path=str(screenshot), full_page=True, timeout=10000)
         diagnostic["screenshot_path"] = str(screenshot)
     except Exception as exc:
         diagnostic["screenshot_error"] = str(exc)[:500]
-    path = output_dir / f"page-count-failure-shard-{shard}-attempt-{attempt}.json"
+    path = output_dir / f"diag_shard{shard}_attempt{attempt}.json"
     path.write_text(json.dumps(diagnostic, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     print(
         f"[DIAG] shard={shard} attempt={attempt} url={diagnostic.get('url')} "
@@ -239,6 +239,7 @@ def capture_shard(
             console_events: list[dict] = []
             page.on("console", lambda message: console_events.append({
                 "type": message.type, "text": message.text[:1000],
+                "timestamp": time.time(),
             }) if len(console_events) < 100 else None)
             body = page.locator("body")
             response = page.goto(preview_url, wait_until="domcontentloaded", timeout=60000)
