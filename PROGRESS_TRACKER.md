@@ -50,10 +50,10 @@ These documents are connected by references, not synchronized copies. Each has a
 - [x] Implement release checks so broadcasts require a successful Pages deployment and merged dataset PR; actual sends await authorized destination setup
 
 ## Phase 4: Frontend Web Worker Search
-- [ ] Build static HTML/CSS UI (including Peak Week "Preparing Mode" UI)
-- [ ] Implement `storage.js` for IndexedDB dataset caching
-- [ ] Implement `search.js` (Web Worker) to search 50,000+ array records without freezing UI
-- [ ] Configure Cloudflare Pages deployment via `.github/workflows/deploy-pages.yml`
+- [x] Build static HTML/CSS UI (including Peak Week "Preparing Mode" UI; existing public pages and stylesheet)
+- [x] Implement `storage.js` for IndexedDB dataset caching (browser acceptance pending)
+- [x] Implement `search.js` (Web Worker) to search 50,000+ array records without freezing UI (synthetic 50,000-row test exists; live browser acceptance pending)
+- [x] Configure Cloudflare Pages deployment via `.github/workflows/deploy-pages.yml` (Cloudflare credentials and project settings required; deployment not run from this branch)
 
 - [ ] Build an Owner-facing website review experience for official preview evidence and extracted name/sequence records before publication, while keeping the public search route read-only (deferred by D-004).
 
