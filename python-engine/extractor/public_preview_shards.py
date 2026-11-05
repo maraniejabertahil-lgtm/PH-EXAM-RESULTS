@@ -299,7 +299,9 @@ def capture_shard(
             _, start, end = partition_page_ranges(page_count, shard_count)[shard]
             loop_started = time.monotonic()
 
-            previous_page_text = None
+            # Each parallel shard starts on a viewer page that may still show page 1.
+            # Seed freshness comparison with that initial visible text when jumping ahead.
+            previous_page_text = initial if start > 1 else None
             for page_number in range(start, end + 1):
                 visible = _capture_stable_page(
                     page=page, body=body, page_control_selector=page_control_selector,
