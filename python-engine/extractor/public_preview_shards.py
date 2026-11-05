@@ -150,9 +150,19 @@ def _launch_browser(playwright):
 def _capture_stable_page(
     *, page, body, page_control_selector: str, page_number: int, page_count: int, page_marker_template: str,
     shard: int, output_dir: Path, per_page_deadline: int, poll_ms: int,
+    previous_page_text: str | None = None,
 ) -> str:
-    """Read one visible page, retrying that page in place before restarting a shard."""
+    """Read one visible page and reject a navigation-only update with stale page content."""
     marker = page_marker_template.format(page=page_number, count=page_count)
+
+    def content_fingerprint(value: str) -> str:
+        # The viewer's page counter can update before its rendered document text.
+        # Ignore that counter when comparing adjacent pages, but retain all
+        # remaining visible text so a stale canvas/text layer cannot pass.
+        without_counter = re.sub(r"Page\\s+\\d+\\s+of\\s+\\d+", " ", value, flags=re.IGNORECASE)
+        return re.sub(r"\\s+", " ", without_counter).strip()
+
+    previous_fingerprint = content_fingerprint(previous_page_text) if previous_page_text else None
     diagnostic = {}
     for attempt in range(1, 4):
         control = page.locator(page_control_selector)
@@ -170,7 +180,12 @@ def _capture_stable_page(
             visible = body.inner_text(timeout=10000)
             selected_page = control.input_value(timeout=3000).strip()
             if marker in visible and selected_page == str(page_number):
-                if visible == previous_text:
+                current_fingerprint = content_fingerprint(visible)
+                content_is_fresh = (
+                    previous_fingerprint is None
+                    or (current_fingerprint and current_fingerprint != previous_fingerprint)
+                )
+                if content_is_fresh and visible == previous_text:
                     stable_samples += 1
                 else:
                     stable_samples = 0
@@ -284,14 +299,16 @@ def capture_shard(
             _, start, end = partition_page_ranges(page_count, shard_count)[shard]
             loop_started = time.monotonic()
 
+            previous_page_text = None
             for page_number in range(start, end + 1):
                 visible = _capture_stable_page(
                     page=page, body=body, page_control_selector=page_control_selector,
                     page_number=page_number, page_count=page_count,
                     page_marker_template=page_marker_template, shard=shard,
                     output_dir=output_dir, per_page_deadline=per_page_deadline,
-                    poll_ms=poll_ms,
+                    poll_ms=poll_ms, previous_page_text=previous_page_text,
                 )
+                previous_page_text = visible
 
                 if page_number % 100 == 0 and _challenge_present(page.content()[:100000]):
                     raise AccessChallengeError("access challenge appeared in viewer page content")
