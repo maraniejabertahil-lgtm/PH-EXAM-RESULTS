@@ -335,7 +335,7 @@ For each affected test or test execution:
 #### P2-28 — Reusable parallel public-preview page capture
 
 - **Pass condition:** A configured set of parallel shards captures contiguous viewer-page ranges; merge verifies every expected page exactly once and rejects gaps, overlaps, missing shards, blank snapshots, or hash mismatches. Access challenges stop automation without retry or bypass.
-- **Evidence:** Final live PRC-linked public-preview acceptance run [#41854972189](https://github.com/maraniejabertahil-lgtm/PH-EXAM-RESULTS/actions/runs/41854972189), sourced from the official PRC March 2026 LEPT Secondary results article, completed 16/16 shards and captured 901/901 pages. The merge verified contiguous exact coverage, nonblank snapshots, per-page SHA-256 values, shard archive hashes, and the merged evidence artifact hash. Capture span was 61.228 seconds (individual shard loops 13.8–30.8 seconds); three bounded in-place page retries occurred and no whole-shard restart was required. The configurable per-page deadline defaults to 15 seconds. This was approximately 21% faster than the earlier exam-specific 77.45-second capture-span baseline, subject to normal GitHub runner scheduling variation. Regression suite [#41854448985](https://github.com/maraniejabertahil-lgtm/PH-EXAM-RESULTS/actions/runs/41854448985) passed all 10 tests, including fake-viewer tests proving a stuck page is retried in place and an access challenge raises immediately without retry. No PDF was downloaded, no access control was bypassed, no passer records were extracted, and no publication occurred. Human visual review of the DRAFT-watermarked Secondary source remains pending. A separate Python Engine ingestion bridge from the generic page-snapshot manifest to the hash-bound record manifest remains outstanding.
+- **Evidence:** Final live PRC-linked public-preview acceptance run [#41854972189](https://github.com/maraniejabertahil-lgtm/PH-EXAM-RESULTS/actions/runs/41854972189), sourced from the official PRC March 2026 LEPT Secondary results article, completed 16/16 shards and captured 901/901 pages. The merge verified contiguous exact coverage, nonblank snapshots, per-page SHA-256 values, shard archive hashes, and the merged evidence artifact hash. Capture span was 61.228 seconds (individual shard loops 13.8–30.8 seconds); three bounded in-place page retries occurred and no whole-shard restart was required. The configurable per-page deadline defaults to 15 seconds. This was approximately 21% faster than the earlier exam-specific 77.45-second capture-span baseline, subject to normal GitHub runner scheduling variation. Regression suite [#41854448985](https://github.com/maraniejabertahil-lgtm/PH-EXAM-RESULTS/actions/runs/41854448985) passed all 10 tests, including fake-viewer tests proving a stuck page is retried in place and an access challenge raises immediately without retry. No PDF was downloaded, no access control was bypassed, no passer records were extracted, and no publication occurred. The execution PR adds an adjacent-page freshness guard; its stale-counter regression passed in Phase 5 run [#42023159818](https://github.com/maraniejabertahil-lgtm/PH-EXAM-RESULTS/actions/runs/42023159818). A new 16-shard live run using the hardened code has not yet been performed. Human visual review of the DRAFT-watermarked Secondary source remains pending. A separate Python Engine ingestion bridge from the generic page-snapshot manifest to the hash-bound record manifest remains outstanding.
 - **Status:** `PASS` for reusable live page capture and merge verification; scoped hardening merged into Winner-Candidate by PR #68. Main remains unchanged. Full Python Engine record-ingestion integration remains a separate open task.
 
 **Related Owner decisions:** `D-001`, `D-002`, `D-003`, and `D-004` in Part 16. D-003 excludes CSC-specific testing; these Phase 2 acceptance checks apply to PRC only. D-004 defers manual visual review of the Secondary candidate to a future website review experience; it does not authorize publication.
@@ -383,6 +383,12 @@ For each affected test or test execution:
 - **Pass condition:** The announcement accurately identifies the authority/examination/year and links visitors to the results website.
 - **Evidence to retain:** Published test announcement content and URL.
 - **Status:** `NOT RUN`
+
+#### P3-07 — Release gate and duplicate-send guard
+
+- **Pass condition:** The broadcaster refuses to publish unless the associated dataset PR is merged into `main`, the Cloudflare Pages deployment succeeded on `main`, and the live site is reachable; a completed broadcast cannot be repeated automatically.
+- **Evidence:** Unit tests for the deployment gate and HTTPS announcement validation passed in safety run [#42023159818](https://github.com/maraniejabertahil-lgtm/PH-EXAM-RESULTS/actions/runs/42023159818). Live API delivery and commit-status idempotency against an actual merged release have not been exercised.
+- **Status:** `AUTOMATED PASS`
 
 ---
 
@@ -454,7 +460,8 @@ For each affected test or test execution:
 
 - **Pass condition:** A 50,000-record dataset is searchable in the browser without dropping UI frames. This is the Part 17 Performance criterion.
 - **Evidence to retain:** Reproducible device/browser, dataset, performance trace, and observed UI responsiveness.
-- **Status:** `NOT RUN`
+- **Evidence:** Synthetic 50,000-record Web Worker search passed in website CI run [#42023159791](https://github.com/maraniejabertahil-lgtm/PH-EXAM-RESULTS/actions/runs/42023159791). A real browser/device frame-drop trace and concurrent visitor test remain outstanding.
+- **Status:** `PARTIAL`
 
 #### P4-12 — Zero backend search queries
 
@@ -544,7 +551,8 @@ For each affected test or test execution:
 
 - **Pass condition:** No API tokens, credentials, or private operational identifiers are exposed in public source code or frontend assets.
 - **Evidence to retain:** Secret scan and source/build inspection.
-- **Status:** `NOT RUN`
+- **Evidence:** The browser-served asset scan passed in Phase 5 run [#42023159818](https://github.com/maraniejabertahil-lgtm/PH-EXAM-RESULTS/actions/runs/42023159818). The scan covers `public/` only; a full repository/build secret audit and verification of deployed secret storage remain outstanding.
+- **Status:** `PARTIAL`
 
 #### P5-12 — Worker secret storage
 
@@ -575,6 +583,14 @@ For each affected test or test execution:
 - **Pass condition:** The end-to-end design operates within the approved free-service architecture and introduces no paid dependency.
 - **Evidence to retain:** Service configuration and usage evidence.
 - **Status:** `NOT RUN`
+
+---
+
+#### P5-17 — Automated five-phase safety regression suite
+
+- **Pass condition:** The integration PR runs the Python Engine tests, browser loader and large-search tests, Watcher tests, and public asset scan successfully.
+- **Evidence:** All steps passed in Phase 5 run [#42023159818](https://github.com/maraniejabertahil-lgtm/PH-EXAM-RESULTS/actions/runs/42023159818). The Python Engine suite ran 148 tests; the synthetic browser search and Watcher suite passed. This is automated regression evidence, not the complete live end-to-end simulation.
+- **Status:** `AUTOMATED PASS`
 
 ---
 
