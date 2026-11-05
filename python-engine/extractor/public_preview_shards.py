@@ -130,9 +130,9 @@ def _normalized_content_hash(text: str) -> str:
     """Hash visible document text while ignoring changing viewer navigation chrome."""
     lines = [line.strip() for line in text.splitlines() if line.strip()]
     if len(lines) >= 4 and [
-        re.sub(r"\\s+", " ", line).casefold() for line in lines[:2]
-    ] == ["page", "/"] and re.fullmatch(r"\\d+", lines[2]) and re.fullmatch(
-        r"Page\\s+\\d+\\s+of\\s+\\d+", lines[3], re.IGNORECASE
+        re.sub(r"\s+", " ", line).casefold() for line in lines[:2]
+    ] == ["page", "/"] and re.fullmatch(r"\d+", lines[2]) and re.fullmatch(
+        r"Page\s+\d+\s+of\s+\d+", lines[3], re.IGNORECASE
     ):
         lines = lines[4:]
     lines = [
@@ -140,7 +140,7 @@ def _normalized_content_hash(text: str) -> str:
         if not any(re.fullmatch(pattern, line, re.IGNORECASE)
                    for pattern in NAVIGATION_ONLY_PATTERNS)
     ]
-    normalized = "\\n".join(lines).strip()
+    normalized = "\n".join(lines).strip()
     return hashlib.sha256(normalized.encode("utf-8")).hexdigest()
 
 
@@ -192,7 +192,7 @@ def _capture_unique_page(
     }
     output_dir.mkdir(parents=True, exist_ok=True)
     (output_dir / f"duplicate-content-shard-{shard}-page-{page_number}.json").write_text(
-        json.dumps(diagnostic, ensure_ascii=False, indent=2) + "\\n", encoding="utf-8"
+        json.dumps(diagnostic, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
     )
     page.screenshot(
         path=str(output_dir / f"duplicate-content-shard-{shard}-page-{page_number}.png"),
