@@ -483,6 +483,11 @@ def merge_shards(*, shard_count: int, output_dir: Path) -> dict:
                 raise RuntimeError(f"shard {shard} contains a blank page snapshot")
             if snapshot.get("sha256") != hashlib.sha256(text_value.encode("utf-8")).hexdigest():
                 raise RuntimeError(f"shard {shard} page {snapshot.get('viewer_page')} hash mismatch")
+            expected_content_hash = _normalized_content_hash(text_value)
+            if snapshot.get("content_sha256") not in (None, expected_content_hash):
+                raise RuntimeError(
+                    f"shard {shard} page {snapshot.get('viewer_page')} content signature mismatch"
+                )
         all_snapshots.extend(shard_snapshots)
 
     if [item["viewer_page"] for item in all_snapshots] != list(range(1, page_count + 1)):
