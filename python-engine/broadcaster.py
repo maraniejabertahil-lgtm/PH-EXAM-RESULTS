@@ -55,6 +55,17 @@ def announcement(authority, examination, year, pages_url):
     return f"{authority} {examination} ({year}) results are available. Search passer names and official sequence numbers: {pages_url.rstrip('/')}"
 
 
+def verify_live_site(url):
+    request = urllib.request.Request(url, method="HEAD",
+                                     headers={"User-Agent": "PH-EXAM-RESULTS-broadcaster/1.0"})
+    try:
+        with urllib.request.urlopen(request, timeout=20) as response:
+            if not 200 <= response.status < 400:
+                raise BroadcastError("Published website health check did not succeed.")
+    except (urllib.error.HTTPError, urllib.error.URLError, TimeoutError) as exc:
+        raise BroadcastError("Published website health check failed.") from exc
+
+
 def publish(repo, run_id, pages_url, authority, examination, year, github_token,
             facebook_page_id="", facebook_token="", telegram_token="", telegram_chat_id="",
             dry_run=True):
@@ -71,6 +82,7 @@ def publish(repo, run_id, pages_url, authority, examination, year, github_token,
     if len(matches) != 1:
         raise BroadcastError("Deployment commit does not identify exactly one merged dataset PR.")
     message = announcement(authority, examination, year, pages_url)
+    verify_live_site(pages_url)
     if dry_run:
         return {"status": "dry_run", "pr": matches[0]["number"], "message": message}
 
@@ -89,10 +101,14 @@ def publish(repo, run_id, pages_url, authority, examination, year, github_token,
 
     mark("pending", "Social announcements in progress")
     try:
-        request_json("https://graph.facebook.com/v21.0/" + urllib.parse.quote(facebook_page_id, safe="") + "/feed",
-                     method="POST", form={"message": message, "access_token": facebook_token})
-        request_json("https://api.telegram.org/bot" + telegram_token + "/sendMessage",
-                     method="POST", payload={"chat_id": telegram_chat_id, "text": message})
+        fb_result = request_json("https://graph.facebook.com/v21.0/" + urllib.parse.quote(facebook_page_id, safe="") + "/feed",
+                                 method="POST", form={"message": message, "access_token": facebook_token})
+        if not fb_result.get("id"):
+            raise BroadcastError("Facebook did not confirm publication.")
+        tg_result = request_json("https://api.telegram.org/bot" + telegram_token + "/sendMessage",
+                                 method="POST", payload={"chat_id": telegram_chat_id, "text": message})
+        if tg_result.get("ok") is not True:
+            raise BroadcastError("Telegram did not confirm delivery.")
     except BroadcastError:
         mark("error", "Broadcast failed or partially completed; manual review required")
         raise
