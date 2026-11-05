@@ -1,0 +1,41 @@
+name: Phase 8 Website and Dataset Compatibility
+on:
+  pull_request:
+    branches:
+      - Winner-Candidate
+      - main
+    paths:
+      - "public/**"
+      - "python-engine/main.py"
+      - "python-engine/publisher/site_catalogue.py"
+      - "python-engine/tests/**"
+      - "tests/**"
+      - ".github/workflows/phase8-website-ci.yml"
+permissions:
+  contents: read
+jobs:
+  website-and-catalogue:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Install Python engine dependencies
+        run: python -m pip install -r python-engine/requirements.txt
+      - name: Compile Python engine
+        run: python -m compileall -q python-engine
+      - name: Run Python engine regression tests
+        working-directory: python-engine
+        run: PYTHONPATH=retrieval python -m unittest discover -s tests -v
+      - name: Check public JavaScript module syntax
+        run: |
+          set -euo pipefail
+          while IFS= read -r file; do node --input-type=module --check < "$file"; done < <(find public/assets/js -type f -name '*.js' -print)
+      - name: Validate browser dataset loader
+        run: node tests/loader-validation.test.mjs
+      - name: Validate 50,000-record Web Worker search
+        run: node tests/search-worker.test.mjs
