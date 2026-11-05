@@ -34,7 +34,8 @@ jobs:
     needs: propose-1
     runs-on: ubuntu-latest
     permissions: {}
-    outputs: {passed: ${{ steps.verify.outputs.passed }}
+    outputs:
+      passed: ${{ steps.verify.outputs.passed }}
     steps:
       - uses: actions/download-artifact@v4
         with: {name: nvidia-candidate-1, path: repair-input}
@@ -52,7 +53,7 @@ jobs:
           rc=$?
           if [ $rc -eq 0 ]; then node --check watcher-bot/src/index.js > ../verification.log 2>&1; rc=$?; fi
           if [ $rc -eq 0 ]; then (cd watcher-bot && npm ci >> ../verification.log 2>&1 && npm test >> ../verification.log 2>&1); rc=$?; fi
-          if [ $rc -eq 0 ]; then python -m pip install -r python-engine/requirements.txt pytest >> verification.log 2>&1; rc=$?; fi
+          if [ $rc -eq 0 ]; then python -m pip install -r python-engine/requirements.txt pytest  >> ../verification.log 2>&1; rc=$?; fi
           if [ $rc -eq 0 ]; then (cd python-engine && PYTHONPATH=retrieval python -m unittest discover -s tests -v) >> ../verification.log 2>&1; rc=$?; fi
           if [ $rc -eq 0 ]; then python tools/validate_public_datasets.py >> ../verification.log 2>&1; rc=$?; fi
           echo "passed=$([ $rc -eq 0 ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
@@ -84,7 +85,8 @@ jobs:
     needs: propose-2
     runs-on: ubuntu-latest
     permissions: {}
-    outputs: {passed: ${{ steps.verify.outputs.passed }}
+    outputs:
+      passed: ${{ steps.verify.outputs.passed }}
     steps:
       - uses: actions/download-artifact@v4
         with: {name: nvidia-candidate-2, path: repair-input}
@@ -102,7 +104,7 @@ jobs:
           rc=$?
           if [ $rc -eq 0 ]; then node --check watcher-bot/src/index.js > ../verification.log 2>&1; rc=$?; fi
           if [ $rc -eq 0 ]; then (cd watcher-bot && npm ci >> ../verification.log 2>&1 && npm test >> ../verification.log 2>&1); rc=$?; fi
-          if [ $rc -eq 0 ]; then python -m pip install -r python-engine/requirements.txt pytest >> verification.log 2>&1; rc=$?; fi
+          if [ $rc -eq 0 ]; then python -m pip install -r python-engine/requirements.txt pytest  >> ../verification.log 2>&1; rc=$?; fi
           if [ $rc -eq 0 ]; then (cd python-engine && PYTHONPATH=retrieval python -m unittest discover -s tests -v) >> ../verification.log 2>&1; rc=$?; fi
           if [ $rc -eq 0 ]; then python tools/validate_public_datasets.py >> ../verification.log 2>&1; rc=$?; fi
           echo "passed=$([ $rc -eq 0 ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
@@ -134,7 +136,8 @@ jobs:
     needs: propose-3
     runs-on: ubuntu-latest
     permissions: {}
-    outputs: {passed: ${{ steps.verify.outputs.passed }}
+    outputs:
+      passed: ${{ steps.verify.outputs.passed }}
     steps:
       - uses: actions/download-artifact@v4
         with: {name: nvidia-candidate-3, path: repair-input}
@@ -152,7 +155,7 @@ jobs:
           rc=$?
           if [ $rc -eq 0 ]; then node --check watcher-bot/src/index.js > ../verification.log 2>&1; rc=$?; fi
           if [ $rc -eq 0 ]; then (cd watcher-bot && npm ci >> ../verification.log 2>&1 && npm test >> ../verification.log 2>&1); rc=$?; fi
-          if [ $rc -eq 0 ]; then python -m pip install -r python-engine/requirements.txt pytest >> verification.log 2>&1; rc=$?; fi
+          if [ $rc -eq 0 ]; then python -m pip install -r python-engine/requirements.txt pytest  >> ../verification.log 2>&1; rc=$?; fi
           if [ $rc -eq 0 ]; then (cd python-engine && PYTHONPATH=retrieval python -m unittest discover -s tests -v) >> ../verification.log 2>&1; rc=$?; fi
           if [ $rc -eq 0 ]; then python tools/validate_public_datasets.py >> ../verification.log 2>&1; rc=$?; fi
           echo "passed=$([ $rc -eq 0 ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
