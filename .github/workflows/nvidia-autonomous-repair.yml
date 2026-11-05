@@ -202,4 +202,5 @@ jobs:
           GH_REPO: ${{ github.repository }}
           FAILED_RUN_ID: ${{ github.event.workflow_run.id }}
           FAILED_BRANCH: ${{ github.event.workflow_run.head_branch }}
-        run: gh issue create --repo "$GH_REPO" --title "NVIDIA repair exhausted three attempts — run $FAILED_RUN_ID" --body "All three isolated repair attempts failed for branch $FAILED_BRANCH. Original run: https://github.com/$GH_REPO/actions/runs/$FAILED_RUN_ID. No patch was published. Manual review required."
+        run: |
+          gh issue create --repo "$GH_REPO" --title "NVIDIA repair exhausted three attempts — run $FAILED_RUN_ID" --body "All three isolated repair attempts failed for branch $FAILED_BRANCH. Original run: https://github.com/$GH_REPO/actions/runs/$FAILED_RUN_ID. No patch was published. Manual review required."
