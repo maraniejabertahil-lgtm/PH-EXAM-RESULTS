@@ -87,6 +87,27 @@ def _challenge_present(text: str) -> bool:
     return any(term in lowered for term in CHALLENGE_TERMS)
 
 
+# Navigation-only patterns that indicate document content has NOT rendered.
+NAVIGATION_ONLY_PATTERNS = [
+    r"^Page\\s+\\d+\\s+of\\s+\\d+\\s*$",
+    r"^\\d+\\s*/\\s*\\d+\\s*$",
+    r"^Page\\s+\\d+\\s*$",
+]
+
+
+def _has_document_content(text: str) -> bool:
+    """Return True only when visible text contains content beyond viewer chrome."""
+    lines = [line.strip() for line in text.splitlines() if line.strip()]
+    document_lines = [
+        line for line in lines
+        if not any(
+            re.fullmatch(pattern, line, re.IGNORECASE)
+            for pattern in NAVIGATION_ONLY_PATTERNS
+        )
+    ]
+    return bool(document_lines)
+
+
 
 def _capture_page_count_diagnostics(
     *, page, shard: int, attempt: int, output_dir: Path,
@@ -175,7 +196,9 @@ def _capture_stable_page(
                 else:
                     stable_samples = 0
                 previous_text = visible
-                if stable_samples >= 2:
+                # Accept only stable text that includes document content,
+                # not a settled viewer-navigation placeholder.
+                if stable_samples >= 2 and _has_document_content(visible):
                     return visible
             else:
                 stable_samples, previous_text = 0, visible
