@@ -58,7 +58,8 @@ These documents are connected by references, not synchronized copies. Each has a
 - [ ] Build an Owner-facing website review experience for official preview evidence and extracted name/sequence records before publication, while keeping the public search route read-only (deferred by D-004).
 
 ## Phase 5: End-to-End Simulation & Security
-- [x] Add a Phase 5 CI workflow to run the Python, browser-search, and Watcher regression suites; execution evidence is pending.
+- [x] Add a Phase 5 CI workflow to run the Python, browser-search, and Watcher regression suites; all steps passed in run #42023159818.
+- [x] Add a browser-served asset credential scan; passed in run #42023159818 (scope is `public/`, not a full repository secret audit).
 - [ ] Run Dummy Test: Drop PDF, verify Watcher detects in <30s and wakes Worker
 - [ ] Run Safety Test: Feed a broken PDF (missing sequence numbers) to verify Greenlight Protocol aborts auto-merge
 - [ ] Verify no secrets are exposed in public code or frontend
