@@ -105,7 +105,7 @@ class GitHubLedger:
             raise BroadcastError(f"GitHub ledger request failed: {type(exc).__name__}.", uncertain=True) from exc
 
     def read(self):
-        ref_path = "/git/ref/heads/" + urllib.parse.quote(self.branch, safe="")
+        ref_path = "/git/ref/heads/" + urllib.parse.quote(self.branch, safe="/")
         if self.api("GET", ref_path, missing_ok=True) is None:
             main = self.api("GET", "/git/ref/heads/main")
             sha = main.get("object", {}).get("sha")
