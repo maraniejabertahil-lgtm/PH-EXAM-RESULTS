@@ -70,7 +70,7 @@ A reusable public-preview page-capture component and callable GitHub Actions wor
 
 Build and verify the Python broadcaster integrations for Facebook Graph API and Telegram Bot API. Broadcasts must occur only after a validated result dataset has merged and deployment has succeeded.
 
-**Current delivery status:** Initial implementation is on branch `implementation/phase3-broadcasting-20261105`, not yet merged. It adds the Python Facebook/Telegram adapters, post-deployment-only workflow trigger, and a durable GitHub-branch delivery ledger. Eleven focused offline unit tests are included. GitHub CI and PR review are still pending. Real provider connectivity is deferred until final Live Acceptance because the required Owner credentials are not yet configured.
+**Current delivery status:** Implemented and merged to `main` in PR #96. The Python Facebook Pages and Telegram Bot API adapters, successful-Pages-deployment trigger, changed-result-manifest filter, and durable GitHub-branch delivery ledger are present. The PR's GitHub Actions CI passed with 147 Python tests, including 11 focused broadcaster tests. Real provider connectivity remains deferred to final Live Acceptance because the Owner credentials are not yet configured. The post-deployment trigger will become active when Phase 4 adds the Pages workflow named exactly `Deploy Cloudflare Pages`.
 
 ---
 
