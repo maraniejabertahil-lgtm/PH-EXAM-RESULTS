@@ -97,6 +97,22 @@ NAVIGATION_ONLY_PATTERNS = [
 
 def _has_document_content(text: str) -> bool:
     """Return True only when visible text contains content beyond viewer chrome."""
+    text = text.strip()
+    if not text:
+        return False
+
+    # Google Drive's visible page control can be split across four text lines:
+    # "Page", "/", total-pages, and "Page N of M". Remove that exact leading
+    # chrome block before checking the remaining visible text.
+    text = re.sub(
+        r"^Page[ \t]*\n[ \t]*/[ \t]*\n[ \t]*\d+[ \t]*\n"
+        r"[ \t]*Page[ \t]+\d+[ \t]+of[ \t]+\d+[ \t]*(?:\n|$)",
+        "",
+        text,
+        count=1,
+        flags=re.IGNORECASE,
+    )
+
     lines = [line.strip() for line in text.splitlines() if line.strip()]
     document_lines = [
         line for line in lines
