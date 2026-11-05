@@ -191,7 +191,6 @@ def broadcast(paths, settings: Settings, *, deployment_succeeded: bool, dry_run=
     routes = result_routes(paths)
     if not routes:
         return {"status": "skipped", "reason": "No result manifest changed.", "announcements": 0}
-    site = _site_url(settings.site_url)
     channels = []
     if any((settings.facebook_page_id, settings.facebook_token, settings.facebook_version)):
         channels.append("facebook")
@@ -199,6 +198,7 @@ def broadcast(paths, settings: Settings, *, deployment_succeeded: bool, dry_run=
         channels.append("telegram")
     if not channels:
         return {"status": "skipped", "reason": "No channels configured.", "announcements": 0}
+    site = _site_url(settings.site_url)
     if not dry_run:
         if not settings.event_id or not re.fullmatch(r"[A-Za-z0-9_.:-]{1,160}", settings.event_id):
             raise BroadcastError("BROADCAST_EVENT_ID is required.")
