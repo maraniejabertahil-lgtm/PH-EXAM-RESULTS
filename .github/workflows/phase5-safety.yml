@@ -34,3 +34,5 @@ jobs:
       - name: Run Watcher tests
         working-directory: watcher-bot
         run: npm test
+      - name: Scan browser-served assets for credentials
+        run: python scripts/check_public_secrets.py public
