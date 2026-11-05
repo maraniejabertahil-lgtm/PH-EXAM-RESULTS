@@ -9,7 +9,12 @@ def normalize_patch(raw):
         raise ValueError("Empty patch")
     lines = text.splitlines()
     # Models sometimes wrap the diff in Markdown despite being told not to.
-    lines = [line for line in lines if not line.strip().startswith(chr(96) * 3)]
+    fence = chr(96) * 3
+    if lines and lines[0].startswith(fence):
+        lines = lines[1:]
+    closing_fence = next((i for i, line in enumerate(lines) if line.startswith(fence)), None)
+    if closing_fence is not None:
+        lines = lines[:closing_fence]
     starts = [i for i, line in enumerate(lines) if line.startswith("diff --git ") or line.startswith("--- a/")]
     if not starts:
         raise ValueError("No recognized unified diff headers")
