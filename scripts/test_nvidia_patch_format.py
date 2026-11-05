@@ -19,7 +19,7 @@ class PatchNormalizationTests(unittest.TestCase):
         self.assertTrue(normalize_patch(raw).startswith("diff --git "))
 
     def test_added_markdown_fence_content_is_preserved(self):
-        raw = "--- a/watcher-bot/src/example.js\\n+++ b/watcher-bot/src/example.js\\n@@ -1 +1 @@\\n-old\\n+```markdown\\n"
+        raw = "--- a/watcher-bot/src/example.js\n+++ b/watcher-bot/src/example.js\n@@ -1 +1 @@\n-old\n+" + chr(96) * 3 + "markdown\n"
         self.assertIn("+```markdown", normalize_patch(raw))
 
     def test_existing_git_diff_is_preserved(self):
