@@ -99,13 +99,92 @@ def validate_manifest(manifest_path: Path) -> dict:
     }
 
 
+def validate_site_catalogue(catalogue_path: Path, dataset_manifests: list[Path]) -> dict:
+    """Validate schema-v2 website routing against each hash-bound exam manifest."""
+    try:
+        catalogue = json.loads(catalogue_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise DatasetValidationError(f"{catalogue_path}: cannot read site catalogue: {exc}") from exc
+    if (not isinstance(catalogue, dict) or catalogue.get("schema_version") != 2
+            or not isinstance(catalogue.get("authorities"), dict)):
+        raise DatasetValidationError(f"{catalogue_path}: unsupported site catalogue schema")
+
+    expected = {}
+    for path in dataset_manifests:
+        try:
+            item = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as exc:
+            raise DatasetValidationError(f"{path}: cannot read exam manifest: {exc}") from exc
+        key = (str(item.get("authority")), str(item.get("exam")), str(item.get("year")))
+        if key in expected:
+            raise DatasetValidationError(f"{path}: duplicate authority/exam/year manifest")
+        expected[key] = (path, item)
+
+    seen = set()
+    entry_count = 0
+    for authority, authority_item in catalogue["authorities"].items():
+        if authority not in {"PRC", "CSC"} or not isinstance(authority_item, dict):
+            raise DatasetValidationError(f"{catalogue_path}: invalid authority entry")
+        exams = authority_item.get("examinations")
+        if not isinstance(exams, dict):
+            raise DatasetValidationError(f"{catalogue_path}: invalid examinations catalogue")
+        for exam, exam_item in exams.items():
+            if not isinstance(exam_item, dict) or not isinstance(exam_item.get("years"), dict):
+                raise DatasetValidationError(f"{catalogue_path}: invalid exam years")
+            for year, year_item in exam_item["years"].items():
+                key = (authority, exam, str(year))
+                if key not in expected or key in seen:
+                    raise DatasetValidationError(f"{catalogue_path}: missing or duplicate exam manifest {key}")
+                seen.add(key)
+                files = year_item.get("files") if isinstance(year_item, dict) else None
+                manifest_path, manifest = expected[key]
+                shards = manifest.get("shards")
+                if not isinstance(files, dict) or not isinstance(shards, list) or len(files) != len(shards):
+                    raise DatasetValidationError(f"{catalogue_path}: shard routing count mismatch for {key}")
+                for index, shard in enumerate(shards, start=1):
+                    shard_id = f"S{index:03d}"
+                    entry = files.get(shard_id)
+                    filename = shard.get("file") if isinstance(shard, dict) else None
+                    digest = shard.get("sha256") if isinstance(shard, dict) else None
+                    count = shard.get("record_count") if isinstance(shard, dict) else None
+                    size = shard.get("size_bytes") if isinstance(shard, dict) else None
+                    expected_path = f"/data/{authority}/{exam}/{year}/{filename}"
+                    if (not isinstance(entry, dict) or entry.get("path") != expected_path
+                            or entry.get("hash") != digest or entry.get("record_count") != count
+                            or entry.get("size_bytes") != size):
+                        raise DatasetValidationError(f"{catalogue_path}: catalogue shard mismatch for {key}/{shard_id}")
+                    shard_path = (ROOT / "public" / entry["path"].lstrip("/")).resolve()
+                    try:
+                        shard_path.relative_to((ROOT / "public").resolve())
+                        raw = shard_path.read_bytes()
+                    except (ValueError, OSError) as exc:
+                        raise DatasetValidationError(f"{catalogue_path}: unsafe or missing routed shard {entry['path']}") from exc
+                    if len(raw) != size or hashlib.sha256(raw).hexdigest() != digest:
+                        raise DatasetValidationError(f"{catalogue_path}: routed shard hash/size mismatch for {entry['path']}")
+                    entry_count += 1
+
+    if seen != set(expected):
+        raise DatasetValidationError(f"{catalogue_path}: one or more exam manifests are absent from the site catalogue")
+    return {"site_catalogue": str(catalogue_path.relative_to(ROOT)), "exams": len(seen), "shards": entry_count}
+
+
 def main() -> int:
     data_root = ROOT / "public" / "data"
-    manifests = sorted(data_root.rglob("manifest.json")) if data_root.exists() else []
-    if not manifests:
+    catalogue_path = data_root / "manifest.json"
+    manifests = sorted(path for path in data_root.rglob("manifest.json") if path != catalogue_path) if data_root.exists() else []
+    if not manifests and not catalogue_path.exists():
         print("No public dataset manifests found; nothing to validate.")
         return 0
     failures = []
+    if catalogue_path.exists():
+        try:
+            catalogue = json.loads(catalogue_path.read_text(encoding="utf-8"))
+            if isinstance(catalogue, dict) and catalogue.get("schema_version") == 2:
+                print(json.dumps(validate_site_catalogue(catalogue_path, manifests), ensure_ascii=False))
+            else:
+                print(json.dumps(validate_manifest(catalogue_path), ensure_ascii=False))
+        except (DatasetValidationError, OSError, json.JSONDecodeError) as exc:
+            failures.append(str(exc))
     for path in manifests:
         try:
             print(json.dumps(validate_manifest(path), ensure_ascii=False))
