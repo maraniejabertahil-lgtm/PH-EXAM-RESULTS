@@ -44,7 +44,7 @@ These documents are connected by references, not synchronized copies. Each has a
 - [ ] Run a real, publicly released **PRC** result batch through acquisition, extraction, Greenlight, dataset generation, GitOps PR, CI, and merge. CSC-specific testing is excluded by D-003.
 
 ## Phase 3: Automated Broadcasting
-- [ ] Build `broadcaster.py` inside Python Engine
+- [x] Build `broadcaster.py` inside Python Engine (dry-run by default; release checks are implemented)
 - [ ] Connect and test Facebook Graph API integration
 - [ ] Connect and test Telegram Bot API integration
 - [ ] Ensure broadcasts only fire after successful PR merge/deployment
