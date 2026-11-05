@@ -989,7 +989,3 @@ export default {
   },
   async fetch() { return new Response("Not found", { status: 404 }); }
 };
-
-
-// TEMPORARY NVIDIA SELF-REPAIR ACCEPTANCE PROBE. DO NOT MERGE.
-const __NVIDIA_POST_PR83_PROBE_FAILURE__ = ;
