@@ -18,7 +18,7 @@ def run(a,cap=False,check=True):
 def validate(patch):
     if not patch or len(patch.encode())>1_000_000 or "GIT binary patch" in patch or "Binary files " in patch: raise ValueError("Empty, oversized, or binary patch")
     if re.search(r"^(?:old mode|new mode|deleted file mode|new file mode|rename from|rename to|copy from|copy to) ",patch,re.M): raise ValueError("Mode changes, renames, copies, and deletions forbidden")
-    hs=re.findall(r"^diff --git a/(.*?) b/(.*?)$",patch,re.M); us=re.findall(r"^(---|\\+\\+\\+) (.*?)$",patch,re.M)
+    hs=re.findall(r"^diff --git a/(.*?) b/(.*?)$",patch,re.M); us=re.findall(r"^(---|\+\+\+) (.*?)$",patch,re.M)
     if not hs or len(us)!=2*len(hs): raise ValueError("Malformed patch headers")
     seen=set()
     for i,(a,b) in enumerate(hs):
