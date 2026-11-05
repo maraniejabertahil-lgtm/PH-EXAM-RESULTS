@@ -1,0 +1,72 @@
+name: Broadcast After Cloudflare Pages Deployment
+
+on:
+  workflow_run:
+    workflows:
+      - Deploy Cloudflare Pages
+    types:
+      - completed
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: post-deploy-broadcast-ledger
+  cancel-in-progress: false
+
+jobs:
+  broadcast:
+    if: github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - name: Check out the exact deployed commit
+        uses: actions/checkout@v5
+        with:
+          ref: \${{ github.event.workflow_run.head_sha }}
+          fetch-depth: 2
+
+      - name: Identify newly deployed result manifests
+        id: changed
+        env:
+          DEPLOYED_SHA: \${{ github.event.workflow_run.head_sha }}
+        run: |
+          set -euo pipefail
+          git diff-tree --no-commit-id --name-only -r -m "$DEPLOYED_SHA" > changed-files.txt
+          if grep -Eq '^public/data/(PRC|CSC)/[A-Za-z0-9_-]+/20[0-9]{2}/manifest\.json$' changed-files.txt; then
+            echo "has_results=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_results=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Set up Python
+        if: steps.changed.outputs.has_results == 'true'
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Broadcast only after successful deployment
+        if: steps.changed.outputs.has_results == 'true'
+        env:
+          PUBLIC_SITE_URL: \${{ vars.PUBLIC_SITE_URL }}
+          FACEBOOK_PAGE_ID: \${{ secrets.FACEBOOK_PAGE_ID }}
+          FACEBOOK_PAGE_ACCESS_TOKEN: \${{ secrets.FACEBOOK_PAGE_ACCESS_TOKEN }}
+          FACEBOOK_GRAPH_API_VERSION: \${{ vars.FACEBOOK_GRAPH_API_VERSION }}
+          TELEGRAM_BOT_TOKEN: \${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: \${{ secrets.TELEGRAM_CHAT_ID }}
+          GITHUB_TOKEN: \${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: \${{ github.repository }}
+          BROADCAST_EVENT_ID: \${{ github.event.workflow_run.id }}
+        run: |
+          set -euo pipefail
+          python python-engine/publisher/broadcaster.py \
+            --changed-files changed-files.txt \
+            --deployment-succeeded
+
+      - name: Explain skipped broadcast
+        if: steps.changed.outputs.has_results != 'true'
+        run: echo "Successful deployment contained no new result manifest; no announcement was sent."
