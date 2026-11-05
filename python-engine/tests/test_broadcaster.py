@@ -49,6 +49,11 @@ class BroadcasterTests(unittest.TestCase):
         result = broadcast(["public/index.html"], self.settings, deployment_succeeded=True, ledger=self.ledger)
         self.assertEqual(result["status"], "skipped")
 
+    def test_no_channels_skips_without_requiring_site_url(self):
+        no_channels = Settings(None, None, None, None, None, None, None, None, None)
+        result = broadcast(self.paths, no_channels, deployment_succeeded=True, ledger=self.ledger)
+        self.assertEqual(result["status"], "skipped")
+
     def test_dry_run_never_calls_external_provider(self):
         def forbidden(*args, **kwargs): raise AssertionError("must not send")
         result = broadcast(self.paths, self.settings, deployment_succeeded=True, dry_run=True,
