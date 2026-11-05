@@ -2,6 +2,7 @@
 """Generate one safe, bounded NVIDIA patch proposal; never execute failed source."""
 import json, os, re, subprocess, urllib.request
 from pathlib import Path
+from repair_patch_utils import normalize_patch
 def need(k):
     v=os.getenv(k)
     if not v: raise SystemExit("PREFLIGHT ERROR: missing "+k)
@@ -38,7 +39,7 @@ mentioned=[p for p in chosen if p in logs or Path(p).name in logs]
 context=[]
 for p in list(dict.fromkeys(mentioned+chosen))[:18]:
     r=run(["git","show",f"{sha}:{p}"],True,False)
-    if r.returncode==0: context.append("\\nFILE "+p+"\\n"+r.stdout[:8000])
+    if r.returncode==0: context.append("\nFILE "+p+"\n"+r.stdout[:8000])
 run(["git","archive","--format=tar.gz","-o",str(out/"source.tar.gz"),sha])
 feedback=""
 if strike>1:
@@ -49,12 +50,12 @@ if strike>1:
         # A failed proposal may have no test job and therefore no feedback artifact.
         # Continue the bounded repair cycle with an explicit diagnostic instead of aborting.
         feedback="No previous isolated verification log was produced (the prior proposal may have failed before a patch was created). Diagnose the original failure and make an independent repair attempt."
-prompt=f"""Repair PH-EXAM-RESULTS. Attempt {strike} of 3. Return ONLY JSON keys patch and reason; patch is a unified git diff.
+prompt=f"""Repair PH-EXAM-RESULTS. Attempt {strike} of 3. Return ONLY JSON keys patch and reason; patch is a complete unified git diff. For EACH modified file include `diff --git a/PATH b/PATH`, then `--- a/PATH`, `+++ b/PATH`, and valid @@ hunks. Do not use Markdown fences or explanatory prose.
 Modify only existing application source files under python-engine/, watcher-bot/, website/, frontend/. Do not alter tests, workflows, datasets, credentials, deployment config, or add/remove/rename files. Never weaken Greenlight, sequence/name integrity, official PRC source compliance, or no-publish rules. Smallest root-cause fix only.
 Original failed logs:\n{logs}\nPrevious isolated verification feedback:\n{feedback}\nSource context:\n{''.join(context)}"""
 req=urllib.request.Request("https://openrouter.ai/api/v1/chat/completions",data=json.dumps({"model":model,"temperature":0.1,"messages":[{"role":"user","content":prompt}],"response_format":{"type":"json_object"}}).encode(),headers={"Authorization":"Bearer "+key,"Content-Type":"application/json"})
 try:
     with urllib.request.urlopen(req,timeout=120) as r: answer=json.loads(json.loads(r.read())["choices"][0]["message"]["content"])
 except Exception as e: raise SystemExit("NVIDIA proposal failed: "+type(e).__name__+": "+str(e))
-patch=answer.get("patch",""); validate(patch); (out/"patch.diff").write_text(patch); (out/"reason.txt").write_text(str(answer.get("reason",""))[:4000])
+patch=normalize_patch(answer.get("patch","")); validate(patch); (out/"patch.diff").write_text(patch); (out/"reason.txt").write_text(str(answer.get("reason",""))[:4000])
 print("PROPOSAL_CREATED strike="+str(strike))
