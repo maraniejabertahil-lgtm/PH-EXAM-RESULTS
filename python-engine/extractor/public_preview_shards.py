@@ -159,8 +159,8 @@ def _capture_stable_page(
         # The viewer's page counter can update before its rendered document text.
         # Ignore that counter when comparing adjacent pages, but retain all
         # remaining visible text so a stale canvas/text layer cannot pass.
-        without_counter = re.sub(r"Page\\s+\\d+\\s+of\\s+\\d+", " ", value, flags=re.IGNORECASE)
-        return re.sub(r"\\s+", " ", without_counter).strip()
+        without_counter = re.sub(r"Page\s+\d+\s+of\s+\d+", " ", value, flags=re.IGNORECASE)
+        return re.sub(r"\s+", " ", without_counter).strip()
 
     previous_fingerprint = content_fingerprint(previous_page_text) if previous_page_text else None
     diagnostic = {}
