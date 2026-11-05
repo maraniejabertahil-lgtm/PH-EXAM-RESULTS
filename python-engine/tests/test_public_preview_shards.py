@@ -54,10 +54,10 @@ class DocumentContentTests(unittest.TestCase):
                 self.assertFalse(_has_document_content(text))
 
     def test_navigation_marker_with_document_text_is_accepted(self):
-        self.assertTrue(_has_document_content("Page 115 of 901\\nPASSERS\\nJUAN DELA CRUZ"))
+        self.assertTrue(_has_document_content("Page 115 of 901\nPASSERS\nJUAN DELA CRUZ"))
 
     def test_empty_text_is_rejected(self):
-        self.assertFalse(_has_document_content("  \\n  "))
+        self.assertFalse(_has_document_content("  \n  "))
 
 
 class NavigationRetryTests(unittest.TestCase):
@@ -82,7 +82,7 @@ class NavigationRetryTests(unittest.TestCase):
             def __init__(self, page):
                 self.page = page
             def inner_text(self, timeout=None):
-                return f"Page {self.page.selected} of 2\\nVisible records"
+                return f"Page {self.page.selected} of 2\nVisible records"
 
         class FakePage:
             def __init__(self):
