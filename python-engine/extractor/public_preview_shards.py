@@ -89,9 +89,9 @@ def _challenge_present(text: str) -> bool:
 
 # Navigation-only patterns that indicate document content has NOT rendered.
 NAVIGATION_ONLY_PATTERNS = [
-    r"^Page\\s+\\d+\\s+of\\s+\\d+\\s*$",
-    r"^\\d+\\s*/\\s*\\d+\\s*$",
-    r"^Page\\s+\\d+\\s*$",
+    r"^Page\s+\d+\s+of\s+\d+\s*$",
+    r"^\d+\s*/\s*\d+\s*$",
+    r"^Page\s+\d+\s*$",
 ]
 
 
