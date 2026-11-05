@@ -47,7 +47,7 @@ These documents are connected by references, not synchronized copies. Each has a
 - [x] Build `broadcaster.py` inside Python Engine (dry-run by default; release checks are implemented)
 - [ ] Connect and test Facebook Graph API integration
 - [ ] Connect and test Telegram Bot API integration
-- [ ] Ensure broadcasts only fire after successful PR merge/deployment
+- [x] Implement release checks so broadcasts require a successful Pages deployment and merged dataset PR; actual sends await authorized destination setup
 
 ## Phase 4: Frontend Web Worker Search
 - [ ] Build static HTML/CSS UI (including Peak Week "Preparing Mode" UI)
