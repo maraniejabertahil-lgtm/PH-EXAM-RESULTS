@@ -1,6 +1,6 @@
 # Project Progress & Phase Tracker
 
-> **Active Phase:** Phase 3  
+> **Active Phase:** Phase 4  
 > **Status:** In Progress  
 
 ---
@@ -44,9 +44,9 @@ These documents are connected by references, not synchronized copies. Each has a
 **Final acceptance work deferred by Owner decision D-005:** The real publicly released PRC batch must still complete acquisition, extraction, Greenlight, dataset generation, GitOps PR, CI, and merge. It is retained as a Phase 5 final Live Acceptance task rather than run during implementation.
 
 ## Phase 3: Automated Broadcasting
-- [ ] Implement `broadcaster.py` with Facebook Graph API and Telegram Bot API adapters, credential validation, and safe error handling
-- [ ] Implement post-deployment trigger: announcements only after successful Cloudflare Pages deployment and only when a result manifest changed
-- [ ] Implement durable broadcast idempotency ledger and fail-closed handling for uncertain delivery outcomes
+- [x] Implement `broadcaster.py` with Facebook Graph API and Telegram Bot API adapters, credential validation, and safe error handling (PR #96 merged; 11 focused tests included; full GitHub CI passed with 147 Python tests)
+- [x] Implement post-deployment trigger: announcements only after successful Cloudflare Pages deployment and only when a result manifest changed (PR #96 merged; awaits Phase 4 workflow named `Deploy Cloudflare Pages`)
+- [x] Implement durable broadcast idempotency ledger and fail-closed handling for uncertain delivery outcomes (PR #96 merged; ledger stored on a separate automation branch)
 - [ ] Configure Facebook and Telegram credentials and verify real provider delivery during final Live Acceptance (no credentials or live provider calls during implementation)
 
 ## Phase 4: Frontend Web Worker Search
