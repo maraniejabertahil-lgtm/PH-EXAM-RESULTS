@@ -9,6 +9,7 @@ on:
         type: choice
         options:
           - CSC-CSE-PPT-2026-08-09-REGION-V
+          - PRC-CPALE-2026-10-OFFICIAL-LIST
       drive_file_id:
         description: Exact owner-approved Google Drive file ID already listed in sources.json
         required: true
