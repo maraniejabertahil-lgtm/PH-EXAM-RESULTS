@@ -39,7 +39,7 @@ mentioned=[p for p in chosen if p in logs or Path(p).name in logs]
 context=[]
 for p in list(dict.fromkeys(mentioned+chosen))[:18]:
     r=run(["git","show",f"{sha}:{p}"],True,False)
-    if r.returncode==0: context.append("\nFILE "+p+"\n"+r.stdout[:12000])
+    if r.returncode==0: context.append("\nFILE "+p+"\n"+r.stdout[:8000])
 run(["git","archive","--format=tar.gz","-o",str(out/"source.tar.gz"),sha])
 feedback=""
 if strike>1:
