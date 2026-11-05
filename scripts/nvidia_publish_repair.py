@@ -51,6 +51,8 @@ def validate():
             raise SystemExit("Unified paths do not match validated diff paths.")
 
 validate()
+# Authenticate private source fetch with this publisher job's narrowly scoped write token.
+run(["gh", "auth", "setup-git"])
 patch_path = Path(tempfile.gettempdir()) / ("nvidia-" + RUN_ID + ".patch")
 patch_path.write_text(PATCH)
 run(["git", "fetch", "--no-tags", "origin", FAILED_SHA])
@@ -72,12 +74,11 @@ staged = run(["git", "diff", "--cached", "--name-only"], cwd=worktree, capture=T
 if not staged or any(not p.startswith(ALLOWED) or p.startswith("python-engine/tests/") for p in staged):
     raise SystemExit("Staged paths failed final scope validation.")
 run(["git", "commit", "-m", "fix: NVIDIA isolated-tested repair for run " + RUN_ID], cwd=worktree)
-run(["gh", "auth", "setup-git"])
 run(["git", "push", "-u", "origin", BRANCH], cwd=worktree)
 body = ("Automated isolated repair for failed run https://github.com/" + REPO +
     "/actions/runs/" + RUN_ID + "\n\nSource SHA: " + FAILED_SHA +
     "\nModel: " + os.getenv("OPENROUTER_MODEL", "nvidia/nemotron-3-ultra-550b-a55b:free") +
-    "\n\nThe candidate patch passed the isolated Python Engine test job with no repository permissions or API secrets. " +
+    "\n\nThe candidate patch passed the isolated Watcher, Python Engine, and public-dataset verification suite with no repository permissions or API secrets. " +
     "This publisher job did not execute candidate source. Human review required. " +
     "No merge, publication, or deployment is performed.")
 run(["gh", "pr", "create", "--repo", REPO, "--base", "Winner-Candidate",

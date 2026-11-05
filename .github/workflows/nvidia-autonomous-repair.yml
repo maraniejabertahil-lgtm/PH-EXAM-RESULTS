@@ -1,118 +1,206 @@
 name: NVIDIA Autonomous Repair
 on:
   workflow_run:
-    workflows:
-      - "Watcher Quality Checks"
-    types:
-      - completed
-    branches:
-      - "Winner-Candidate"
-      - "nvidia/repair-run-*"
+    workflows: ["Watcher Quality Checks"]
+    types: [completed]
+    branches: ["Winner-Candidate", "nvidia/repair-run-*"]
 permissions: {}
 concurrency:
   group: nvidia-repair-${{ github.event.workflow_run.id }}
   cancel-in-progress: false
-
 jobs:
-  propose:
-    if: >-
-      github.event.workflow_run.conclusion == 'failure' &&
-      github.event.workflow_run.name != 'NVIDIA Autonomous Repair' &&
-      (github.event.workflow_run.head_branch == 'Winner-Candidate' || startsWith(github.event.workflow_run.head_branch, 'nvidia/repair-run-')) &&
-      github.event.workflow_run.head_repository.full_name == github.repository
+  propose-1:
+    if: github.event.workflow_run.conclusion == 'failure' && github.event.workflow_run.head_repository.full_name == github.repository && (github.event.workflow_run.head_branch == 'Winner-Candidate' || startsWith(github.event.workflow_run.head_branch, 'nvidia/repair-run-'))
     runs-on: ubuntu-latest
-    timeout-minutes: 10
-    permissions:
-      actions: read
-      contents: read
+    permissions: {actions: read, contents: read}
     steps:
       - uses: actions/checkout@v5
-        with:
-          ref: ${{ github.event.repository.default_branch }}
-          persist-credentials: false
+        with: {ref: "${{ github.event.repository.default_branch }}", persist-credentials: false}
       - uses: actions/setup-python@v6
-        with:
-          python-version: '3.12'
-      - name: Install proposal dependencies
-        run: python -m pip install requests
-      - name: Generate a proposed patch (does not execute failed-branch code)
-        env:
+        with: {python-version: "3.12"}
+      - run: python -m pip install requests
+      - run: python scripts/nvidia_autonomous_repair.py
+        env: &proposal_env
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           OPENROUTER_MODEL: nvidia/nemotron-3-ultra-550b-a55b:free
           GH_TOKEN: ${{ github.token }}
           FAILED_RUN_ID: ${{ github.event.workflow_run.id }}
           FAILED_SHA: ${{ github.event.workflow_run.head_sha }}
           GITHUB_REPOSITORY: ${{ github.repository }}
-        run: python scripts/nvidia_autonomous_repair.py
+          REPAIR_STRIKE: "1"
       - uses: actions/upload-artifact@v4
-        with:
-          name: nvidia-repair-candidate
-          path: |
-            repair-output/source.tar.gz
-            repair-output/patch.diff
-          if-no-files-found: error
-          retention-days: 2
-
-  isolated-test:
-    needs: propose
+        with: {name: nvidia-candidate-1, path: repair-output/, if-no-files-found: error, retention-days: 3}
+  test-1:
+    needs: propose-1
     runs-on: ubuntu-latest
-    timeout-minutes: 20
     permissions: {}
+    outputs:
+      passed: ${{ steps.verify.outputs.passed }}
     steps:
       - uses: actions/download-artifact@v4
-        with:
-          name: nvidia-repair-candidate
-          path: repair-input
+        with: {name: nvidia-candidate-1, path: repair-input}
       - uses: actions/setup-python@v6
-        with:
-          python-version: '3.12'
-      - name: Extract failed source and apply candidate patch
+        with: {python-version: "3.12"}
+      - name: Isolated full verification
+        id: verify
+        shell: bash
         run: |
-          mkdir source
-          tar -xzf repair-input/source.tar.gz -C source
-          cd source
-          git init -q
-          git config user.name "Isolated Test"
-          git config user.email "isolated-test@example.invalid"
-          git add -A
-          git -c core.hooksPath=/dev/null commit -qm "Isolated source snapshot"
-          git apply --check ../repair-input/patch.diff
-          git apply ../repair-input/patch.diff
-      - name: Install test dependencies
-        working-directory: source
-        run: python -m pip install -r python-engine/requirements.txt pytest
-      - name: Run Python Engine tests without repository credentials or secrets
-        working-directory: source
-        env:
-          PYTHONPATH: python-engine/retrieval
-        run: python -m pytest python-engine/tests -q
-
-  publish-repair-pr:
-    needs: isolated-test
+          set +e
+          : > verification.log
+          mkdir source && tar -xzf repair-input/source.tar.gz -C source
+          cd source && git init -q && git config user.name "Isolated Test" && git config user.email "isolated@example.invalid"
+          git add -A && git -c core.hooksPath=/dev/null commit -qm snapshot
+          git apply --check ../repair-input/patch.diff && git apply ../repair-input/patch.diff
+          rc=$?
+          if [ $rc -eq 0 ]; then node --check watcher-bot/src/index.js > ../verification.log 2>&1; rc=$?; fi
+          if [ $rc -eq 0 ]; then (cd watcher-bot && npm ci >> ../verification.log 2>&1 && npm test >> ../verification.log 2>&1); rc=$?; fi
+          if [ $rc -eq 0 ]; then python -m pip install -r python-engine/requirements.txt pytest  >> ../verification.log 2>&1; rc=$?; fi
+          if [ $rc -eq 0 ]; then (cd python-engine && PYTHONPATH=retrieval python -m unittest discover -s tests -v) >> ../verification.log 2>&1; rc=$?; fi
+          if [ $rc -eq 0 ]; then python tools/validate_public_datasets.py >> ../verification.log 2>&1; rc=$?; fi
+          echo "passed=$([ $rc -eq 0 ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+          exit 0
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: {name: nvidia-feedback-1, path: verification.log, if-no-files-found: warn, retention-days: 3}
+  propose-2:
+    needs: test-1
+    if: needs.test-1.outputs.passed != 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 10
-    permissions:
-      actions: read
-      contents: write
-      pull-requests: write
+    permissions: {actions: read, contents: read}
     steps:
       - uses: actions/checkout@v5
-        with:
-          ref: ${{ github.event.repository.default_branch }}
-          fetch-depth: 0
-          persist-credentials: false
+        with: {ref: "${{ github.event.repository.default_branch }}", persist-credentials: false}
       - uses: actions/download-artifact@v4
-        with:
-          name: nvidia-repair-candidate
-          path: repair-input
+        with: {name: nvidia-feedback-1, path: previous-feedback}
       - uses: actions/setup-python@v6
-        with:
-          python-version: '3.12'
-      - name: Create repair PR from the tested patch (does not execute candidate code)
+        with: {python-version: "3.12"}
+      - run: python -m pip install requests
+      - run: python scripts/nvidia_autonomous_repair.py
+        env:
+          <<: *proposal_env
+          REPAIR_STRIKE: "2"
+          PREVIOUS_FEEDBACK_FILE: previous-feedback/verification.log
+      - uses: actions/upload-artifact@v4
+        with: {name: nvidia-candidate-2, path: repair-output/, if-no-files-found: error, retention-days: 3}
+  test-2:
+    needs: propose-2
+    runs-on: ubuntu-latest
+    permissions: {}
+    outputs:
+      passed: ${{ steps.verify.outputs.passed }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with: {name: nvidia-candidate-2, path: repair-input}
+      - uses: actions/setup-python@v6
+        with: {python-version: "3.12"}
+      - name: Isolated full verification
+        id: verify
+        shell: bash
+        run: |
+          set +e
+          : > verification.log
+          mkdir source && tar -xzf repair-input/source.tar.gz -C source
+          cd source && git init -q && git config user.name "Isolated Test" && git config user.email "isolated@example.invalid"
+          git add -A && git -c core.hooksPath=/dev/null commit -qm snapshot
+          git apply --check ../repair-input/patch.diff && git apply ../repair-input/patch.diff
+          rc=$?
+          if [ $rc -eq 0 ]; then node --check watcher-bot/src/index.js > ../verification.log 2>&1; rc=$?; fi
+          if [ $rc -eq 0 ]; then (cd watcher-bot && npm ci >> ../verification.log 2>&1 && npm test >> ../verification.log 2>&1); rc=$?; fi
+          if [ $rc -eq 0 ]; then python -m pip install -r python-engine/requirements.txt pytest  >> ../verification.log 2>&1; rc=$?; fi
+          if [ $rc -eq 0 ]; then (cd python-engine && PYTHONPATH=retrieval python -m unittest discover -s tests -v) >> ../verification.log 2>&1; rc=$?; fi
+          if [ $rc -eq 0 ]; then python tools/validate_public_datasets.py >> ../verification.log 2>&1; rc=$?; fi
+          echo "passed=$([ $rc -eq 0 ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+          exit 0
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: {name: nvidia-feedback-2, path: verification.log, if-no-files-found: warn, retention-days: 3}
+  propose-3:
+    needs: test-2
+    if: needs.test-2.outputs.passed != 'true'
+    runs-on: ubuntu-latest
+    permissions: {actions: read, contents: read}
+    steps:
+      - uses: actions/checkout@v5
+        with: {ref: "${{ github.event.repository.default_branch }}", persist-credentials: false}
+      - uses: actions/download-artifact@v4
+        with: {name: nvidia-feedback-2, path: previous-feedback}
+      - uses: actions/setup-python@v6
+        with: {python-version: "3.12"}
+      - run: python -m pip install requests
+      - run: python scripts/nvidia_autonomous_repair.py
+        env:
+          <<: *proposal_env
+          REPAIR_STRIKE: "3"
+          PREVIOUS_FEEDBACK_FILE: previous-feedback/verification.log
+      - uses: actions/upload-artifact@v4
+        with: {name: nvidia-candidate-3, path: repair-output/, if-no-files-found: error, retention-days: 3}
+  test-3:
+    needs: propose-3
+    runs-on: ubuntu-latest
+    permissions: {}
+    outputs:
+      passed: ${{ steps.verify.outputs.passed }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with: {name: nvidia-candidate-3, path: repair-input}
+      - uses: actions/setup-python@v6
+        with: {python-version: "3.12"}
+      - name: Isolated full verification
+        id: verify
+        shell: bash
+        run: |
+          set +e
+          : > verification.log
+          mkdir source && tar -xzf repair-input/source.tar.gz -C source
+          cd source && git init -q && git config user.name "Isolated Test" && git config user.email "isolated@example.invalid"
+          git add -A && git -c core.hooksPath=/dev/null commit -qm snapshot
+          git apply --check ../repair-input/patch.diff && git apply ../repair-input/patch.diff
+          rc=$?
+          if [ $rc -eq 0 ]; then node --check watcher-bot/src/index.js > ../verification.log 2>&1; rc=$?; fi
+          if [ $rc -eq 0 ]; then (cd watcher-bot && npm ci >> ../verification.log 2>&1 && npm test >> ../verification.log 2>&1); rc=$?; fi
+          if [ $rc -eq 0 ]; then python -m pip install -r python-engine/requirements.txt pytest  >> ../verification.log 2>&1; rc=$?; fi
+          if [ $rc -eq 0 ]; then (cd python-engine && PYTHONPATH=retrieval python -m unittest discover -s tests -v) >> ../verification.log 2>&1; rc=$?; fi
+          if [ $rc -eq 0 ]; then python tools/validate_public_datasets.py >> ../verification.log 2>&1; rc=$?; fi
+          echo "passed=$([ $rc -eq 0 ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+          exit 0
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: {name: nvidia-feedback-3, path: verification.log, if-no-files-found: warn, retention-days: 3}
+  publish:
+    needs: [test-1, test-2, test-3]
+    if: always() && (needs.test-1.outputs.passed == 'true' || needs.test-2.outputs.passed == 'true' || needs.test-3.outputs.passed == 'true')
+    runs-on: ubuntu-latest
+    permissions: {contents: write, pull-requests: write}
+    steps:
+      - uses: actions/checkout@v5
+        with: {ref: "${{ github.event.repository.default_branch }}", fetch-depth: 0, persist-credentials: false}
+      - uses: actions/download-artifact@v4
+        if: needs.test-1.outputs.passed == 'true'
+        with: {name: nvidia-candidate-1, path: repair-input}
+      - uses: actions/download-artifact@v4
+        if: needs.test-1.outputs.passed != 'true' && needs.test-2.outputs.passed == 'true'
+        with: {name: nvidia-candidate-2, path: repair-input}
+      - uses: actions/download-artifact@v4
+        if: needs.test-1.outputs.passed != 'true' && needs.test-2.outputs.passed != 'true' && needs.test-3.outputs.passed == 'true'
+        with: {name: nvidia-candidate-3, path: repair-input}
+      - uses: actions/setup-python@v6
+        with: {python-version: "3.12"}
+      - run: python scripts/nvidia_publish_repair.py
         env:
           GH_TOKEN: ${{ github.token }}
           FAILED_RUN_ID: ${{ github.event.workflow_run.id }}
           FAILED_SHA: ${{ github.event.workflow_run.head_sha }}
           GITHUB_REPOSITORY: ${{ github.repository }}
-          OPENROUTER_MODEL: nvidia/nemotron-3-ultra-550b-a55b:free
-        run: python scripts/nvidia_publish_repair.py
+  escalate:
+    needs: [test-1, test-2, test-3]
+    if: always() && needs.test-1.outputs.passed != 'true' && needs.test-2.outputs.passed != 'true' && needs.test-3.outputs.passed != 'true'
+    runs-on: ubuntu-latest
+    permissions: {issues: write}
+    steps:
+      - env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          FAILED_RUN_ID: ${{ github.event.workflow_run.id }}
+          FAILED_BRANCH: ${{ github.event.workflow_run.head_branch }}
+        run: |
+          gh issue create --repo "$GH_REPO" --title "NVIDIA repair exhausted three attempts — run $FAILED_RUN_ID" --body "All three isolated repair attempts failed for branch $FAILED_BRANCH. Original run https://github.com/$GH_REPO/actions/runs/$FAILED_RUN_ID. No patch was published. Manual review required."
