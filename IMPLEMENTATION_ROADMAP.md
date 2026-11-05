@@ -70,7 +70,7 @@ A reusable public-preview page-capture component and callable GitHub Actions wor
 
 Build and verify the Python broadcaster integrations for Facebook Graph API and Telegram Bot API. Broadcasts must occur only after a validated result dataset has merged and deployment has succeeded.
 
-**Current delivery status:** Initial implementation is on branch `implementation/phase3-broadcasting-20261105`, not yet merged. It adds the Python Facebook/Telegram adapters, post-deployment-only workflow trigger, and a durable GitHub-branch delivery ledger. Eleven focused offline unit tests passed locally. GitHub CI and PR review are still pending. Real provider connectivity is deferred until final Live Acceptance because the required Owner credentials are not yet configured.
+**Current delivery status:** Initial implementation is on branch `implementation/phase3-broadcasting-20261105`, not yet merged. It adds the Python Facebook/Telegram adapters, post-deployment-only workflow trigger, and a durable GitHub-branch delivery ledger. Eleven focused offline unit tests are included. GitHub CI and PR review are still pending. Real provider connectivity is deferred until final Live Acceptance because the required Owner credentials are not yet configured.
 
 ---
 
