@@ -43,8 +43,12 @@ run(["git","archive","--format=tar.gz","-o",str(out/"source.tar.gz"),sha])
 feedback=""
 if strike>1:
     f=os.getenv("PREVIOUS_FEEDBACK_FILE")
-    if not f or not Path(f).is_file(): raise SystemExit("PREFLIGHT ERROR: previous isolated test feedback missing")
-    feedback=Path(f).read_text(errors="replace")[-20000:]
+    if f and Path(f).is_file():
+        feedback=Path(f).read_text(errors="replace")[-20000:]
+    else:
+        # A failed proposal may have no test job and therefore no feedback artifact.
+        # Continue the bounded repair cycle with an explicit diagnostic instead of aborting.
+        feedback="No previous isolated verification log was produced (the prior proposal may have failed before a patch was created). Diagnose the original failure and make an independent repair attempt."
 prompt=f"""Repair PH-EXAM-RESULTS. Attempt {strike} of 3. Return ONLY JSON keys patch and reason; patch is a unified git diff.
 Modify only existing application source files under python-engine/, watcher-bot/, website/, frontend/. Do not alter tests, workflows, datasets, credentials, deployment config, or add/remove/rename files. Never weaken Greenlight, sequence/name integrity, official PRC source compliance, or no-publish rules. Smallest root-cause fix only.
 Original failed logs:\n{logs}\nPrevious isolated verification feedback:\n{feedback}\nSource context:\n{''.join(context)}"""
