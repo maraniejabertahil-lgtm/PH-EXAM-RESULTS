@@ -320,5 +320,31 @@ class MergeValidationTests(unittest.TestCase):
                 merge_shards(shard_count=2, output_dir=root)
 
 
+    def test_merge_rejects_duplicate_content_across_shards(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            for item in self._metadata():
+                snapshots = []
+                for page in range(item["page_start"], item["page_end"] + 1):
+                    text = (
+                        f"Page {page} of 3\\nRepeated stale document body"
+                        if page in (1, 3) else f"Page {page} of 3\\nUnique body {page}"
+                    )
+                    snapshots.append({
+                        "viewer_page": page, "text": text,
+                        "sha256": hashlib.sha256(text.encode()).hexdigest(),
+                        "content_sha256": _normalized_content_hash(text),
+                    })
+                archive = root / f"shard-{item['shard']}-snapshots.jsonl.gz"
+                with gzip.open(archive, "wt", encoding="utf-8") as stream:
+                    for snapshot in snapshots:
+                        stream.write(json.dumps(snapshot) + "\\n")
+                item["snapshot_sha256"] = hashlib.sha256(archive.read_bytes()).hexdigest()
+                (root / f"shard-{item['shard']}.json").write_text(json.dumps(item), encoding="utf-8")
+
+            with self.assertRaisesRegex(RuntimeError, "duplicate normalized document content"):
+                merge_shards(shard_count=2, output_dir=root)
+
+
 if __name__ == "__main__":
     unittest.main()
