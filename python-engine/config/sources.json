@@ -49,6 +49,25 @@
       "track_new_articles_only": true,
       "max_result_articles_per_page": 10,
       "max_new_result_articles_per_scan": 3
+    },
+    {
+      "id": "PRC-CPALE-2026-10-OFFICIAL-LIST",
+      "authority": "PRC",
+      "exam": "CPALE-2026",
+      "year": 2026,
+      "source_type": "official",
+      "authorized": true,
+      "enabled": false,
+      "url": "https://www.prc.gov.ph/article/october-2026-certified-public-accountants-licensure-examination-results-released-six-6",
+      "file_format": "pdf",
+      "auto_acquire": false,
+      "direct_drive_fallback": false,
+      "drive_file_ids": [
+        "11-M7AU3RhcKtmyK37omcQQ1fErhdW5Rk"
+      ],
+      "allow_linked_drive_documents": true,
+      "manual_drop_required": true,
+      "disable_reason": "Official PRC-linked file is identified, but the ordinary preview presented a sign-in screen in the current session. Keep automation disabled and use an authorized Owner-provided manual handoff; never bypass access controls."
     }
   ]
 }
