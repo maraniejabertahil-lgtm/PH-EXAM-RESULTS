@@ -13,6 +13,7 @@ from public_preview_shards import (  # noqa: E402
     AccessChallengeError,
     _challenge_present,
     _capture_stable_page,
+    _has_document_content,
     merge_shards,
     partition_page_ranges,
     validate_shard_metadata,
@@ -44,6 +45,19 @@ class PartitionTests(unittest.TestCase):
         self.assertTrue(_challenge_present("Request access"))
         self.assertFalse(_challenge_present("Page 1 of 901"))
 
+
+
+class DocumentContentTests(unittest.TestCase):
+    def test_navigation_only_text_is_rejected(self):
+        for text in ("Page 115 of 901", "115 / 901", "Page 115"):
+            with self.subTest(text=text):
+                self.assertFalse(_has_document_content(text))
+
+    def test_navigation_marker_with_document_text_is_accepted(self):
+        self.assertTrue(_has_document_content("Page 115 of 901\\nPASSERS\\nJUAN DELA CRUZ"))
+
+    def test_empty_text_is_rejected(self):
+        self.assertFalse(_has_document_content("  \\n  "))
 
 
 class NavigationRetryTests(unittest.TestCase):
