@@ -6,6 +6,7 @@ on:
       - integration/phase4-combined-capture-extraction-20261104
     paths:
       - 'python-engine/extractor/public_preview_shards.py'
+      - 'python-engine/tests/test_public_preview_shards.py'
       - 'python-engine/tests/test_public_preview_shards_bridge.py'
       - '.github/workflows/phase4-capture-diagnostics.yml'
 
@@ -30,7 +31,9 @@ jobs:
           python-version: '3.12'
       - name: Install Python Engine dependencies
         run: python -m pip install -q -r python-engine/requirements.txt
-      - name: Run Phase 4 bridge regression tests
+      - name: Run public-preview shard regression tests
+        run: python -m unittest discover -s python-engine/tests -p 'test_public_preview_shards.py' -v
+      - name: Run Phase 4 capture-bridge regression tests
         run: python -m unittest discover -s python-engine/tests -p 'test_public_preview_shards_bridge.py' -v
 
   capture:
