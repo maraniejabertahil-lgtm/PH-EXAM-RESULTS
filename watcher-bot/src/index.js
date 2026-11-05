@@ -989,3 +989,6 @@ export default {
   },
   async fetch() { return new Response("Not found", { status: 404 }); }
 };
+
+// Controlled, temporary syntax failure for NVIDIA repair acceptance test.
+const __NVIDIA_CONTROLLED_FAILURE__ = ;
