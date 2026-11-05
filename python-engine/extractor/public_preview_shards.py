@@ -125,6 +125,84 @@ def _has_document_content(text: str) -> bool:
 
 
 
+
+def _normalized_content_hash(text: str) -> str:
+    """Hash visible document text while ignoring changing viewer navigation chrome."""
+    lines = [line.strip() for line in text.splitlines() if line.strip()]
+    if len(lines) >= 4 and [
+        re.sub(r"\\s+", " ", line).casefold() for line in lines[:2]
+    ] == ["page", "/"] and re.fullmatch(r"\\d+", lines[2]) and re.fullmatch(
+        r"Page\\s+\\d+\\s+of\\s+\\d+", lines[3], re.IGNORECASE
+    ):
+        lines = lines[4:]
+    lines = [
+        line for line in lines
+        if not any(re.fullmatch(pattern, line, re.IGNORECASE)
+                   for pattern in NAVIGATION_ONLY_PATTERNS)
+    ]
+    normalized = "\\n".join(lines).strip()
+    return hashlib.sha256(normalized.encode("utf-8")).hexdigest()
+
+
+def _capture_unique_page(
+    *, page, seen_content_hashes: set[str], max_page_retries: int = 3,
+    **capture_kwargs,
+) -> tuple[str, str, str]:
+    """Capture a page and fail closed if its normalized document text repeats in this shard."""
+    page_number = capture_kwargs["page_number"]
+    page_count = capture_kwargs["page_count"]
+    shard = capture_kwargs["shard"]
+    output_dir = capture_kwargs["output_dir"]
+    visible = ""
+    content_hash = ""
+    for page_attempt in range(1, max_page_retries + 1):
+        visible = _capture_stable_page(page=page, **capture_kwargs)
+        content_hash = _normalized_content_hash(visible)
+        raw_hash = hashlib.sha256(visible.encode("utf-8")).hexdigest()
+        if content_hash not in seen_content_hashes:
+            seen_content_hashes.add(content_hash)
+            return visible, raw_hash, content_hash
+
+        print(
+            f"[shard {shard}] page {page_number}/{page_count} duplicate content "
+            f"detected (attempt {page_attempt}/{max_page_retries}); re-navigating",
+            flush=True,
+        )
+        if page_attempt < max_page_retries:
+            control = page.locator(capture_kwargs["page_control_selector"])
+            if control.count() != 1:
+                raise RuntimeError("public-preview page navigation control was not found uniquely")
+            # Move to an adjacent page and then back to force an ordinary UI navigation.
+            alternate_page = page_number + 1 if page_number < page_count else page_number - 1
+            if alternate_page >= 1:
+                control.click()
+                control.fill(str(alternate_page))
+                control.press("Enter")
+                page.wait_for_timeout(500)
+            control.click()
+            control.fill(str(page_number))
+            control.press("Enter")
+            page.wait_for_timeout(1000 * page_attempt)
+
+    diagnostic = {
+        "shard": shard, "page_number": page_number,
+        "duplicate_hash": content_hash, "url": page.url,
+        "visible_text_excerpt": visible[:1600],
+        "retry_count": max_page_retries,
+    }
+    output_dir.mkdir(parents=True, exist_ok=True)
+    (output_dir / f"duplicate-content-shard-{shard}-page-{page_number}.json").write_text(
+        json.dumps(diagnostic, ensure_ascii=False, indent=2) + "\\n", encoding="utf-8"
+    )
+    page.screenshot(
+        path=str(output_dir / f"duplicate-content-shard-{shard}-page-{page_number}.png"),
+        full_page=True,
+    )
+    raise RuntimeError(
+        f"page {page_number} returned duplicate content after {max_page_retries} retries: "
+        + json.dumps(diagnostic, ensure_ascii=False)
+    )
+
 def _capture_page_count_diagnostics(
     *, page, shard: int, attempt: int, output_dir: Path,
     response, last_body_text: str, console_events: list[dict],
@@ -324,9 +402,11 @@ def capture_shard(
             _, start, end = partition_page_ranges(page_count, shard_count)[shard]
             loop_started = time.monotonic()
 
+            seen_content_hashes: set[str] = set()
             for page_number in range(start, end + 1):
-                visible = _capture_stable_page(
-                    page=page, body=body, page_control_selector=page_control_selector,
+                visible, raw_hash, content_hash = _capture_unique_page(
+                    page=page, seen_content_hashes=seen_content_hashes,
+                    page_control_selector=page_control_selector,
                     page_number=page_number, page_count=page_count,
                     page_marker_template=page_marker_template, shard=shard,
                     output_dir=output_dir, per_page_deadline=per_page_deadline,
@@ -337,7 +417,7 @@ def capture_shard(
                     raise AccessChallengeError("access challenge appeared in viewer page content")
                 snapshots.append({
                     "viewer_page": page_number, "text": visible,
-                    "sha256": hashlib.sha256(visible.encode("utf-8")).hexdigest(),
+                    "sha256": raw_hash, "content_sha256": content_hash,
                     "characters": len(visible),
                 })
                 if page_number == 1 or page_number == page_count:
