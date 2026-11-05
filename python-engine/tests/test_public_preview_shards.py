@@ -14,6 +14,8 @@ from public_preview_shards import (  # noqa: E402
     _challenge_present,
     _capture_stable_page,
     _has_document_content,
+    _normalized_content_hash,
+    _capture_unique_page,
     merge_shards,
     partition_page_ranges,
     validate_shard_metadata,
@@ -66,6 +68,95 @@ class DocumentContentTests(unittest.TestCase):
 
     def test_empty_text_is_rejected(self):
         self.assertFalse(_has_document_content("  \n  "))
+
+
+class DuplicateContentGuardTests(unittest.TestCase):
+    def test_viewer_chrome_does_not_change_document_content_signature(self):
+        first = "Page\\n/\\n901\\nPage 457 of 901\\nPASSERS\\nJUAN DELA CRUZ"
+        second = "Page\\n/\\n901\\nPage 458 of 901\\nPASSERS\\nJUAN DELA CRUZ"
+        self.assertEqual(_normalized_content_hash(first), _normalized_content_hash(second))
+
+    def test_different_document_content_has_different_signature(self):
+        self.assertNotEqual(
+            _normalized_content_hash("Page 10 of 901\\nJUAN DELA CRUZ"),
+            _normalized_content_hash("Page 11 of 901\\nMARIA SANTOS"),
+        )
+
+    def test_short_legitimate_page_content_is_kept_distinct(self):
+        self.assertNotEqual(
+            _normalized_content_hash("Page 10 of 901\\nAPPENDIX"),
+            _normalized_content_hash("Page 11 of 901\\nINDEX"),
+        )
+
+    def test_duplicate_content_retries_then_fails_closed_with_diagnostic(self):
+        from unittest.mock import patch
+
+        class FakeControl:
+            def __init__(self, page):
+                self.page = page
+            def count(self):
+                return 1
+            def click(self):
+                pass
+            def fill(self, value):
+                self.page.target = value
+            def press(self, key):
+                self.page.press_count += 1
+            def input_value(self, timeout=None):
+                return self.page.target
+
+        class FakePage:
+            url = "https://drive.google.com/file/d/example/preview"
+            def __init__(self):
+                self.press_count = 0
+                self.target = "2"
+            def locator(self, selector):
+                return FakeControl(self)
+            def wait_for_timeout(self, milliseconds):
+                pass
+            def screenshot(self, path, full_page=True):
+                Path(path).write_bytes(b"diagnostic screenshot placeholder")
+
+        with tempfile.TemporaryDirectory() as temp:
+            page = FakePage()
+            seen = {_normalized_content_hash("Page 1 of 3\\nRepeated stale text")}
+            repeated = "Page 2 of 3\\nRepeated stale text"
+            with patch("public_preview_shards._capture_stable_page", return_value=repeated) as capture:
+                with self.assertRaisesRegex(RuntimeError, "duplicate content after 3 retries"):
+                    _capture_unique_page(
+                        page=page, seen_content_hashes=seen,
+                        page_control_selector='input[aria-label^="Page is"]',
+                        page_number=2, page_count=3,
+                        page_marker_template="Page {page} of {count}",
+                        shard=0, output_dir=Path(temp),
+                        per_page_deadline=1, poll_ms=10,
+                    )
+            self.assertEqual(capture.call_count, 3)
+            self.assertTrue((Path(temp) / "duplicate-content-shard-0-page-2.json").is_file())
+            self.assertTrue((Path(temp) / "duplicate-content-shard-0-page-2.png").is_file())
+
+    def test_unique_content_is_accepted_and_recorded_once(self):
+        from unittest.mock import patch
+
+        class FakePage:
+            url = "https://drive.google.com/file/d/example/preview"
+
+        with tempfile.TemporaryDirectory() as temp:
+            page = FakePage()
+            seen = {_normalized_content_hash("Page 1 of 3\\nEarlier page")}
+            visible = "Page 2 of 3\\nCurrent page"
+            with patch("public_preview_shards._capture_stable_page", return_value=visible):
+                result, raw_hash, content_hash = _capture_unique_page(
+                    page=page, seen_content_hashes=seen,
+                    page_control_selector='input[aria-label^="Page is"]',
+                    page_number=2, page_count=3,
+                    page_marker_template="Page {page} of {count}",
+                    shard=0, output_dir=Path(temp),
+                    per_page_deadline=1, poll_ms=10,
+                )
+            self.assertEqual(result, visible)
+            self.assertEqual(raw_hash, hashlib.sha256(visible.encode()).hexdigest())
+            self.assertIn(content_hash, seen)
 
 
 class NavigationRetryTests(unittest.TestCase):
