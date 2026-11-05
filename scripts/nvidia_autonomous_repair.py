@@ -29,6 +29,8 @@ def validate(patch):
         seen.add(b); ak,ap=us[2*i]; bk,bp=us[2*i+1]; ap=ap.split("\\t",1)[0]; bp=bp.split("\\t",1)[0]
         if ak!="---" or bk!="+++" or ap!="a/"+a or bp!="b/"+b: raise ValueError("Unified path mismatch")
 logs=run(["gh","run","view",run_id,"--repo",repo,"--log-failed"],True,False).stdout[-30000:]
+# Use the proposal job's read-only token to authenticate the private source fetch.
+run(["gh","auth","setup-git"])
 run(["git","fetch","--no-tags","origin",sha])
 files=run(["git","ls-tree","-r","--name-only",sha],True).stdout.splitlines()
 chosen=[p for p in files if p.startswith(allowed) and p.endswith(exts) and not p.startswith("python-engine/tests/")]
