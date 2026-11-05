@@ -73,7 +73,7 @@ The reusable base public-preview page-capture component and callable GitHub Acti
 
 Build and verify the Python broadcaster integrations for Facebook Graph API and Telegram Bot API. Broadcasts must occur only after a validated result dataset has merged and deployment has succeeded.
 
-**Current delivery status:** Not started; tasks remain unchecked in `PROGRESS_TRACKER.md`.
+**Current delivery status:** A release-gated `python-engine/broadcaster.py` is implemented on `execution/all-five-phases-20261105`. It defaults to dry-run, verifies a successful Cloudflare Pages deployment on `main`, identifies the merged dataset PR associated with the deployment commit, checks the HTTPS site, and uses a GitHub commit status to prevent duplicate retries. Actual Facebook/Telegram sends are not run; authorized destination credentials and explicit publication setup are absent. Live API acceptance remains open.
 
 ---
 
@@ -81,7 +81,7 @@ Build and verify the Python broadcaster integrations for Facebook Graph API and 
 
 Build the static HTML/CSS frontend, IndexedDB dataset caching, JavaScript Web Worker search, and Cloudflare Pages deployment. Search must remain browser-side and must return the passer name with its corresponding sequence number.
 
-**Current delivery status:** Not started; tasks remain unchecked in `PROGRESS_TRACKER.md`. Per Owner decision D-004, this phase also includes a future Owner-facing review experience for source evidence and extracted records; the public search route must remain read-only.
+**Current delivery status:** The static HTML/CSS pages, IndexedDB cache, and Web Worker search implementation already exist in `public/`; the synthetic 50,000-record search test is present. This execution branch adds `.github/workflows/deploy-pages.yml`, which deploys only from `main` and requires Cloudflare token, account ID, and Pages project configuration. No production deployment was run from this branch. Live browser, IndexedDB, and concurrent visitor acceptance remain open. Per Owner decision D-004, the Owner-facing review experience remains deferred; the public search route stays read-only.
 
 ---
 
@@ -89,7 +89,7 @@ Build the static HTML/CSS frontend, IndexedDB dataset caching, JavaScript Web Wo
 
 Run end-to-end dummy and safety tests, verify secrets are not exposed, and validate the authorized manual-drop workflow.
 
-**Current delivery status:** Not started; tasks remain unchecked in `PROGRESS_TRACKER.md`.
+**Current delivery status:** This execution branch adds `.github/workflows/phase5-safety.yml` to run Python Engine, browser loader/search, and Watcher regression suites, plus `scripts/check_public_secrets.py` for browser-served assets. The workflow has not yet run on the proposed PR. The complete Watcher-to-Python-to-Greenlight-to-GitOps-to-deployment-to-search simulation, real manual-drop processing, and production recovery/rollback acceptance remain NOT RUN or deferred; the new CI workflow is not a substitute for those live tests.
 
 ---
 
@@ -111,6 +111,7 @@ This register records explicit decisions made by the Owner that affect a phase, 
 | D-002 | 2026-11-03 | Phase 2 — CSC-side release/source assessment | Skip the specific CSC-side PDF-release path because passer details are provided through a portal rather than a passer-list PDF; assess the portal as the relevant content source instead. | This was the earlier source/path direction; it is superseded in testing scope by D-003. | Superseded |
 | D-003 | 2026-11-03 | All phases — CSC testing scope | Skip all CSC-related testing. Continue current result-content acquisition and validation work using PRC sources only. | Do not run CSC portal, source-access, acquisition, extraction, PDF, Watcher-source, or CSC-specific acceptance tests. Preserve existing CSC code and architecture; this decision excludes testing, not future CSC support or deletion of implementation. No CSC tests are required for the current Phase 2 path. | Active |
 | D-004 | 2026-11-04 | Phase 2 Secondary candidate review / Phase 4 website | Defer the current manual visual review of the March 2026 LEPT Secondary candidate; implement an Owner-facing website review experience in a later website update. | Do not treat automated extraction or Greenlight as human visual approval. Keep the Secondary candidate unpublished until the future review process is implemented and completed and the Owner's publication gate is satisfied. Preserve the public search route as read-only; do not bypass source access controls. | Active |
+| D-005 | 2026-11-05 | All five phases — execution order | Execute implementation and available tests across all five blueprint phases in order; skip items requiring unavailable credentials, external permissions, live official releases, or human review, and revisit them later in detail. | Continue only on integration branches; preserve fail-closed publication, do not bypass access controls, do not publish real results or send external announcements without the required authorization, and do not merge to `main` without the Owner's explicit approval. | Active |
 
 ---
 
