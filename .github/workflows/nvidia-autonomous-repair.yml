@@ -46,6 +46,7 @@ jobs:
         shell: bash
         run: |
           set +e
+          : > verification.log
           mkdir source && tar -xzf repair-input/source.tar.gz -C source
           cd source && git init -q && git config user.name "Isolated Test" && git config user.email "isolated@example.invalid"
           git add -A && git -c core.hooksPath=/dev/null commit -qm snapshot
@@ -97,6 +98,7 @@ jobs:
         shell: bash
         run: |
           set +e
+          : > verification.log
           mkdir source && tar -xzf repair-input/source.tar.gz -C source
           cd source && git init -q && git config user.name "Isolated Test" && git config user.email "isolated@example.invalid"
           git add -A && git -c core.hooksPath=/dev/null commit -qm snapshot
@@ -148,6 +150,7 @@ jobs:
         shell: bash
         run: |
           set +e
+          : > verification.log
           mkdir source && tar -xzf repair-input/source.tar.gz -C source
           cd source && git init -q && git config user.name "Isolated Test" && git config user.email "isolated@example.invalid"
           git add -A && git -c core.hooksPath=/dev/null commit -qm snapshot
