@@ -35,6 +35,27 @@ class ManualSourceValidationTests(unittest.TestCase):
         self.assertFalse(report["published"])
         self.assertEqual(report["created_at"], "2026-11-03T00:00:00+00:00")
 
+    def test_accepts_exact_official_prc_cpale_drive_id_for_manual_validation_only(self):
+        source = next(
+            item for item in REGISTRY["sources"]
+            if item["id"] == "PRC-CPALE-2026-10-OFFICIAL-LIST"
+        )
+        report = build_manual_source_validation_report(
+            REGISTRY,
+            source["id"],
+            "11-M7AU3RhcKtmyK37omcQQ1fErhdW5Rk",
+            True,
+            created_at="2026-11-05T00:00:00+00:00",
+        )
+        self.assertEqual(report["status"], "manual_source_confirmed_validation_only")
+        self.assertEqual(report["authority"], "PRC")
+        self.assertEqual(report["exam"], "CPALE-2026")
+        self.assertFalse(report["source_enabled"])
+        self.assertTrue(report["manual_drop_required"])
+        self.assertFalse(report["pdf_acquired"])
+        self.assertFalse(report["extraction_performed"])
+        self.assertFalse(report["published"])
+
     def test_rejects_drive_id_not_in_exact_allowlist(self):
         with self.assertRaisesRegex(ValueError, "allowlist"):
             build_manual_source_validation_report(
