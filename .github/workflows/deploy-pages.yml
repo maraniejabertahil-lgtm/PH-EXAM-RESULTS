@@ -1,0 +1,80 @@
+name: Deploy Cloudflare Pages
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "public/**"
+      - ".github/workflows/deploy-pages.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cloudflare-pages-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy public/ to Cloudflare Pages
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out the exact main-branch commit
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ github.sha }}
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+
+      - name: Resolve the existing Cloudflare Pages project
+        id: project
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
+          CONFIGURED_PROJECT: ${{ vars.CF_PAGES_PROJECT_NAME }}
+          REPOSITORY_OWNER: ${{ github.repository_owner }}
+          REPOSITORY_NAME: ${{ github.event.repository.name }}
+        run: |
+          set -euo pipefail
+          test -n "$CLOUDFLARE_API_TOKEN" || { echo "::error::Missing GitHub secret CF_API_TOKEN."; exit 1; }
+          test -n "$CLOUDFLARE_ACCOUNT_ID" || { echo "::error::Missing GitHub secret CF_ACCOUNT_ID."; exit 1; }
+
+          project="$CONFIGURED_PROJECT"
+          if [ -z "$project" ]; then
+            response="$(curl --fail --silent --show-error \
+              -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+              -H "Accept: application/json" \
+              "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/pages/projects")"
+            project="$(printf '%s' "$response" | jq -r --arg owner "$REPOSITORY_OWNER" --arg repo "$REPOSITORY_NAME" \
+              '[.result[] | select(.source.type == "github" and .source.config.owner == $owner and .source.config.repo_name == $repo) | .name] | first // empty')"
+            if [ -z "$project" ]; then
+              count="$(printf '%s' "$response" | jq '.result | length')"
+              if [ "$count" -eq 1 ]; then
+                project="$(printf '%s' "$response" | jq -r '.result[0].name')"
+              else
+                echo "::error::Could not uniquely identify the Pages project for this repository. Set the GitHub Actions variable CF_PAGES_PROJECT_NAME to the existing Pages project name."
+                exit 1
+              fi
+            fi
+          fi
+
+          echo "project_name=$project" >> "$GITHUB_OUTPUT"
+          echo "Resolved Cloudflare Pages project."
+
+      - name: Upload the current public/ directory
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
+          PROJECT_NAME: ${{ steps.project.outputs.project_name }}
+        run: |
+          set -euo pipefail
+          test -f public/index.html
+          npx --yes wrangler@4.156.2 pages deploy public \
+            --project-name "$PROJECT_NAME" \
+            --branch main
