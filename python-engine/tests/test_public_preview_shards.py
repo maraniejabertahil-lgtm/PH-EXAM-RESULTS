@@ -72,20 +72,20 @@ class DocumentContentTests(unittest.TestCase):
 
 class DuplicateContentGuardTests(unittest.TestCase):
     def test_viewer_chrome_does_not_change_document_content_signature(self):
-        first = "Page\\n/\\n901\\nPage 457 of 901\\nPASSERS\\nJUAN DELA CRUZ"
-        second = "Page\\n/\\n901\\nPage 458 of 901\\nPASSERS\\nJUAN DELA CRUZ"
+        first = "Page\n/\n901\nPage 457 of 901\nPASSERS\nJUAN DELA CRUZ"
+        second = "Page\n/\n901\nPage 458 of 901\nPASSERS\nJUAN DELA CRUZ"
         self.assertEqual(_normalized_content_hash(first), _normalized_content_hash(second))
 
     def test_different_document_content_has_different_signature(self):
         self.assertNotEqual(
-            _normalized_content_hash("Page 10 of 901\\nJUAN DELA CRUZ"),
-            _normalized_content_hash("Page 11 of 901\\nMARIA SANTOS"),
+            _normalized_content_hash("Page 10 of 901\nJUAN DELA CRUZ"),
+            _normalized_content_hash("Page 11 of 901\nMARIA SANTOS"),
         )
 
     def test_short_legitimate_page_content_is_kept_distinct(self):
         self.assertNotEqual(
-            _normalized_content_hash("Page 10 of 901\\nAPPENDIX"),
-            _normalized_content_hash("Page 11 of 901\\nINDEX"),
+            _normalized_content_hash("Page 10 of 901\nAPPENDIX"),
+            _normalized_content_hash("Page 11 of 901\nINDEX"),
         )
 
     def test_duplicate_content_retries_then_fails_closed_with_diagnostic(self):
@@ -119,8 +119,8 @@ class DuplicateContentGuardTests(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as temp:
             page = FakePage()
-            seen = {_normalized_content_hash("Page 1 of 3\\nRepeated stale text")}
-            repeated = "Page 2 of 3\\nRepeated stale text"
+            seen = {_normalized_content_hash("Page 1 of 3\nRepeated stale text")}
+            repeated = "Page 2 of 3\nRepeated stale text"
             with patch("public_preview_shards._capture_stable_page", return_value=repeated) as capture:
                 with self.assertRaisesRegex(RuntimeError, "duplicate content after 3 retries"):
                     _capture_unique_page(
@@ -143,8 +143,8 @@ class DuplicateContentGuardTests(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as temp:
             page = FakePage()
-            seen = {_normalized_content_hash("Page 1 of 3\\nEarlier page")}
-            visible = "Page 2 of 3\\nCurrent page"
+            seen = {_normalized_content_hash("Page 1 of 3\nEarlier page")}
+            visible = "Page 2 of 3\nCurrent page"
             with patch("public_preview_shards._capture_stable_page", return_value=visible):
                 result, raw_hash, content_hash = _capture_unique_page(
                     page=page, seen_content_hashes=seen,
