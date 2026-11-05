@@ -56,6 +56,14 @@ class DocumentContentTests(unittest.TestCase):
     def test_navigation_marker_with_document_text_is_accepted(self):
         self.assertTrue(_has_document_content("Page 115 of 901\nPASSERS\nJUAN DELA CRUZ"))
 
+    def test_split_google_drive_navigation_only_text_is_rejected(self):
+        self.assertFalse(_has_document_content("Page\n/\n901\nPage 457 of 901"))
+
+    def test_split_google_drive_navigation_plus_document_text_is_accepted(self):
+        self.assertTrue(_has_document_content(
+            "Page\n/\n901\nPage 457 of 901\nActual document text"
+        ))
+
     def test_empty_text_is_rejected(self):
         self.assertFalse(_has_document_content("  \n  "))
 
