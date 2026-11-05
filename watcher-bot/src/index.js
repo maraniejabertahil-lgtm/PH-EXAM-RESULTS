@@ -990,3 +990,6 @@ export default {
   async fetch() { return new Response("Not found", { status: 404 }); }
 };
 
+
+// TEMPORARY NVIDIA activation probe; DO NOT MERGE.
+const __NVIDIA_ACTIVATION_PROBE_FAILURE__ = ;
