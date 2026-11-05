@@ -4,10 +4,14 @@ on:
   push:
     branches:
       - main
+      - Winner-Candidate
     paths:
       - "watcher-bot/**"
       - ".github/workflows/process-import.yml"
       - ".github/workflows/watcher-ci.yml"
+      - ".github/workflows/nvidia-autonomous-repair.yml"
+      - "scripts/nvidia_autonomous_repair.py"
+      - "scripts/nvidia_publish_repair.py"
       - "python-engine/config/sources.json"
       - "python-engine/retrieval/**"
       - "python-engine/extractor/**"
@@ -21,10 +25,14 @@ on:
   pull_request:
     branches:
       - main
+      - Winner-Candidate
     paths:
       - "watcher-bot/**"
       - ".github/workflows/process-import.yml"
       - ".github/workflows/watcher-ci.yml"
+      - ".github/workflows/nvidia-autonomous-repair.yml"
+      - "scripts/nvidia_autonomous_repair.py"
+      - "scripts/nvidia_publish_repair.py"
       - "python-engine/config/sources.json"
       - "python-engine/retrieval/**"
       - "python-engine/extractor/**"
