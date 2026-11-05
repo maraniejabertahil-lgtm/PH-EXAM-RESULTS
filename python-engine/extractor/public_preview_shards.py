@@ -488,6 +488,18 @@ def merge_shards(*, shard_count: int, output_dir: Path) -> dict:
     if [item["viewer_page"] for item in all_snapshots] != list(range(1, page_count + 1)):
         raise RuntimeError("merged snapshots contain a page gap, overlap, or ordering error")
 
+    # Enforce uniqueness across shard boundaries as well as within each worker.
+    seen_content_hashes: dict[str, int] = {}
+    for snapshot in all_snapshots:
+        content_hash = snapshot.get("content_sha256") or _normalized_content_hash(snapshot["text"])
+        previous_page = seen_content_hashes.get(content_hash)
+        if previous_page is not None:
+            raise RuntimeError(
+                f"duplicate normalized document content on viewer pages "
+                f"{previous_page} and {snapshot['viewer_page']}"
+            )
+        seen_content_hashes[content_hash] = snapshot["viewer_page"]
+
     index = [{key: value for key, value in item.items() if key != "text"} for item in all_snapshots]
     index_path = output_dir / "page-capture-index.json"
     index_path.write_text(json.dumps(index, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
