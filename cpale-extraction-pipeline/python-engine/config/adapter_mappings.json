@@ -1,0 +1,7 @@
+{
+  "_comment": "Mappings are source-specific and must be reviewed against actual official output. Public-preview extraction reads rendered page text and never treats it as OCR.",
+  "CPALE:2026:public_preview": {
+    "record_pattern": "^\\s*(?P<sequence>\\d+)[.)]?\\s+(?P<name>.+?)\\s*$",
+    "require_comma_in_name": true
+  }
+}

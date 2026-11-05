@@ -1,0 +1,17 @@
+{
+  "schema_version": "1",
+  "source_id": "PRC-EXAM-RESULTS-HOMEPAGE",
+  "article_url": "https://www.prc.gov.ph/article/october-2026-certified-public-accountants-licensure-examination-results-released-six-6",
+  "exam_code": "CPALE",
+  "exam_title": "Certified Public Accountants Licensure Examination Results 2026",
+  "exam_year": 2026,
+  "list_type": "successful_examinees",
+  "announced_count": 3988,
+  "content_urls": [
+    {
+      "url": "https://drive.google.com/file/d/11-M7AU3RhcKtmyK37omcQQ1fErhdW5Rk/view?usp=sharing",
+      "format": "pdf"
+    }
+  ],
+  "detected_at": "2026-11-03T00:00:00Z"
+}

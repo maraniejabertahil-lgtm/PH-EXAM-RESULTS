@@ -1,0 +1,22 @@
+{
+  "exam": "Certified Public Accountants Licensure Examination",
+  "exam_period": "October 2026",
+  "official_release_date": "2026-11-03",
+  "official_announced_passers": 3988,
+  "extracted_records": 3988,
+  "viewer_pages_captured": 80,
+  "sequence_coverage": {
+    "first": 1,
+    "last": 3988,
+    "missing": 0,
+    "duplicates": 0
+  },
+  "name_duplicates": 0,
+  "provenance": "official_direct_public_preview",
+  "source_article": "https://www.prc.gov.ph/article/october-2026-certified-public-accountants-licensure-examination-results-released-six-6",
+  "official_result_preview": "https://drive.google.com/file/d/11-M7AU3RhcKtmyK37omcQQ1fErhdW5Rk/preview",
+  "capture_method": "ordinary public Google Drive preview UI; rendered text; no sign-in, challenge, or bypass encountered",
+  "captured_at_utc": "2026-11-05T22:11:40.278158+00:00",
+  "records_sha256_sequence_tab_name": "c77042c9ffeac17926cf10803a8b930e30fcef8295c5a01db0ffe9b6f3f1fa7c",
+  "csv_sha256": "a010e6168cab5a0c386220e66c336e834888b962aba05d04bfc84144e3aad41a"
+}

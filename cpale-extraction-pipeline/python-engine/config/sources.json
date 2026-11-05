@@ -1,0 +1,87 @@
+{
+  "schema_version": 1,
+  "sources": [
+    {
+      "id": "CSC-CSE-PPT-2026-08-09-REGION-V",
+      "authority": "CSC",
+      "exam": "CSE-PPT-2026",
+      "year": 2026,
+      "source_type": "official",
+      "authorized": true,
+      "enabled": false,
+      "url": "https://csc.gov.ph/regional-offices/region-v/examination",
+      "file_format": "pdf",
+      "auto_acquire": true,
+      "direct_drive_fallback": true,
+      "scan_page_on_baseline": true,
+      "drive_file_ids": [
+        "1jQmBLSU2azhFvCgU6l8m6ljXGDmIRa1l",
+        "1qYaCbxIZ_6DHyMD9FhgZdj-YtbIJh5Wf"
+      ],
+      "allow_linked_drive_documents": true,
+      "manual_drop_required": true,
+      "disable_reason": "Official CSC source returns HTTP 403 security verification to direct requests; automated monitoring is paused per Master Technical Blueprint. Use manual-drop until official access is available."
+    },
+    {
+      "id": "PRC-EXAM-RESULTS-HOMEPAGE",
+      "authority": "PRC",
+      "exam": "LICENSURE-EXAM-RESULTS",
+      "exam_scope": "all",
+      "source_type": "official",
+      "authorized": true,
+      "enabled": true,
+      "url": "https://www.prc.gov.ph/articles/exam-results",
+      "direct_drive_fallback": false,
+      "drive_file_ids": [],
+      "allow_linked_drive_documents": true,
+      "scan_page_on_baseline": false,
+      "preemptive_url_templates": [],
+      "file_format": "pdf",
+      "auto_acquire": true,
+      "discover_official_result_articles": true,
+      "drive_link_text_patterns": [
+        "list of successful examinees"
+      ],
+      "robots_policy_verified": true,
+      "robots_policy_url": "https://www.prc.gov.ph/robots.txt",
+      "robots_policy_checked_at": "2026-11-03",
+      "result_listing_page_count": 3,
+      "track_new_articles_only": true,
+      "max_result_articles_per_page": 10,
+      "max_new_result_articles_per_scan": 3
+    },
+    {
+      "id": "PRC-CPALE-2026-10-OFFICIAL-LIST",
+      "authority": "PRC",
+      "exam": "CPALE-2026",
+      "year": 2026,
+      "source_type": "official",
+      "authorized": true,
+      "enabled": true,
+      "url": "https://www.prc.gov.ph/article/october-2026-certified-public-accountants-licensure-examination-results-released-six-6",
+      "file_format": "pdf",
+      "auto_acquire": true,
+      "direct_drive_fallback": false,
+      "drive_file_ids": [
+        "11-M7AU3RhcKtmyK37omcQQ1fErhdW5Rk"
+      ],
+      "allow_linked_drive_documents": true,
+      "robots_policy_verified": true,
+      "robots_policy_url": "https://www.prc.gov.ph/robots.txt",
+      "manual_drop_required": false,
+      "public_preview": {
+        "enabled": true,
+        "method": "ordinary_public_preview_ui",
+        "allowed_hosts": [
+          "drive.google.com"
+        ],
+        "page_control_selector": "input[aria-label^=\"Page is\"]",
+        "page_count_regex": "Page 1 of\\s+(\\d+)",
+        "page_marker_template": "Page {page} of {count}",
+        "per_page_deadline": 35,
+        "poll_ms": 100,
+        "max_pages": 100
+      }
+    }
+  ]
+}

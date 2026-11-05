@@ -1,0 +1,14 @@
+{
+  "verification": "passed_with_recorded_digest_discrepancy",
+  "records": 3988,
+  "sequence_first": 1,
+  "sequence_last": 3988,
+  "missing_sequences": 0,
+  "duplicate_sequences": 0,
+  "duplicate_names_case_insensitive": 0,
+  "csv_sha256": "a010e6168cab5a0c386220e66c336e834888b962aba05d04bfc84144e3aad41a",
+  "source_validation_sha256": "e4f9814bd67989640d459774fdfc169907b5bf289398ba923eb9abbc9031be67",
+  "source_validation_claimed_records_sha256": "c77042c9ffeac17926cf10803a8b930e30fcef8295c5a01db0ffe9b6f3f1fa7c",
+  "source_validation_claimed_records_sha256_reproduced_from_csv": false,
+  "note": "CSV hash matches the saved validation record; the claimed canonical records digest did not match common sequence/name serializations tested and is left unverified."
+}

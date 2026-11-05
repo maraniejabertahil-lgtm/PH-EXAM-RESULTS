@@ -1,0 +1,2 @@
+# Optional browser dependency for approved ordinary public-preview captures.
+playwright==1.56.0
