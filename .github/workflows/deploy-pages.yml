@@ -18,6 +18,10 @@ on:
       - main
     paths:
       - "public/**"
+      - "functions/**"
+      - "python-engine/database/**"
+      - ".github/workflows/record-workflow-activity.yml"
+      - ".github/workflows/migrate-d1-monitoring.yml"
       - ".github/workflows/deploy-pages.yml"
   workflow_dispatch:
 
@@ -46,6 +50,8 @@ jobs:
       - name: Validate required static routes
         run: |
           test -f public/index.html
+          test -f public/owner-monitor/index.html
+          test -f public/_routes.json
           test -f public/preparing.html
           test -f public/review.html
           test -f public/404.html
@@ -61,6 +67,7 @@ jobs:
           node --check public/assets/js/storage.mjs
           node --check public/assets/js/search-worker.mjs
           node --check public/assets/js/app.mjs
+          node --check public/assets/js/owner-monitor.mjs
           node --check public/assets/js/review-logic.mjs
           node --check public/assets/js/review.mjs
       - name: Run browser-side module tests
