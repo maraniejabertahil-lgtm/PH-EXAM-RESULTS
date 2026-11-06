@@ -8,7 +8,7 @@ function json(value, status = 200) {
 }
 
 export async function onRequestGet({ request, env }) {
-  const token = env.CF_D1_API_TOKEN;
+  const token = env.CF_D1_READ_API_TOKEN;
   const account = env.CF_ACCOUNT_ID;
   const database = env.CF_D1_DATABASE_ID;
   if (!token || !account || !database) return json({ error: "Owner monitoring storage is not configured." }, 503);
