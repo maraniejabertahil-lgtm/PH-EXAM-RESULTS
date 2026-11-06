@@ -12,7 +12,7 @@
 
 Create one D1 database named \`ph-exam-results-operations\`. Record its database UUID.
 
-Create a dedicated Cloudflare Account API token with Account / D1 / Edit permission. Do not reuse the Pages deployment token or a read-only diagnostics token.
+Create a dedicated Cloudflare Account API token with Account / D1 / Edit permission for trusted writers. Create a second token with Account / D1 / Read permission for the Pages dashboard. Do not reuse the Pages deployment token or the read-only diagnostics token for writes.
 
 ## Required GitHub Actions secrets
 
