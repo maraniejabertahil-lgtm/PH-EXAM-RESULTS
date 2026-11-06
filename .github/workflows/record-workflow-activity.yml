@@ -6,6 +6,7 @@ on:
       - Process Detected Source and Manual Drop
       - Deploy Cloudflare Watcher
       - Deploy Cloudflare Pages
+      - Deploy Private Owner Dashboard
     types:
       - completed
 
