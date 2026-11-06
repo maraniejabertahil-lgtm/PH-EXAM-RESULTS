@@ -20,13 +20,13 @@ ALLOWED_STATUSES = {"running", "success", "failed", "blocked", "warning"}
 ALLOWED_SEVERITIES = {"info", "warning", "error", "critical"}
 LEGACY_EVENT_TYPES = {
     "processing_started", "greenlight_passed", "greenlight_failed",
-    "publication_completed", "publication_failed",
+    "publication_completed", "publication_failed", "watcher_scan", "release_detected",
 }
 LEGACY_STATUSES = {"started", "passed", "failed", "completed"}
 ALLOWED_METADATA_KEYS = {
     "run_id", "run_number", "workflow", "job", "branch", "commit",
     "source_id", "authority", "exam", "exam_year", "duration_ms",
-    "checked_targets", "skipped_targets", "records", "greenlight_score",
+    "checked_targets", "skipped_targets", "records", "announced_count", "extracted_count", "greenlight_score",
 }
 
 
@@ -95,6 +95,11 @@ def execute(sql: str, params=(), *, opener=urlopen, timeout=15):
 
 def _legacy_event_type(component, operation, status):
     operation = str(operation).lower()
+    component = str(component).lower()
+    if "release_detected" in operation:
+        return "release_detected"
+    if "cloudflare watcher" in component:
+        return "watcher_scan"
     if "greenlight" in operation:
         return "greenlight_failed" if status in {"failed", "blocked"} else "greenlight_passed"
     if status == "running":
