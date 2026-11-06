@@ -523,7 +523,7 @@ async function dispatchPrReleaseEvent(env, source, article, fetchImpl, now) {
       "Content-Type": "application/json",
       "User-Agent": USER_AGENT
     },
-    body: JSON.stringify({ event_type: "prc-release-detected", client_payload: built.event }),
+    body: JSON.stringify({ event_type: "prc-release-detected", client_payload: { event: built.event } }),
     signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS)
   });
   if (response.status !== 204) {
