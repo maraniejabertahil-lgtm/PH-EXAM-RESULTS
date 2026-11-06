@@ -24,7 +24,7 @@ export async function onRequestGet({ request, env }) {
   const params = [];
   if (status) { where.push("status = ?"); params.push(status); }
   if (component) { where.push("component = ?"); params.push(component); }
-  params.push(limit);
+  params.push(String(limit));
   const sql = "SELECT event_id, execution_id, occurred_at, component, operation, status, severity, " +
     "duration_ms, message, error_code, error_message, source, metadata_json FROM monitoring_logs " +
     (where.length ? "WHERE " + where.join(" AND ") + " " : "") +
@@ -36,7 +36,7 @@ export async function onRequestGet({ request, env }) {
       body: JSON.stringify({ sql, params }),
     });
     const payload = await response.json().catch(() => null);
-    if (!response.ok || payload?.success !== true) return json({ error: "Activity history is temporarily unavailable." }, 502);
+    if (!response.ok || payload?.success !== true || payload.result?.some((item) => item?.success === false)) return json({ error: "Activity history is temporarily unavailable." }, 502);
     const rows = payload.result?.[0]?.results;
     if (!Array.isArray(rows)) return json({ error: "Activity history returned an invalid response." }, 502);
     return json({ events: rows.map((row) => ({
