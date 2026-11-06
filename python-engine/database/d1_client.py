@@ -144,8 +144,8 @@ def record_activity(event: dict) -> bool:
         duration = None
     message = str(event.get("message") or operation)[:240]
     error_code = str(event.get("error_code") or "")[:80]
-    if status == "blocked" and not error_code:
-        error_code = "BLOCKED"
+    if status == "blocked" and not error_code.startswith("BLOCKED"):
+        error_code = ("BLOCKED:" + error_code)[:80]
     if status in {"blocked", "warning"} and severity == "info":
         severity = "warning"
     error_message = str(event.get("error_message") or "")[:1000]
