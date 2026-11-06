@@ -40,49 +40,83 @@ function renderEvents(events) {
   for (const component of components) elements.component.add(new Option(component, component));
   if (components.includes(selected)) elements.component.value = selected;
 
+  const groups = new Map();
   for (const event of events) {
-    const card = document.createElement("article");
-    card.className = "activity-card";
-    const top = document.createElement("div");
-    top.className = "activity-top";
-    const left = document.createElement("div");
+    const key = safeText(event.execution_id, "unlinked-events");
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(event);
+  }
+  for (const [executionId, items] of groups) {
+    const group = document.createElement("section");
+    group.className = "execution-group";
+    const heading = document.createElement("div");
+    heading.className = "execution-heading";
+    const identity = document.createElement("div");
     const title = document.createElement("h3");
-    title.className = "activity-title";
-    title.textContent = safeText(event.operation, "Activity");
+    title.textContent = "Execution " + executionId;
     const meta = document.createElement("p");
-    meta.className = "activity-meta";
-    const duration = event.duration_ms === null || event.duration_ms === undefined ? "—" : String(event.duration_ms) + " ms";
-    meta.textContent = formatDate(event.occurred_at) + " · " + safeText(event.component) + " · " + duration;
-    left.append(title, meta);
+    meta.textContent = items.length + " activity event(s) · latest " + formatDate(items[0].occurred_at);
+    identity.append(title, meta);
+    const priority = ["failed", "blocked", "running", "warning", "success"];
+    const groupStatus = priority.find((status) => items.some((item) => item.status === status)) || "warning";
     const badge = document.createElement("span");
-    badge.className = "status status-" + event.status;
-    badge.textContent = safeText(event.status, "unknown");
-    top.append(left, badge);
-    card.append(top);
+    badge.className = "status status-" + groupStatus;
+    badge.textContent = groupStatus;
+    heading.append(identity, badge);
+    group.append(heading);
 
-    const details = document.createElement("details");
-    details.className = "activity-details";
-    const summary = document.createElement("summary");
-    summary.textContent = "Inspect activity details";
-    const dl = document.createElement("dl");
-    dl.className = "detail-grid";
-    addDetail(dl, "Execution ID", safeText(event.execution_id));
-    addDetail(dl, "Event ID", safeText(event.event_id));
-    addDetail(dl, "Operation", safeText(event.operation));
-    addDetail(dl, "Source", safeText(event.source));
-    addDetail(dl, "Message", safeText(event.message));
-    addDetail(dl, "Error code", safeText(event.error_code));
-    const metadata = event.metadata && typeof event.metadata === "object" ? event.metadata : {};
-    addDetail(dl, "Metadata", JSON.stringify(metadata, null, 2));
-    details.append(summary, dl);
-    if (event.error_message) {
-      const error = document.createElement("pre");
-      error.className = "error-detail";
-      error.textContent = event.error_message;
-      details.append(error);
+    for (const event of items) {
+      const card = document.createElement("article");
+      card.className = "activity-card";
+      const top = document.createElement("div");
+      top.className = "activity-top";
+      const left = document.createElement("div");
+      const eventTitle = document.createElement("h4");
+      eventTitle.className = "activity-title";
+      eventTitle.textContent = safeText(event.operation, "Activity");
+      const eventMeta = document.createElement("p");
+      eventMeta.className = "activity-meta";
+      const duration = event.duration_ms === null || event.duration_ms === undefined ? "—" : String(event.duration_ms) + " ms";
+      eventMeta.textContent = formatDate(event.occurred_at) + " · " + safeText(event.component) + " · " + duration;
+      left.append(eventTitle, eventMeta);
+      const eventBadge = document.createElement("span");
+      eventBadge.className = "status status-" + event.status;
+      eventBadge.textContent = safeText(event.status, "unknown");
+      top.append(left, eventBadge);
+      card.append(top);
+
+      const details = document.createElement("details");
+      details.className = "activity-details";
+      const summary = document.createElement("summary");
+      summary.textContent = "Inspect activity details";
+      const dl = document.createElement("dl");
+      dl.className = "detail-grid";
+      addDetail(dl, "Event ID", safeText(event.event_id));
+      addDetail(dl, "Operation", safeText(event.operation));
+      addDetail(dl, "Source", safeText(event.source));
+      addDetail(dl, "Message", safeText(event.message));
+      addDetail(dl, "Error code", safeText(event.error_code));
+      const metadata = event.metadata && typeof event.metadata === "object" ? event.metadata : {};
+      addDetail(dl, "Metadata", JSON.stringify(metadata, null, 2));
+      details.append(summary, dl);
+      if (event.error_message) {
+        const error = document.createElement("pre");
+        error.className = "error-detail";
+        error.textContent = event.error_message;
+        details.append(error);
+      }
+      if (metadata.run_id) {
+        const link = document.createElement("a");
+        link.href = "https://github.com/maraniejabertahil-lgtm/PH-EXAM-RESULTS/actions/runs/" + encodeURIComponent(String(metadata.run_id));
+        link.target = "_blank";
+        link.rel = "noopener noreferrer";
+        link.textContent = "Open GitHub workflow run";
+        details.append(link);
+      }
+      card.append(details);
+      group.append(card);
     }
-    card.append(details);
-    elements.list.append(card);
+    elements.list.append(group);
   }
   elements.updated.textContent = "Loaded " + events.length + " latest events · " + new Date().toLocaleTimeString();
 }
