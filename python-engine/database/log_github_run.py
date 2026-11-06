@@ -15,8 +15,10 @@ def normalize_status(status, conclusion):
         return "success"
     if value in {"failure", "timed_out", "action_required"}:
         return "failed"
-    if value in {"cancelled", "skipped", "neutral"}:
+    if value in {"cancelled", "neutral"}:
         return "blocked"
+    if value == "skipped":
+        return "success"
     return "warning"
 
 def github_jobs(repo, run_id, token):
@@ -35,6 +37,14 @@ def github_jobs(repo, run_id, token):
         return payload.get("jobs", []) if isinstance(payload, dict) else []
     except (HTTPError, URLError, TimeoutError, OSError, UnicodeError, json.JSONDecodeError):
         return []
+
+def duration_ms(started, completed):
+    try:
+        start = datetime.fromisoformat(str(started).replace("Z", "+00:00"))
+        end = datetime.fromisoformat(str(completed).replace("Z", "+00:00"))
+        return max(0, int((end - start).total_seconds() * 1000))
+    except (TypeError, ValueError):
+        return None
 
 def main():
     run_id = os.getenv("GITHUB_RUN_ID", "local")
@@ -56,6 +66,7 @@ def main():
                 "execution_id": execution_id, "occurred_at": now,
                 "component": "GitHub Actions", "operation": job_name,
                 "status": status, "severity": "error" if status == "failed" else "info",
+                "duration_ms": duration_ms(job.get("started_at"), job.get("completed_at")),
                 "message": f"{workflow}: {job_name} {status}.", "source": "github_actions",
                 "metadata": {"run_id": run_id, "run_number": run_number, "workflow": workflow,
                              "job": job_name, "branch": branch, "commit": sha},
@@ -68,6 +79,7 @@ def main():
                 "execution_id": execution_id, "occurred_at": now,
                 "component": "GitHub Actions", "operation": job_name + " / " + step_name,
                 "status": status, "severity": "error" if status == "failed" else ("warning" if status == "blocked" else "info"),
+                "duration_ms": duration_ms(step.get("started_at"), step.get("completed_at")),
                 "message": f"{workflow}: {step_name} {status}.",
                 "error_message": (f"Step concluded with {step.get('conclusion')}. Open the linked workflow run for full logs." if status == "failed" else None),
                 "source": "github_actions",
