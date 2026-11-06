@@ -27,6 +27,25 @@ function guessFormat(value) {
   return null;
 }
 
+function cleanContentUrls(links, articleUrl) {
+  const seen = new Set();
+  const out = [];
+  for (const l of links) {
+    let u;
+    try { u = new URL(l.url, articleUrl); } catch { continue; }
+    if (u.protocol !== "https:") continue;
+    u.hash = "";                                   // drops #main, #footer, #page
+    if (u.href === new URL(articleUrl).href) continue;  // self-links
+    const isDrive = u.hostname === "drive.google.com" && /^\\/file\\/d\\/[^/]+\\/view$/.test(u.pathname);
+    const isPdf = u.pathname.toLowerCase().endsWith(".pdf");
+    if (!isDrive && !isPdf) continue;              // only result-list candidates
+    if (seen.has(u.href)) continue;
+    seen.add(u.href);
+    out.push({ format: isPdf ? "pdf" : l.format, url: u.href });
+  }
+  return out;
+}
+
 export function buildReleaseEvent(source, article) {
   if (!source || typeof source.id !== "string" || !article ||
       typeof article.title !== "string" || typeof article.url !== "string") {
@@ -55,8 +74,7 @@ export function buildReleaseEvent(source, article) {
     return review("LEPT level ambiguous or missing in the article title");
   }
 
-  const links = (Array.isArray(article.links) ? article.links : [])
-    .filter((link) => link && typeof link.url === "string" && /^https:\/\//i.test(link.url))
+  const links = cleanContentUrls(Array.isArray(article.links) ? article.links : [], articleUrl.href)
     .map((link) => ({ url: link.url, format: guessFormat(link.url) }))
     .filter((link) => link.format);
   if (!links.length) return review("no supported official linked content found");
