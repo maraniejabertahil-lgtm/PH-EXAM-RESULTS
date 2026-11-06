@@ -225,7 +225,7 @@ class D1Client:
         now = datetime.now(timezone.utc).isoformat(timespec="seconds")
         self.query(
             "INSERT INTO import_batches (batch_id,authority,exam,exam_year,source_id,status,greenlight_score,announced_count,extracted_count,summary,created_at,updated_at) "
-            "VALUES(?,?,?,?,?,?,NULLIF(?,''),NULLIF(?,''),NULLIF(?,''),?,?,?) "
+            "VALUES(?,?,?,?,NULLIF(?,''),?,NULLIF(?,''),NULLIF(?,''),NULLIF(?,''),?,?,?) "
             "ON CONFLICT(batch_id) DO UPDATE SET status=excluded.status, greenlight_score=excluded.greenlight_score, "
             "announced_count=excluded.announced_count, extracted_count=excluded.extracted_count, summary=excluded.summary, updated_at=excluded.updated_at",
             [batch_id,authority,exam,exam_year,source_id,status,greenlight_score,announced_count,extracted_count,
@@ -239,7 +239,7 @@ class D1Client:
         now = datetime.now(timezone.utc).isoformat(timespec="seconds")
         self.query(
             "INSERT INTO release_predictions (id,prediction_id,authority,exam,exam_year,predicted_release_date,method,confidence,evidence_count,source,status,created_at,updated_at) "
-            "VALUES(?,?,?,?,?,?,?,?,?,?, 'active', ?, ?) "
+            "VALUES(?,?,?,?,?,?,?,NULLIF(?,''),?,NULLIF(?,''),'active',?,?) "
             "ON CONFLICT(prediction_id) DO UPDATE SET predicted_release_date=excluded.predicted_release_date, method=excluded.method, "
             "confidence=excluded.confidence, evidence_count=excluded.evidence_count, source=excluded.source, status='active', updated_at=excluded.updated_at",
             [prediction_id,prediction_id,authority,exam,exam_year,predicted_release_date,method,confidence,evidence_count,source,now,now],
