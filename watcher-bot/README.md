@@ -96,3 +96,8 @@ The `prc-release-detected` receiver in `.github/workflows/process-import.yml` at
 Only a batch that passes ingestion checks is sent to the existing Python Greenlight/GitOps pipeline. The publisher remains fail-closed and can publish only through its validated dataset PR/CI path. A configured exam-specific source overrides the general PRC listing source, so a disabled exam cannot be acquired through the general listing. The current CPALE Drive list remains disabled because its ordinary public route presented a sign-in page; no authentication, CAPTCHA, or access-control workaround is attempted. With no reviewed CPALE PDF mapping, the system cannot yet publish that exam automatically.
 
 This improves the processing path but does not change the one-minute Worker schedule or prove a production run. "Second after PRC" timing is not guaranteed by the current polling interval or by a release whose official linked content is not publicly accessible.
+
+
+## D1 activity logging
+
+The scheduled Worker writes sanitized scan-completion and release-detection metadata when the D1 environment is configured. Set CF_ACCOUNT_ID and CF_D1_DATABASE_ID as Worker variables, and set CF_D1_API_TOKEN as a Worker secret. The token must be scoped to the D1 REST API operations needed for metadata inserts. If D1 is not configured or temporarily unavailable, Watcher scanning continues and does not fail because of dashboard logging.
