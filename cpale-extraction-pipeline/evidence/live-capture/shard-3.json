@@ -1,0 +1,13 @@
+{
+  "shard": 3,
+  "shards": 4,
+  "page_start": 61,
+  "page_end": 80,
+  "page_count": 80,
+  "pages_captured": 20,
+  "final_url": "https://drive.google.com/file/d/11-M7AU3RhcKtmyK37omcQQ1fErhdW5Rk/preview",
+  "http_status": 200,
+  "loop_seconds": 11.2,
+  "snapshot_sha256": "4427b0b9a86aab470a3ef1ccbb5841c289c80a96dd007da70171174c114d48ae",
+  "captured_at_utc": "2026-11-06T00:00:41.000900+00:00"
+}

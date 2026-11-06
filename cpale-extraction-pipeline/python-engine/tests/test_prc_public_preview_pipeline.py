@@ -11,7 +11,8 @@ from acquisition.public_preview import (
     parse_public_preview_snapshots,
 )
 from main import PipelineError, process_batch
-from prc_orchestrator import run
+from prc_orchestrator import NeedsReviewError, capture_public_preview, run
+from playwright.sync_api import Error as PlaywrightError
 
 
 ARTICLE_URL = "https://www.prc.gov.ph/article/cpale-2026-results"
@@ -51,6 +52,7 @@ EXAM_SOURCE = {
     "public_preview": {
         "enabled": True,
         "method": "ordinary_public_preview_ui",
+        "shards": 4,
         "allowed_hosts": ["drive.google.com"],
         "max_pages": 4,
     },
@@ -137,6 +139,50 @@ class PRCPublicPreviewPipelineTests(unittest.TestCase):
 
     def tearDown(self):
         self.temporary.cleanup()
+
+    def test_browser_capture_uses_sequential_bounded_shards(self):
+        import sys
+
+        extractor_dir = Path(__file__).resolve().parents[1] / "extractor"
+        sys.path.insert(0, str(extractor_dir))
+        import public_preview_shards
+
+        with patch.object(public_preview_shards, "capture_shard") as capture, patch.object(
+            public_preview_shards, "merge_shards", return_value={"page_coverage_complete": True}
+        ) as merge:
+            result = capture_public_preview(
+                preview_url=PREVIEW_URL,
+                output_dir=self.root / "capture",
+                settings=EXAM_SOURCE["public_preview"],
+            )
+        self.assertTrue(result["page_coverage_complete"])
+        self.assertEqual(
+            [call.kwargs["shard"] for call in capture.call_args_list],
+            [0, 1, 2, 3],
+        )
+        self.assertTrue(
+            all(call.kwargs["shard_count"] == 4 for call in capture.call_args_list)
+        )
+        merge.assert_called_once_with(shard_count=4, output_dir=self.root / "capture")
+
+    def test_browser_crash_is_reported_as_a_safe_review_stop(self):
+        import sys
+
+        extractor_dir = Path(__file__).resolve().parents[1] / "extractor"
+        sys.path.insert(0, str(extractor_dir))
+        import public_preview_shards
+
+        with patch.object(
+            public_preview_shards,
+            "capture_shard",
+            side_effect=PlaywrightError("Target crashed"),
+        ):
+            with self.assertRaisesRegex(NeedsReviewError, "browser capture stopped safely"):
+                capture_public_preview(
+                    preview_url=PREVIEW_URL,
+                    output_dir=self.root / "capture",
+                    settings=EXAM_SOURCE["public_preview"],
+                )
 
     def test_cumulative_snapshots_are_deduplicated_by_matching_sequence(self):
         snapshots = [

@@ -1,0 +1,12 @@
+{
+  "candidate_complete": true,
+  "provenance": "official_direct",
+  "mapping_key": "CPALE:2026:public_preview",
+  "mapping_sha256": "6ffc05460de73f1d9a6feb16dcb06a7c524916a0f8f09b87b545cad28a038d03",
+  "announced_count": 3988,
+  "extracted_records": 3988,
+  "sequence_coverage_complete": true,
+  "duplicate_sequence_count": 0,
+  "duplicate_name_count": 0,
+  "records_jsonl_sha256": "8eaee0df09233708242badd949c94066ffd59db3b4d4f0f2c1ba4a50c0646b13"
+}

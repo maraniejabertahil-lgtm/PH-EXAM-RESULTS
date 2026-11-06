@@ -1,0 +1,37 @@
+{
+  "schema_version": 2,
+  "provenance": "official_direct",
+  "capture_method": "ordinary_public_preview_ui",
+  "public_preview_only": true,
+  "pdf_downloaded": false,
+  "access_controls_bypassed": false,
+  "official_article_url": "https://www.prc.gov.ph/article/october-2026-certified-public-accountants-licensure-examination-results-released-six-6",
+  "official_content_url": "https://drive.google.com/file/d/11-M7AU3RhcKtmyK37omcQQ1fErhdW5Rk/view?usp=sharing",
+  "public_preview_url": "https://drive.google.com/file/d/11-M7AU3RhcKtmyK37omcQQ1fErhdW5Rk/preview",
+  "viewer_pages_expected": 80,
+  "viewer_pages_navigated": 80,
+  "page_coverage_complete": true,
+  "source_id": "PRC-CPALE-2026-10-OFFICIAL-LIST",
+  "files": {
+    "page_capture_index": {
+      "path": "evidence/live-capture/page-capture-index.json",
+      "sha256": "044fa04354f63a103f7dc2748437147a51944379f818a88d0862e8386458231e"
+    },
+    "page_text_snapshots": {
+      "path": "evidence/live-capture/page-text-snapshots.jsonl",
+      "sha256": "bc185f542d9e0980af9df04559656e70b2985fab7617ada73a2647db0f7d7504"
+    },
+    "records_jsonl": {
+      "path": "evidence/live-capture/records.jsonl",
+      "sha256": "8eaee0df09233708242badd949c94066ffd59db3b4d4f0f2c1ba4a50c0646b13"
+    },
+    "extraction_report": {
+      "path": "evidence/live-capture/extraction-report.json",
+      "sha256": "68554a848b117e5f9f22cae579ee41e7b3e40147c7708789ce06e2014b48c0de"
+    },
+    "viewer_capture_manifest": {
+      "path": "evidence/live-capture/viewer-capture-manifest.json",
+      "sha256": "a713d3ebaffb92a236bd3cabdbc1e333f7fa02b8ddfb009d10784338321bcd5b"
+    }
+  }
+}

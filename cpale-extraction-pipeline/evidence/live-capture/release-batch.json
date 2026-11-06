@@ -1,0 +1,18 @@
+{
+  "authority": "PRC",
+  "exam": "CPALE",
+  "level": null,
+  "year": 2026,
+  "source_id": "PRC-EXAM-RESULTS-HOMEPAGE",
+  "exam_specific_source_id": "PRC-CPALE-2026-10-OFFICIAL-LIST",
+  "official_source_url": "https://www.prc.gov.ph/articles/exam-results",
+  "official_article_url": "https://www.prc.gov.ph/article/october-2026-certified-public-accountants-licensure-examination-results-released-six-6",
+  "official_content_url": "https://drive.google.com/file/d/11-M7AU3RhcKtmyK37omcQQ1fErhdW5Rk/view?usp=sharing",
+  "public_preview_url": "https://drive.google.com/file/d/11-M7AU3RhcKtmyK37omcQQ1fErhdW5Rk/preview",
+  "official_content_mode": "public_preview_capture",
+  "capture_manifest": "evidence/live-capture/source-manifest.json",
+  "public_preview_mapping_key": "CPALE:2026:public_preview",
+  "announced_count": 3988,
+  "publicly_released": true,
+  "provenance": "official_direct"
+}

@@ -72,6 +72,7 @@
       "public_preview": {
         "enabled": true,
         "method": "ordinary_public_preview_ui",
+        "shards": 4,
         "allowed_hosts": [
           "drive.google.com"
         ],

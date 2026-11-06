@@ -1,0 +1,47 @@
+{
+  "schema_version": 1,
+  "status": "GREENLIGHT",
+  "greenlight_score": 100,
+  "provenance": "official_direct",
+  "records_sha256": "5072ab21ed6e11eae0084d60fb3d2a267da096f078942a7cf6e08f018a472de9",
+  "comparison_records_sha256": null,
+  "source_a_id": null,
+  "source_b_id": null,
+  "record_count": 3988,
+  "announced_count": 3988,
+  "checks": {
+    "count_match": true,
+    "zero_blanks": true,
+    "zero_duplicates": true,
+    "zero_anomalies": true,
+    "complete_sequence_coverage": true
+  },
+  "metrics": {
+    "blank_record_count": 0,
+    "duplicate_name_record_count": 0,
+    "duplicate_sequence_record_count": 0,
+    "anomaly_record_count": 0,
+    "missing_sequence_count": 0,
+    "unexpected_sequence_count": 0
+  },
+  "issues": [],
+  "publication_allowed": true,
+  "note": "Validation only. This report does not publish, merge, or deploy data.",
+  "source_id": "PRC-EXAM-RESULTS-HOMEPAGE",
+  "official_source_url": "https://www.prc.gov.ph/articles/exam-results",
+  "official_document_url": "https://drive.google.com/file/d/11-M7AU3RhcKtmyK37omcQQ1fErhdW5Rk/view?usp=sharing",
+  "official_content_mode": "public_preview_capture",
+  "source_pdf_sha256": null,
+  "official_article_url": "https://www.prc.gov.ph/article/october-2026-certified-public-accountants-licensure-examination-results-released-six-6",
+  "official_attempt_log": ".tmp/cpale-live-test-output/public-preview-capture/source-manifest.json",
+  "public_preview_capture": {
+    "capture_manifest": ".tmp/cpale-live-test-output/public-preview-capture/source-manifest.json",
+    "capture_manifest_sha256": "988b19a3ea8abaacc9b52521cf8eeb54ec1a6c36f9f202788f51c7c303b318cb",
+    "records_file_sha256": "8eaee0df09233708242badd949c94066ffd59db3b4d4f0f2c1ba4a50c0646b13",
+    "public_preview_url": "https://drive.google.com/file/d/11-M7AU3RhcKtmyK37omcQQ1fErhdW5Rk/preview",
+    "viewer_pages": 80,
+    "visual_review_status": "PENDING"
+  },
+  "source_a_url": null,
+  "source_b_url": null
+}

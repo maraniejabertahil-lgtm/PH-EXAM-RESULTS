@@ -1,0 +1,483 @@
+{
+  "schema_version": 1,
+  "capture_method": "ordinary_public_preview_ui",
+  "shards": 4,
+  "viewer_pages_expected": 80,
+  "viewer_pages_captured": 80,
+  "page_coverage_complete": true,
+  "pdf_downloaded": false,
+  "access_controls_bypassed": false,
+  "human_visual_review": "NOT_ASSESSED_BY_AUTOMATION",
+  "files": {
+    "page_capture_index": {
+      "path": "page-capture-index.json",
+      "sha256": "044fa04354f63a103f7dc2748437147a51944379f818a88d0862e8386458231e"
+    },
+    "page_text_snapshots": {
+      "path": "page-text-snapshots.jsonl",
+      "sha256": "bc185f542d9e0980af9df04559656e70b2985fab7617ada73a2647db0f7d7504"
+    },
+    "screenshots": [
+      {
+        "viewer_page": 1,
+        "path": "evidence/live-capture/shard-0-page-0001.png",
+        "sha256": "c03ccf5011e1bb357dc9a81e3eb09d079a91abaf3cf4d13fe937abbdbcc2988a"
+      },
+      {
+        "viewer_page": 2,
+        "path": "evidence/live-capture/shard-0-page-0002.png",
+        "sha256": "6a4ff5f2a984daf16a99eda96ac46820c96b7909b49e3bf87a3d69c194538ecd"
+      },
+      {
+        "viewer_page": 3,
+        "path": "evidence/live-capture/shard-0-page-0003.png",
+        "sha256": "1e32a68fe6a3712d042790bf52113a0e9c196af6a6b077e5f59c439c52661faa"
+      },
+      {
+        "viewer_page": 4,
+        "path": "evidence/live-capture/shard-0-page-0004.png",
+        "sha256": "f09674fa431cb9d76cf4f7a5ebdde8e8cf7cd093fc8cefc86c34f0fbacd39b97"
+      },
+      {
+        "viewer_page": 5,
+        "path": "evidence/live-capture/shard-0-page-0005.png",
+        "sha256": "2e54aa705c721ef1ba1db362276233b35c5b01bde9ef660497011ca724c26efb"
+      },
+      {
+        "viewer_page": 6,
+        "path": "evidence/live-capture/shard-0-page-0006.png",
+        "sha256": "35804e567c22af7530c92920ed70f4df12696d3b242a6c6531827dccc9c40081"
+      },
+      {
+        "viewer_page": 7,
+        "path": "evidence/live-capture/shard-0-page-0007.png",
+        "sha256": "de6bcb8ecd5896551eba509aeedcb824b98b11e0bee2a0858040bcea0ca1c6f7"
+      },
+      {
+        "viewer_page": 8,
+        "path": "evidence/live-capture/shard-0-page-0008.png",
+        "sha256": "e69a195c468d2c69d2b7f66fa6d2682dd5e333fe24d3e3644b2ccac5f0c12fa0"
+      },
+      {
+        "viewer_page": 9,
+        "path": "evidence/live-capture/shard-0-page-0009.png",
+        "sha256": "b8d01b318322c07cb106d37f1e89c136bc6651aa33aee869b5d9687374370aab"
+      },
+      {
+        "viewer_page": 10,
+        "path": "evidence/live-capture/shard-0-page-0010.png",
+        "sha256": "fece2e7d02f4b2d14d9b1310b1d7a8403eb9bceaa73f303f82b53ff777118170"
+      },
+      {
+        "viewer_page": 11,
+        "path": "evidence/live-capture/shard-0-page-0011.png",
+        "sha256": "d62c198dc2ee0343cb32559179d8551a6cae7df218e494493a9b059d31fe07db"
+      },
+      {
+        "viewer_page": 12,
+        "path": "evidence/live-capture/shard-0-page-0012.png",
+        "sha256": "1a6513a01120ca2b50fd4837075b20ded8b29568ed5e2a4d838fa9d2747c62b7"
+      },
+      {
+        "viewer_page": 13,
+        "path": "evidence/live-capture/shard-0-page-0013.png",
+        "sha256": "13814a35f73b396ab3c42b17037154692f3dcab04d5870c6dcca8f79c19e63a6"
+      },
+      {
+        "viewer_page": 14,
+        "path": "evidence/live-capture/shard-0-page-0014.png",
+        "sha256": "7993a8ad39c6bc5b5ef255df74e5bccb47794ee9130ea515036c2048669b2786"
+      },
+      {
+        "viewer_page": 15,
+        "path": "evidence/live-capture/shard-0-page-0015.png",
+        "sha256": "bfee63962be88856db953d8c09d49905b92500984da21a4ed462da64c8380b3c"
+      },
+      {
+        "viewer_page": 16,
+        "path": "evidence/live-capture/shard-0-page-0016.png",
+        "sha256": "95f71d3bc11147864dd5a9a0af60d66f3992f841f3850c73181080bd29818d3a"
+      },
+      {
+        "viewer_page": 17,
+        "path": "evidence/live-capture/shard-0-page-0017.png",
+        "sha256": "4c95555fd8d0302c6d51038c75d5c75556e43a0d1bb98698ccae355bddb582f6"
+      },
+      {
+        "viewer_page": 18,
+        "path": "evidence/live-capture/shard-0-page-0018.png",
+        "sha256": "26e9c9a6c0285cf51d8c41a55211d7107788d9d49dbe388ae235903ba07853fd"
+      },
+      {
+        "viewer_page": 19,
+        "path": "evidence/live-capture/shard-0-page-0019.png",
+        "sha256": "5080ca3bbafecfc22cabfbd928155e2290340033f3354f1259ae1267887764fe"
+      },
+      {
+        "viewer_page": 20,
+        "path": "evidence/live-capture/shard-0-page-0020.png",
+        "sha256": "e857baf410cfea5ab3d1dfdf277730ef7429915fdb90e6b31c9b194fb7d67c74"
+      },
+      {
+        "viewer_page": 21,
+        "path": "evidence/live-capture/shard-1-page-0021.png",
+        "sha256": "9c14090fc4495f37286fa074fd3415087ed88b39ef5d30e0e31c013219c710e8"
+      },
+      {
+        "viewer_page": 22,
+        "path": "evidence/live-capture/shard-1-page-0022.png",
+        "sha256": "1e510c45f98899b1a979a69c50e36694aa369b53b223a62b26f88cd8cd910e25"
+      },
+      {
+        "viewer_page": 23,
+        "path": "evidence/live-capture/shard-1-page-0023.png",
+        "sha256": "76a7ab3a39e8b8f74851e749452e158fcd54033ac59b95199d7c635a3a414b74"
+      },
+      {
+        "viewer_page": 24,
+        "path": "evidence/live-capture/shard-1-page-0024.png",
+        "sha256": "6b001ccb16919f727a963e14acb5e3b7647cc76da513aa39bfd5ab045789f630"
+      },
+      {
+        "viewer_page": 25,
+        "path": "evidence/live-capture/shard-1-page-0025.png",
+        "sha256": "ae4228b5f7b166b9115f8beb036aacbbeb9f396a3aae271deb2f54f4004b29e0"
+      },
+      {
+        "viewer_page": 26,
+        "path": "evidence/live-capture/shard-1-page-0026.png",
+        "sha256": "b958061a7f9773f6fb0808ded330363eb2411cdca3b1cc727196519af626e865"
+      },
+      {
+        "viewer_page": 27,
+        "path": "evidence/live-capture/shard-1-page-0027.png",
+        "sha256": "a3f826424bfc7a66fdc591cb14ce39b079276716d095f88c3ece39c224ed28d5"
+      },
+      {
+        "viewer_page": 28,
+        "path": "evidence/live-capture/shard-1-page-0028.png",
+        "sha256": "7bd9766c2b87a23a3976f96812ca592e0cad1a3cd306673c939da762991487f8"
+      },
+      {
+        "viewer_page": 29,
+        "path": "evidence/live-capture/shard-1-page-0029.png",
+        "sha256": "714019291f3b8daf5da94bedea18aeb704260c48a3a53a45fde78c969ee78bf8"
+      },
+      {
+        "viewer_page": 30,
+        "path": "evidence/live-capture/shard-1-page-0030.png",
+        "sha256": "4e3e20b4f6ef88532a719b6fd36a02d015d75362c8a986dc0a3ff8b16938b839"
+      },
+      {
+        "viewer_page": 31,
+        "path": "evidence/live-capture/shard-1-page-0031.png",
+        "sha256": "65f0634deeaa8c2da73b287d1a0243d0303911aa6eb9491fbb40b7ba970c2b2b"
+      },
+      {
+        "viewer_page": 32,
+        "path": "evidence/live-capture/shard-1-page-0032.png",
+        "sha256": "f7475fe9f974c2655ac5efe19d82396b6bf4cfe58c188dc070fe5bce3c0739c3"
+      },
+      {
+        "viewer_page": 33,
+        "path": "evidence/live-capture/shard-1-page-0033.png",
+        "sha256": "f829c71820cd1583b06607c32e66a8cbb42cc5d0cc28d3489b2ae228863f1e2e"
+      },
+      {
+        "viewer_page": 34,
+        "path": "evidence/live-capture/shard-1-page-0034.png",
+        "sha256": "d388ed048a70e1554ff67f10a10e98b7cec90cbcec31f7aa2dbbc5715bd7035f"
+      },
+      {
+        "viewer_page": 35,
+        "path": "evidence/live-capture/shard-1-page-0035.png",
+        "sha256": "b862625f8a84c28d92813cac41d1033bbb8c4a6b4c9a26ec2442e0eac2834cb6"
+      },
+      {
+        "viewer_page": 36,
+        "path": "evidence/live-capture/shard-1-page-0036.png",
+        "sha256": "315717fcd37b4c15255f721e2759250e653bf862712c5e1be918ac3c91bd6704"
+      },
+      {
+        "viewer_page": 37,
+        "path": "evidence/live-capture/shard-1-page-0037.png",
+        "sha256": "136fed2211e0272469008fd797ca2f943c85645e7d0da1f25224bf9ed9f865e8"
+      },
+      {
+        "viewer_page": 38,
+        "path": "evidence/live-capture/shard-1-page-0038.png",
+        "sha256": "fa50d6549f7d63dbdb77f57152bf2ad921d1e78e01d035ac85320af7e5823847"
+      },
+      {
+        "viewer_page": 39,
+        "path": "evidence/live-capture/shard-1-page-0039.png",
+        "sha256": "775b356aa94db841b0938c2714dfc841c69bf3e49600b0a5f6df6df5a1ba5989"
+      },
+      {
+        "viewer_page": 40,
+        "path": "evidence/live-capture/shard-1-page-0040.png",
+        "sha256": "91106821447b73fa2db3f75fa8b9673603390dc32dfe4b86fc9c4f6ed7997e88"
+      },
+      {
+        "viewer_page": 41,
+        "path": "evidence/live-capture/shard-2-page-0041.png",
+        "sha256": "355e4bfe45a730b3499f939c4c24ee6ac9ca6d351d0bebc21e91f74efb93a1d2"
+      },
+      {
+        "viewer_page": 42,
+        "path": "evidence/live-capture/shard-2-page-0042.png",
+        "sha256": "280832e2bb6cbf269cddcf7257992084b59e30ce30fe58b4345fb145d11e26e5"
+      },
+      {
+        "viewer_page": 43,
+        "path": "evidence/live-capture/shard-2-page-0043.png",
+        "sha256": "2982a1e24b8c27006d1e6831eb7ddbb496be0816b6824a2a5f94f0cfa53eecf9"
+      },
+      {
+        "viewer_page": 44,
+        "path": "evidence/live-capture/shard-2-page-0044.png",
+        "sha256": "22f57e69f0f3471689729abc8edf4323e258de7ce5d359041c19264ad0a8c848"
+      },
+      {
+        "viewer_page": 45,
+        "path": "evidence/live-capture/shard-2-page-0045.png",
+        "sha256": "aff35eb1fa0262c2bcabb3f3164510a73798af4e90890fb906ccf6fd30fb23bd"
+      },
+      {
+        "viewer_page": 46,
+        "path": "evidence/live-capture/shard-2-page-0046.png",
+        "sha256": "de6239a67e757a71c791a6039994eb206a8d354e452556dee83f883b44c84aaa"
+      },
+      {
+        "viewer_page": 47,
+        "path": "evidence/live-capture/shard-2-page-0047.png",
+        "sha256": "584c0fbc8541f8e889eeae4431999ccb08ea583937b9e3d448f992fc29047d98"
+      },
+      {
+        "viewer_page": 48,
+        "path": "evidence/live-capture/shard-2-page-0048.png",
+        "sha256": "b4d195b78438bc2e86bec79099af87cf8f25d34775e96648ccb93b9038d93407"
+      },
+      {
+        "viewer_page": 49,
+        "path": "evidence/live-capture/shard-2-page-0049.png",
+        "sha256": "61e84c39441e13b2c2e998e7ac2b5b3ba1d9b39b66ed4e40cfb6a1587b05d14b"
+      },
+      {
+        "viewer_page": 50,
+        "path": "evidence/live-capture/shard-2-page-0050.png",
+        "sha256": "d10f0a847d90bb925fba27d1ba6bd5b3ecac8988d61e2176dec7aca6688c2f1b"
+      },
+      {
+        "viewer_page": 51,
+        "path": "evidence/live-capture/shard-2-page-0051.png",
+        "sha256": "b10c91bd217d7cd7b70cebdc2b96be6fd8006850edaa2d9f3dbf0ff3077d63da"
+      },
+      {
+        "viewer_page": 52,
+        "path": "evidence/live-capture/shard-2-page-0052.png",
+        "sha256": "16b63e3271e46348b53ff3619db4799b159923812590188457a450af59e195ff"
+      },
+      {
+        "viewer_page": 53,
+        "path": "evidence/live-capture/shard-2-page-0053.png",
+        "sha256": "cf0492065b863d440418cf345d84021a8446e990cfdbbcd04ecdf16f541d213b"
+      },
+      {
+        "viewer_page": 54,
+        "path": "evidence/live-capture/shard-2-page-0054.png",
+        "sha256": "1d8f79a97982997c51e0a56f234a47769cf55655407ca318b40841b342ad5d9e"
+      },
+      {
+        "viewer_page": 55,
+        "path": "evidence/live-capture/shard-2-page-0055.png",
+        "sha256": "5efd4021e54ad8dfcc4aceed643c655f6d9729775d24868ebea58e006eaf8719"
+      },
+      {
+        "viewer_page": 56,
+        "path": "evidence/live-capture/shard-2-page-0056.png",
+        "sha256": "43f7afeb7a15e990f6c2b3989295537c9554f537e122031733bc1db1b9ebdb37"
+      },
+      {
+        "viewer_page": 57,
+        "path": "evidence/live-capture/shard-2-page-0057.png",
+        "sha256": "2d3e9f02bdfcc8620372b1a4688c05c36b2052378ee93786e27a688df664599b"
+      },
+      {
+        "viewer_page": 58,
+        "path": "evidence/live-capture/shard-2-page-0058.png",
+        "sha256": "a9ad185b84dd6cdead41f553bd19ad214bb1a7ecef0a89bed4ac17c54c7f51c1"
+      },
+      {
+        "viewer_page": 59,
+        "path": "evidence/live-capture/shard-2-page-0059.png",
+        "sha256": "3dc14dfc1a7a3f0783fc9fdfb1e60dfe5fd027adaa1f0efc2b91310dc598173c"
+      },
+      {
+        "viewer_page": 60,
+        "path": "evidence/live-capture/shard-2-page-0060.png",
+        "sha256": "7284c6defe750509f910ff8f541f27159ed8578abf17410e231e60f529ab5bb3"
+      },
+      {
+        "viewer_page": 61,
+        "path": "evidence/live-capture/shard-3-page-0061.png",
+        "sha256": "5933eb3f1bfeb21b65209bd2be10e0e8d55394bb69882439d431c33263b38b49"
+      },
+      {
+        "viewer_page": 62,
+        "path": "evidence/live-capture/shard-3-page-0062.png",
+        "sha256": "cf881d8dd22c11e351774f9063c699169274a47e10fa7375cdf3ff8168319b34"
+      },
+      {
+        "viewer_page": 63,
+        "path": "evidence/live-capture/shard-3-page-0063.png",
+        "sha256": "c788a36155f68b1fe2b82696dec3da5d63f4bf24e2808da04b22fa2d196dbf8b"
+      },
+      {
+        "viewer_page": 64,
+        "path": "evidence/live-capture/shard-3-page-0064.png",
+        "sha256": "7c077d7e2d74fe87ec6c6ba05caa6619078e3f0ceaadd40c2a8bb30716ee9cb0"
+      },
+      {
+        "viewer_page": 65,
+        "path": "evidence/live-capture/shard-3-page-0065.png",
+        "sha256": "7c53f621ec74f9ad3dcaa849895ec7d911cc1fad1044ce2e193b463d5bd2ff8e"
+      },
+      {
+        "viewer_page": 66,
+        "path": "evidence/live-capture/shard-3-page-0066.png",
+        "sha256": "b90587f19a31b9b3b4dbb780cc2beaa6e1f5299ef493e238cfe57f192b507e4d"
+      },
+      {
+        "viewer_page": 67,
+        "path": "evidence/live-capture/shard-3-page-0067.png",
+        "sha256": "157ec33884a65dcf14d272a5a8384537483b2fc615f3909edc87c4fe54fb92a4"
+      },
+      {
+        "viewer_page": 68,
+        "path": "evidence/live-capture/shard-3-page-0068.png",
+        "sha256": "4b912c3d22bcbbb2bf96e4e4b2a93a1c1896bcf39fb37ce2536e453b66cc6266"
+      },
+      {
+        "viewer_page": 69,
+        "path": "evidence/live-capture/shard-3-page-0069.png",
+        "sha256": "531b712b0ccf9f56df1b1d49419927ca7a9a5094cf476ea43eaccc7c6e80513c"
+      },
+      {
+        "viewer_page": 70,
+        "path": "evidence/live-capture/shard-3-page-0070.png",
+        "sha256": "dcc574b256e70304ea3cbfbf217029a20a295c87b35e5e2ff38813f40e68337f"
+      },
+      {
+        "viewer_page": 71,
+        "path": "evidence/live-capture/shard-3-page-0071.png",
+        "sha256": "9c18238ff3be75257a7e737fdcd29083510a5cf8f247131963b2a22a1eff20d2"
+      },
+      {
+        "viewer_page": 72,
+        "path": "evidence/live-capture/shard-3-page-0072.png",
+        "sha256": "1228e457b004311b9388c53a6a9a944ca2aefc541c144b37fbf843776696a201"
+      },
+      {
+        "viewer_page": 73,
+        "path": "evidence/live-capture/shard-3-page-0073.png",
+        "sha256": "155de87480d8217d5a938dde417b9154149a6511fa79bc6a5427d37bf03aba23"
+      },
+      {
+        "viewer_page": 74,
+        "path": "evidence/live-capture/shard-3-page-0074.png",
+        "sha256": "a4034a2e8ef2d4fb9f97ecbedac242d2495c74d9d61673076fd49921c10ffdf6"
+      },
+      {
+        "viewer_page": 75,
+        "path": "evidence/live-capture/shard-3-page-0075.png",
+        "sha256": "569ef9c5ec1a0a7c699a27d8919e9476c94a80a640f2a4b3e9de2dbd8052f7b4"
+      },
+      {
+        "viewer_page": 76,
+        "path": "evidence/live-capture/shard-3-page-0076.png",
+        "sha256": "2e85afdb224732e9f623e678490b1c099bfaddca095d31f939e9115d7bee29c0"
+      },
+      {
+        "viewer_page": 77,
+        "path": "evidence/live-capture/shard-3-page-0077.png",
+        "sha256": "0b419ffaafc250ea9d32bc5d25d7ea854c3ec3ab8398ccbd00cb64e66efdc99c"
+      },
+      {
+        "viewer_page": 78,
+        "path": "evidence/live-capture/shard-3-page-0078.png",
+        "sha256": "fe9b16b8b506bc82f7175e8c624b2c830bbbaab998bf8d97cc5f78517693c8d0"
+      },
+      {
+        "viewer_page": 79,
+        "path": "evidence/live-capture/shard-3-page-0079.png",
+        "sha256": "81c24f863f8dbe7353f497db1ca5d9a4c8f9db824410ee8d1c01ee3f6b9b7f57"
+      },
+      {
+        "viewer_page": 80,
+        "path": "evidence/live-capture/shard-3-page-0080.png",
+        "sha256": "25c30edb7657a30e3f218e8ed97627a0b5dc18ccd6792ea69332d15a9a35bfb2"
+      }
+    ]
+  },
+  "shard_metadata": [
+    {
+      "shard": 0,
+      "shards": 4,
+      "page_start": 1,
+      "page_end": 20,
+      "page_count": 80,
+      "pages_captured": 20,
+      "final_url": "https://drive.google.com/file/d/11-M7AU3RhcKtmyK37omcQQ1fErhdW5Rk/preview",
+      "http_status": 200,
+      "loop_seconds": 10.7,
+      "snapshot_sha256": "581b81eb5bf0f0a202f6b14d810cf318df252fc8459c5cca28299cb52fc4edbe",
+      "captured_at_utc": "2026-11-05T23:59:55.925573+00:00"
+    },
+    {
+      "shard": 1,
+      "shards": 4,
+      "page_start": 21,
+      "page_end": 40,
+      "page_count": 80,
+      "pages_captured": 20,
+      "final_url": "https://drive.google.com/file/d/11-M7AU3RhcKtmyK37omcQQ1fErhdW5Rk/preview",
+      "http_status": 200,
+      "loop_seconds": 11.5,
+      "snapshot_sha256": "e9d244074d440f95d502e6570a7f7ab520984bf023f320ac703534a8a4dbc9a5",
+      "captured_at_utc": "2026-11-06T00:00:12.057649+00:00"
+    },
+    {
+      "shard": 2,
+      "shards": 4,
+      "page_start": 41,
+      "page_end": 60,
+      "page_count": 80,
+      "pages_captured": 20,
+      "final_url": "https://drive.google.com/file/d/11-M7AU3RhcKtmyK37omcQQ1fErhdW5Rk/preview",
+      "http_status": 200,
+      "loop_seconds": 11.2,
+      "snapshot_sha256": "b718444248b4f3c400f10b09e39f92dc97b021fafa19a8510d7d957a48f82179",
+      "captured_at_utc": "2026-11-06T00:00:26.593052+00:00"
+    },
+    {
+      "shard": 3,
+      "shards": 4,
+      "page_start": 61,
+      "page_end": 80,
+      "page_count": 80,
+      "pages_captured": 20,
+      "final_url": "https://drive.google.com/file/d/11-M7AU3RhcKtmyK37omcQQ1fErhdW5Rk/preview",
+      "http_status": 200,
+      "loop_seconds": 11.2,
+      "snapshot_sha256": "4427b0b9a86aab470a3ef1ccbb5841c289c80a96dd007da70171174c114d48ae",
+      "captured_at_utc": "2026-11-06T00:00:41.000900+00:00"
+    }
+  ],
+  "provenance": "official_direct",
+  "public_preview_only": true,
+  "official_article_url": "https://www.prc.gov.ph/article/october-2026-certified-public-accountants-licensure-examination-results-released-six-6",
+  "official_content_url": "https://drive.google.com/file/d/11-M7AU3RhcKtmyK37omcQQ1fErhdW5Rk/view?usp=sharing",
+  "public_preview_url": "https://drive.google.com/file/d/11-M7AU3RhcKtmyK37omcQQ1fErhdW5Rk/preview",
+  "viewer_pages_navigated": 80
+}

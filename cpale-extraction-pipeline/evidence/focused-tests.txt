@@ -12,6 +12,8 @@ test_malformed_pdf_is_reported_as_needs_review (tests.test_prc_orchestrator.PRCO
 test_reviewed_mapping_creates_a_greenlight_batch_without_publishing (tests.test_prc_orchestrator.PRCOrchestratorTests.test_reviewed_mapping_creates_a_greenlight_batch_without_publishing) ... ok
 test_sign_in_html_is_not_treated_as_a_pdf (tests.test_prc_orchestrator.PRCOrchestratorTests.test_sign_in_html_is_not_treated_as_a_pdf) ... ok
 test_access_challenge_stops_without_a_batch (tests.test_prc_public_preview_pipeline.PRCPublicPreviewPipelineTests.test_access_challenge_stops_without_a_batch) ... ok
+test_browser_capture_uses_sequential_bounded_shards (tests.test_prc_public_preview_pipeline.PRCPublicPreviewPipelineTests.test_browser_capture_uses_sequential_bounded_shards) ... ok
+test_browser_crash_is_reported_as_a_safe_review_stop (tests.test_prc_public_preview_pipeline.PRCPublicPreviewPipelineTests.test_browser_crash_is_reported_as_a_safe_review_stop) ... ok
 test_cumulative_snapshots_are_deduplicated_by_matching_sequence (tests.test_prc_public_preview_pipeline.PRCPublicPreviewPipelineTests.test_cumulative_snapshots_are_deduplicated_by_matching_sequence) ... ok
 test_cumulative_snapshots_reject_conflicting_or_same_page_duplicates (tests.test_prc_public_preview_pipeline.PRCPublicPreviewPipelineTests.test_cumulative_snapshots_reject_conflicting_or_same_page_duplicates) ... ok
 test_full_capture_evidence_enters_greenlight_without_network (tests.test_prc_public_preview_pipeline.PRCPublicPreviewPipelineTests.test_full_capture_evidence_enters_greenlight_without_network) ... ok
@@ -34,6 +36,6 @@ test_invalid_partition_inputs_fail_closed (tests.test_public_preview_shards.Part
 test_small_uneven_partition_is_contiguous (tests.test_public_preview_shards.PartitionTests.test_small_uneven_partition_is_contiguous) ... ok
 
 ----------------------------------------------------------------------
-Ran 31 tests in 0.113s
+Ran 33 tests in 0.077s
 
 OK

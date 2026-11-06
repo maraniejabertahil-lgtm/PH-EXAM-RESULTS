@@ -17,7 +17,8 @@ automatic publication.
 - `examples/process-import.yml`: the repository workflow context from the
   candidate branch. It is an example, not a standalone or production workflow.
 - `evidence/`: the actual CPALE result CSV and the source/validation record
-  from the local extraction.
+  from the original extraction, plus the later live candidate capture,
+  screenshot/text/hash evidence, Greenlight report, and local dataset.
 
 The capture uses Playwright/Chromium to read visible rendered DOM text from
 PRC's ordinary public Google Drive preview. PNG screenshots are capture
@@ -40,7 +41,7 @@ python -m unittest \
   tests.test_public_preview_shards -v
 ```
 
-The focused tests use synthetic capture fixtures and do not access PRC or
+The 33 focused tests use synthetic capture fixtures and do not access PRC or
 publish any data. Installing the optional browser package alone does not
 install Chromium; the repository workflow installs it conditionally with
 `python -m playwright install --with-deps chromium`.
@@ -58,13 +59,19 @@ The saved local extraction record reports:
 - Canonical sequence-tab-name records SHA-256:
   `c77042c9ffeac17926cf10803a8b930e30fcef8295c5a01db0ffe9b6f3f1fa7c`
 
-This evidence is from the original local extraction, not from an automated
-Watcher's detection-to-publication run. The focused integration tests are
-synthetic. No publication, merge, or deployment is evidenced by this package.
-The CSV's independently checked hash and sequence/count checks are recorded
-in `evidence/package-validation.json`. That check also records that the
-canonical records hash stated in the original validation JSON could not be
-reproduced from the included CSV; treat that particular digest as unverified.
+The later live candidate run captured all 80 viewer pages in four sequential
+browser shards, extracted 3,988 records matching the saved CSV exactly, passed
+local Greenlight at 100/100, and generated one local dataset shard. The capture
+bundle in `evidence/live-capture/` includes the 80 screenshots, rendered text,
+records, and hash-bound manifests. Its relocated bundle was independently
+verified offline against the included CSV. The local run summary and generated
+reports are in `evidence/live-run/`.
+
+The original CSV hash and canonical records hash are independently reproduced
+in `evidence/package-validation.json`. The canonical serialization is
+LF-joined `sequence<TAB>name` rows with no trailing LF. This is not a Watcher
+detection-to-publication run. No GitOps, PR creation, publication, merge, or
+deployment occurred, and visual review remains `PENDING`.
 
 ## Safety and scope
 

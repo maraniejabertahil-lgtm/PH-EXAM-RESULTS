@@ -313,7 +313,8 @@ def capture_public_preview(
     if str(extractor_dir) not in sys.path:
         sys.path.insert(0, str(extractor_dir))
     try:
-        from public_preview_shards import capture_shard, merge_shards
+        from playwright.sync_api import Error as PlaywrightError
+        from public_preview_shards import MAX_SHARDS, capture_shard, merge_shards
     except ImportError as exc:
         raise NeedsReviewError(f"Public-preview browser capture is unavailable: {exc}") from exc
 
@@ -324,20 +325,27 @@ def capture_public_preview(
         or any(not isinstance(host, str) or not host for host in allowed_hosts)
     ):
         raise NeedsReviewError("Public-preview mapping has an invalid allowed_hosts list.")
-    capture_shard(
-        preview_url=preview_url,
-        shard=0,
-        shard_count=1,
-        output_dir=output_dir,
-        allowed_hosts={host.lower() for host in allowed_hosts},
-        page_control_selector=settings.get("page_control_selector", 'input[aria-label^="Page is"]'),
-        page_count_regex=settings.get("page_count_regex", r"Page 1 of\s+(\d+)"),
-        page_marker_template=settings.get("page_marker_template", "Page {page} of {count}"),
-        per_page_deadline=settings.get("per_page_deadline", 35),
-        poll_ms=settings.get("poll_ms", 100),
-        max_pages=settings.get("max_pages", 400),
-    )
-    return merge_shards(shard_count=1, output_dir=output_dir)
+    shard_count = settings.get("shards", 1)
+    if isinstance(shard_count, bool) or not isinstance(shard_count, int) or not 1 <= shard_count <= MAX_SHARDS:
+        raise NeedsReviewError(f"Public-preview shard count must be an integer between 1 and {MAX_SHARDS}.")
+    try:
+        for shard in range(shard_count):
+            capture_shard(
+                preview_url=preview_url,
+                shard=shard,
+                shard_count=shard_count,
+                output_dir=output_dir,
+                allowed_hosts={host.lower() for host in allowed_hosts},
+                page_control_selector=settings.get("page_control_selector", 'input[aria-label^="Page is"]'),
+                page_count_regex=settings.get("page_count_regex", r"Page 1 of\s+(\d+)"),
+                page_marker_template=settings.get("page_marker_template", "Page {page} of {count}"),
+                per_page_deadline=settings.get("per_page_deadline", 35),
+                poll_ms=settings.get("poll_ms", 100),
+                max_pages=settings.get("max_pages", 400),
+            )
+    except PlaywrightError as exc:
+        raise NeedsReviewError(f"Public-preview browser capture stopped safely: {exc}") from exc
+    return merge_shards(shard_count=shard_count, output_dir=output_dir)
 
 
 def load_public_preview_mapping(
