@@ -1,4 +1,4 @@
-import { recordActivity } from "./activity-log.js";
+import { recordActivities } from "./activity-log.js";
 import { buildReleaseEvent } from "./release-event.js";
 const GITHUB_API = "https://api.github.com";
 const GITHUB_API_VERSION = "2022-11-28";
@@ -958,11 +958,11 @@ export async function runScheduled({
 }) {
   const startedAt = Date.now();
   const executionId = "watcher:" + scheduledTime;
-  await recordActivity(env, {
+  const activityEvents = [{
     event_id: executionId + ":started", execution_id: executionId,
     occurred_at: isoNow(new Date(scheduledTime)), operation: "scheduled_scan",
     status: "running", message: "Watcher scheduled scan started.", source: "cloudflare_worker"
-  });
+  }];
   try {
     if (!env.PEAK_WEEK || typeof env.PEAK_WEEK.get !== "function" || typeof env.PEAK_WEEK.put !== "function") {
       throw new Error("The PEAK_WEEK KV namespace binding is not configured.");
@@ -989,7 +989,7 @@ export async function runScheduled({
           : (/recovered|not_pdf/.test(resultStatus) ? "warning"
             : (/error|failed|budget_reached/.test(resultStatus) ? "failed" : "success"));
         const sourceId = String(result.source_id || "unknown");
-        await recordActivity(env, {
+        activityEvents.push({
           event_id: executionId + ":source:" + item.phase + ":" + index + ":" + sourceId,
           execution_id: executionId,
           occurred_at: new Date().toISOString(),
@@ -1015,7 +1015,7 @@ export async function runScheduled({
       second_check: second
     };
     console.log(JSON.stringify(report));
-    await recordActivity(env, {
+    activityEvents.push({
       event_id: executionId + ":finished", execution_id: executionId,
       occurred_at: new Date().toISOString(), operation: "scheduled_scan",
       status: "success", duration_ms: Date.now() - startedAt,
@@ -1026,9 +1026,10 @@ export async function runScheduled({
         skipped_targets: first.skipped_targets + (second?.skipped_targets || 0)
       }
     });
+    await recordActivities(env, activityEvents);
     return report;
   } catch (error) {
-    await recordActivity(env, {
+    activityEvents.push({
       event_id: executionId + ":failed", execution_id: executionId,
       occurred_at: new Date().toISOString(), operation: "scheduled_scan",
       status: "failed", severity: "error", duration_ms: Date.now() - startedAt,
@@ -1037,6 +1038,7 @@ export async function runScheduled({
       error_message: String(error?.message || error).slice(0, 1000),
       source: "cloudflare_worker"
     });
+    await recordActivities(env, activityEvents);
     throw error;
   }
 }
