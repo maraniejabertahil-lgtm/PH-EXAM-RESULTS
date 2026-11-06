@@ -50,7 +50,7 @@ jobs:
         run: PYTHONPATH=retrieval python run_in_scope_tests.py
       - name: Test D1 activity REST client
         working-directory: python-engine
-        run: python -m unittest tests.test_d1_client
+        run: python -m unittest discover -s tests -p 'test_d1_client.py'
 
   deploy-production:
     name: Deploy production Cloudflare Worker
