@@ -23,9 +23,10 @@ test("Watcher activity logging sends an idempotent parameterized D1 insert", asy
   assert.equal(result, true);
   assert.match(request.url, /d1\/database\/database\/query$/);
   const body = JSON.parse(request.init.body);
-  assert.match(body.sql, /INSERT OR IGNORE/);
-  assert.match(body.sql, /NULLIF/);
-  assert.ok(body.params.every((value) => typeof value === "string"));
-  assert.equal(body.params[0], "event-1");
-  assert.equal(body.params.at(-1), JSON.stringify({ mode: "standard" }));
+  assert.equal(body.batch.length, 1);
+  assert.match(body.batch[0].sql, /INSERT OR IGNORE/);
+  assert.match(body.batch[0].sql, /NULLIF/);
+  assert.ok(body.batch[0].params.every((value) => typeof value === "string"));
+  assert.equal(body.batch[0].params[0], "event-1");
+  assert.equal(body.batch[0].params.at(-1), JSON.stringify({ mode: "standard" }));
 });
