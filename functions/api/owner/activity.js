@@ -24,7 +24,7 @@ export async function onRequestGet({ request, env }) {
     "WHEN status = 'passed' THEN 'success' " +
     "WHEN status = 'completed' AND severity = 'warning' THEN 'warning' " +
     "WHEN status = 'completed' THEN 'success' " +
-    "WHEN status = 'failed' AND error_code = 'BLOCKED' THEN 'blocked' " +
+    "WHEN status = 'failed' AND error_code LIKE 'BLOCKED%' THEN 'blocked' " +
     "WHEN status = 'failed' THEN 'failed' ELSE 'warning' END";
   const where = [];
   const params = [];
