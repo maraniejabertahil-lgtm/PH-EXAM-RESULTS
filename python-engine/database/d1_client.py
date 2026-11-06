@@ -163,13 +163,13 @@ def record_activity(event: dict) -> bool:
        NULLIF(?, ''), ?, ?, ?, ?, ?, ?, ?, NULLIF(?, ''), ?, NULLIF(?, ''),
        NULLIF(?, ''), ?, ?)"""
     try:
-        _query(*config, sql, (
+        _query(*config, sql, _rest_params((
             event_id, event_id, event_type, stored_status, message,
             metadata.get("authority"), metadata.get("exam"), metadata.get("exam_year"),
             metadata.get("source_id"), execution_id, occurred_at, execution_id,
             occurred_at, component, operation, severity, duration, message,
             error_code, error_message, source, metadata_json,
-        ))
+        )))
         return True
     except Exception as exc:
         print(f"ACTIVITY_LOG_WARNING: {str(exc)[:240]}", file=sys.stderr)
