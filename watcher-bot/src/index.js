@@ -960,7 +960,8 @@ export async function recordWatcherActivity(env, eventType, status, summary, fet
   const endpoint = "https://api.cloudflare.com/client/v4/accounts/" + encodeURIComponent(account) +
     "/d1/database/" + encodeURIComponent(database) + "/query";
   const sql = "INSERT INTO monitoring_logs (id,event_type,status,summary,created_at) VALUES(?,?,?,?,?)";
-  const params = [crypto.randomUUID(), eventType, status, String(summary).replaceAll("\n", " ").replaceAll("\r", " ").replaceAll("\t", " ").slice(0, 240),
+  const normalizedSummary = String(summary).split(String.fromCharCode(10)).join(" ").split(String.fromCharCode(13)).join(" ").split(String.fromCharCode(9)).join(" ").slice(0, 240);
+  const params = [crypto.randomUUID(), eventType, status, normalizedSummary,
     new Date().toISOString()];
   try {
     const response = await fetchImpl(endpoint, {
