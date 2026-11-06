@@ -1,0 +1,78 @@
+name: Deploy Private Owner Dashboard
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "owner-dashboard/**"
+      - "python-engine/database/**"
+      - "watcher-bot/**"
+      - ".github/workflows/deploy-owner-dashboard.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "owner-dashboard/**"
+      - ".github/workflows/deploy-owner-dashboard.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: private-owner-dashboard-deploy
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    name: Validate private dashboard and metadata client
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Check private dashboard JavaScript syntax
+        run: |
+          node --check owner-dashboard/public/activity.js
+          node --check owner-dashboard/functions/api/activity.js
+      - name: Test Access-protected API
+        run: node --test owner-dashboard/functions/tests/*.test.mjs
+      - name: Test Python D1 REST client
+        run: PYTHONPATH=python-engine python -m unittest discover -s python-engine/tests -p "test_d1_client.py" -v
+      - name: Compile private metadata Python modules
+        run: python -m py_compile python-engine/database/*.py
+
+  deploy:
+    name: Deploy isolated private Pages project
+    needs: validate
+    if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - name: Verify private Pages deployment settings
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CF_PAGES_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
+          PROJECT_NAME: ${{ secrets.CF_OWNER_PAGES_PROJECT_NAME }}
+        run: |
+          set -euo pipefail
+          test -n "$CLOUDFLARE_API_TOKEN"
+          test -n "$CLOUDFLARE_ACCOUNT_ID"
+          test -n "$PROJECT_NAME"
+          echo "Private Pages deployment settings are present."
+      - name: Deploy private dashboard and Pages Function
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CF_PAGES_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
+          PROJECT_NAME: ${{ secrets.CF_OWNER_PAGES_PROJECT_NAME }}
+        run: |
+          set -euo pipefail
+          cd owner-dashboard
+          npx --yes wrangler@4.156.2 pages deploy public --project-name "$PROJECT_NAME" --branch main
