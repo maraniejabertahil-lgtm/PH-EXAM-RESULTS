@@ -6,11 +6,6 @@ on:
       - main
     paths:
       - "public/**"
-      - "functions/**"
-      - "python-engine/database/**"
-      - "tools/check_all_branch_compatibility.py"
-      - ".github/workflows/record-workflow-activity.yml"
-      - ".github/workflows/migrate-d1-monitoring.yml"
       - "tools/validate_public_datasets.py"
       - "tools/check_public_secrets.py"
       - ".github/workflows/deploy-pages.yml"
@@ -19,10 +14,6 @@ on:
       - main
     paths:
       - "public/**"
-      - "functions/**"
-      - "python-engine/database/**"
-      - ".github/workflows/record-workflow-activity.yml"
-      - ".github/workflows/migrate-d1-monitoring.yml"
       - ".github/workflows/deploy-pages.yml"
   workflow_dispatch:
 
@@ -39,8 +30,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
-        with:
-          fetch-depth: 0
       - uses: actions/setup-node@v5
         with:
           node-version: "22"
@@ -53,8 +42,6 @@ jobs:
       - name: Validate required static routes
         run: |
           test -f public/index.html
-          test -f public/owner-monitor/index.html
-          test -f public/_routes.json
           test -f public/preparing.html
           test -f public/review.html
           test -f public/404.html
@@ -70,20 +57,10 @@ jobs:
           node --check public/assets/js/storage.mjs
           node --check public/assets/js/search-worker.mjs
           node --check public/assets/js/app.mjs
-          node --check public/assets/js/owner-monitor.mjs
           node --check public/assets/js/review-logic.mjs
           node --check public/assets/js/review.mjs
       - name: Run browser-side module tests
         run: node --test public/tests/*.test.mjs
-      - name: Test private owner-monitor Pages Functions
-        run: node --test functions/tests/*.test.mjs
-      - name: Build Pages Functions bundle
-        run: npx --yes wrangler@4.156.2 pages functions build functions --outdir /tmp/ph-exam-pages-functions --project-directory .
-      - name: Audit merge compatibility against every repository branch
-        env:
-          FEATURE_BRANCH: feature/private-activity-monitor-rebased-20261107
-          BRANCH_COMPATIBILITY_STRICT: "1"
-        run: python tools/check_all_branch_compatibility.py
       - name: Validate committed public datasets
         run: python tools/validate_public_datasets.py
       - name: Scan published assets for common credential formats
