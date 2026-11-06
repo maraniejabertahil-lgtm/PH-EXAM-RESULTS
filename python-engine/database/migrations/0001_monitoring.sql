@@ -3,7 +3,7 @@
 CREATE TABLE IF NOT EXISTS monitoring_logs (
   id TEXT PRIMARY KEY,
   event_id TEXT UNIQUE,
-  event_type TEXT NOT NULL CHECK (event_type IN ('processing_started', 'greenlight_passed', 'greenlight_failed', 'publication_completed', 'publication_failed')),
+  event_type TEXT NOT NULL CHECK (event_type IN ('processing_started', 'greenlight_passed', 'greenlight_failed', 'publication_completed', 'publication_failed', 'watcher_scan', 'release_detected')),
   status TEXT NOT NULL CHECK (status IN ('started', 'passed', 'failed', 'completed')),
   summary TEXT NOT NULL DEFAULT '',
   authority TEXT,
