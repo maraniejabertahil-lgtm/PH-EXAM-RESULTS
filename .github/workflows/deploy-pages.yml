@@ -6,7 +6,6 @@ on:
       - main
     paths:
       - "public/**"
-      - "functions/**"
       - "tools/validate_public_datasets.py"
       - "tools/check_public_secrets.py"
       - ".github/workflows/deploy-pages.yml"
@@ -15,7 +14,6 @@ on:
       - main
     paths:
       - "public/**"
-      - "functions/**"
       - ".github/workflows/deploy-pages.yml"
   workflow_dispatch:
 
@@ -50,9 +48,6 @@ jobs:
           test -f public/_headers
           test -f public/status.json
           test -f public/data/catalog.json
-          test -f public/owner/index.html
-          test -f public/owner/activity.js
-          test -f functions/api/owner/activity.js
           test -f public/assets/js/app.mjs
           test -f public/assets/js/storage.mjs
           test -f public/assets/js/search-worker.mjs
@@ -64,12 +59,8 @@ jobs:
           node --check public/assets/js/app.mjs
           node --check public/assets/js/review-logic.mjs
           node --check public/assets/js/review.mjs
-          node --check public/owner/activity.js
-          node --check functions/api/owner/activity.js
       - name: Run browser-side module tests
         run: node --test public/tests/*.test.mjs
-      - name: Run private dashboard API access tests
-        run: node --test functions/tests/*.test.mjs
       - name: Validate committed public datasets
         run: python tools/validate_public_datasets.py
       - name: Scan published assets for common credential formats
