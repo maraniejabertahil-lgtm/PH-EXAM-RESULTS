@@ -68,7 +68,9 @@ def main():
                 "execution_id": execution_id, "occurred_at": now,
                 "component": "GitHub Actions", "operation": job_name + " / " + step_name,
                 "status": status, "severity": "error" if status == "failed" else ("warning" if status == "blocked" else "info"),
-                "message": f"{workflow}: {step_name} {status}.", "source": "github_actions",
+                "message": f"{workflow}: {step_name} {status}.",
+                "error_message": (f"Step concluded with {step.get('conclusion')}. Open the linked workflow run for full logs." if status == "failed" else None),
+                "source": "github_actions",
                 "metadata": {"run_id": run_id, "run_number": run_number, "workflow": workflow,
                              "job": job_name, "branch": branch, "commit": sha},
             })
