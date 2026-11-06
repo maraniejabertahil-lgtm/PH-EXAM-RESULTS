@@ -2,7 +2,7 @@ const API_ROOT = "https://api.cloudflare.com/client/v4";
 const ALLOWED = new Set(["running", "success", "failed", "blocked", "warning"]);
 const LEGACY_EVENT_TYPES = new Set([
   "processing_started", "greenlight_passed", "greenlight_failed",
-  "publication_completed", "publication_failed",
+  "publication_completed", "publication_failed", "watcher_scan", "release_detected",
 ]);
 
 function toStatement(event) {
@@ -15,7 +15,11 @@ function toStatement(event) {
   const operation = String(event.operation || "scheduled_scan").slice(0, 120);
   let eventType = event.event_type;
   if (!LEGACY_EVENT_TYPES.has(eventType)) {
-    if (operation.toLowerCase().includes("greenlight")) {
+    if (operation.toLowerCase().includes("release_detected")) {
+      eventType = "release_detected";
+    } else if (operation.toLowerCase().includes("scheduled_scan") || operation.toLowerCase().includes("source_check")) {
+      eventType = "watcher_scan";
+    } else if (operation.toLowerCase().includes("greenlight")) {
       eventType = event.status === "failed" || event.status === "blocked" ? "greenlight_failed" : "greenlight_passed";
     } else if (event.status === "failed") {
       eventType = "publication_failed";
