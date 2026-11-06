@@ -33,7 +33,9 @@ function toStatement(event) {
   })[event.status];
   let severity = event.severity || (event.status === "failed" ? "error" : "info");
   if ((event.status === "blocked" || event.status === "warning") && severity === "info") severity = "warning";
-  const errorCode = event.status === "blocked" && !event.error_code ? "BLOCKED" : (event.error_code || "");
+  const errorCode = event.status === "blocked" && !String(event.error_code || "").startsWith("BLOCKED")
+    ? ("BLOCKED:" + String(event.error_code || "")).slice(0, 80)
+    : (event.error_code || "");
   const message = String(event.message || "Watcher activity").slice(0, 240);
   const sql = "INSERT OR IGNORE INTO monitoring_logs " +
     "(id,event_id,event_type,status,summary,authority,exam,exam_year,source_id,correlation_id,created_at," +
