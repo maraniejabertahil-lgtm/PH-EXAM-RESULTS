@@ -950,6 +950,32 @@ function createSubrequestBudget(env, fetchImpl) {
   };
 }
 
+export async function recordWatcherActivity(env, eventType, status, summary, fetchImpl = fetch) {
+  const allowedEvents = new Set(["watcher_scan", "release_detected"]);
+  if (!allowedEvents.has(eventType) || status !== "completed") return false;
+  const account = String(env.CF_ACCOUNT_ID || "");
+  const database = String(env.CF_D1_DATABASE_ID || "");
+  const token = String(env.CF_D1_API_TOKEN || "");
+  if (!account || !database || !token) return false;
+  const endpoint = "https://api.cloudflare.com/client/v4/accounts/" + encodeURIComponent(account) +
+    "/d1/database/" + encodeURIComponent(database) + "/query";
+  const sql = "INSERT INTO monitoring_logs (id,event_type,status,summary,created_at) VALUES(?,?,?,?,?)";
+  const params = [crypto.randomUUID(), eventType, status, String(summary).replace(/\\s+/g, " ").slice(0, 240),
+    new Date().toISOString()];
+  try {
+    const response = await fetchImpl(endpoint, {
+      method: "POST",
+      headers: { authorization: "Bearer " + token, "content-type": "application/json", accept: "application/json" },
+      body: JSON.stringify({ sql, params }),
+    });
+    if (!response.ok) return false;
+    const body = await response.json();
+    return body.success === true;
+  } catch {
+    return false;
+  }
+}
+
 export async function runScheduled({
   env, fetchImpl = fetch,
   sleepImpl = (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
@@ -980,6 +1006,22 @@ export async function runScheduled({
     second_check: second
   };
   console.log(JSON.stringify(report));
+  await recordWatcherActivity(
+    env, "watcher_scan", "completed",
+    "Scheduled " + report.mode + " scan completed; checked " + report.first_check.checked_targets + " targets.",
+    fetchImpl,
+  );
+  const dispatched = [report.first_check, report.second_check]
+    .filter(Boolean)
+    .flatMap((scan) => scan.results || [])
+    .some((item) => item.status === "dispatched" || item.status === "prc-release-event-dispatched");
+  if (dispatched) {
+    await recordWatcherActivity(
+      env, "release_detected", "completed",
+      "An approved official release candidate was handed to the processing pipeline.",
+      fetchImpl,
+    );
+  }
   return report;
 }
 
