@@ -27,6 +27,7 @@ from acquisition.public_preview import (
     parse_public_preview_snapshots,
 )
 from prc_adapters import REGISTRY, NeedsReview
+from database.d1_client import record_activity
 
 ALLOWED_HOSTS = {
     "www.prc.gov.ph",
@@ -550,12 +551,33 @@ def run(
     output.mkdir(parents=True, exist_ok=True)
     repo_root = Path(repository_root or Path.cwd()).resolve()
     report: dict = {"published": False, "status": "started"}
+    run_identity = os.getenv("GITHUB_RUN_ID") or str(time.time_ns())
+    execution_id = "prc-orchestrator:" + run_identity
+    started_at = time.perf_counter()
+    record_activity({
+        "event_id": execution_id + ":started", "execution_id": execution_id,
+        "component": "Python Engine", "operation": "prc_release_acquisition",
+        "status": "running", "message": "PRC release acquisition and extraction started.",
+        "source": "python_engine",
+    })
 
     def finish(status: str, code: int, **fields) -> int:
         report.update(status=status, **fields)
         (output / "report.json").write_text(
             json.dumps(report, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
         )
+        outcome = "success" if code == 0 else ("blocked" if status == "needs_review" else "failed")
+        record_activity({
+            "event_id": execution_id + ":finished", "execution_id": execution_id,
+            "component": "Python Engine", "operation": "prc_release_acquisition",
+            "status": outcome, "severity": "error" if outcome == "failed" else ("warning" if outcome == "blocked" else "info"),
+            "duration_ms": max(0, int((time.perf_counter() - started_at) * 1000)),
+            "message": "PRC release acquisition finished: " + status + ".",
+            "error_code": "PRC_ACQUISITION_STOPPED" if outcome != "success" else None,
+            "error_message": str(fields.get("reason") or "; ".join(fields.get("errors", [])))[:1000] if outcome != "success" else None,
+            "source": "python_engine",
+            "metadata": {"source_id": event.get("source_id", ""), "authority": "PRC", "exam": event.get("exam_code", "")}
+        })
         return code
 
     errors = validate_event(event)
