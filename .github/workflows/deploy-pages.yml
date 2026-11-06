@@ -6,6 +6,10 @@ on:
       - main
     paths:
       - "public/**"
+      - "functions/**"
+      - "python-engine/database/**"
+      - ".github/workflows/record-workflow-activity.yml"
+      - ".github/workflows/migrate-d1-monitoring.yml"
       - "tools/validate_public_datasets.py"
       - "tools/check_public_secrets.py"
       - ".github/workflows/deploy-pages.yml"
@@ -61,6 +65,8 @@ jobs:
           node --check public/assets/js/review.mjs
       - name: Run browser-side module tests
         run: node --test public/tests/*.test.mjs
+      - name: Test private owner-monitor Pages Functions
+        run: node --test functions/tests/*.test.mjs
       - name: Validate committed public datasets
         run: python tools/validate_public_datasets.py
       - name: Scan published assets for common credential formats
