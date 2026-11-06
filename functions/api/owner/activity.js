@@ -18,8 +18,8 @@ function readAccessToken(request) {
   const header = request.headers.get("cf-access-jwt-assertion");
   if (header) return header;
   const cookie = request.headers.get("cookie") || "";
-  const match = cookie.match(/(?:^|;\\s*)CF_Authorization=([^;]+)/);
-  return match ? decodeURIComponent(match[1]) : "";
+  const item = cookie.split(";").map((part) => part.trim()).find((part) => part.startsWith("CF_Authorization="));
+  return item ? item.slice("CF_Authorization=".length) : "";
 }
 async function getJwks(issuer) {
   if (jwksCache && Date.now() - jwksFetchedAt < JWKS_TTL_MS) return jwksCache;
@@ -32,13 +32,15 @@ async function getJwks(issuer) {
   return jwksCache;
 }
 async function verifyAccess(request, env) {
-  const issuer = String(env.CF_ACCESS_TEAM_DOMAIN || "").replace(/\\/$/, "");
+  const rawIssuer = String(env.CF_ACCESS_TEAM_DOMAIN || "");
+  const issuer = rawIssuer.endsWith("/") ? rawIssuer.slice(0, -1) : rawIssuer;
   const audience = String(env.CF_ACCESS_AUD || "");
   if (!issuer.startsWith("https://") || !audience) return false;
-  const token = readAccessToken(request);
-  const parts = token.split(".");
-  if (parts.length !== 3) return false;
   try {
+    const token = readAccessToken(request);
+    if (token.length > 12000) return false;
+    const parts = token.split(".");
+    if (parts.length !== 3) return false;
     const header = decodePart(parts[0]);
     const claims = decodePart(parts[1]);
     const now = Math.floor(Date.now() / 1000);
