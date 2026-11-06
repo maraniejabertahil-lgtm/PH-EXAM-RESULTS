@@ -39,7 +39,8 @@ These documents are connected by references, not synchronized copies. Each has a
 - [x] Integrate bounded same-origin official PDF acquisition into the Python pipeline with robots.txt checks, article-link verification, PDF signature checks, and persisted HEAD/GET evidence (PR #52 merged; 104 Python tests passed; external Drive links remain manual-drop until public access policy is verified)
 - [x] Identify and validate a compliant **PRC-only** official-content access path that yields passer names and their exact sequence numbers; PDF download is not required. CSC-specific source discovery, portal access, acquisition, extraction, and testing are excluded by Owner decision D-003. PRC owner-reviewed manual handoff is implemented (PR #53 merged; PR #54 merged to preserve each actual exam identifier when using the general PRC homepage source). Owner supplied a readable image of official PRC March 2026 LEPT Elementary page 2/369; 50 passer names and exact sequence numbers (1–50) were extracted and visually checked. This validates the content-first manual handoff route for a representative official page sample; it does not establish complete-release acquisition.
 - [x] Validate the extraction/normalization mapping against a representative **PRC** official result-content sample (page, portal data, embedded dataset, CSV, or PDF) and prove exact passer-name/sequence-number pairs; PDF is optional. Regression test `python-engine/tests/test_prc_page_sample.py` validates all 50 page-2 pairs through the explicit sequence/name column mapping and Greenlight (100/100, zero missing sequences); PR #56 merged after CI run #119 passed. This is a representative-page mapping test, not full PDF/OCR parser or full-release validation. CSC-specific validation is excluded by D-003.
-- [x] Implement reusable bounded public-preview page-shard capture and merge verification (configurable 1–16 parallel shards, visible-UI-only capture, exact page coverage, SHA-256 checks, and immediate stop on access challenges; 8 local regression tests pass; first live run through the reusable workflow remains pending).
+- [x] Integrate the reusable public-preview capture into the PRC acquisition and Greenlight pipeline for the specifically allowlisted CPALE source (ordinary visible-UI capture, per-page PNG/text/hash evidence, reviewed mapping, count/sequence/duplicate validation, and conditional Playwright/Chromium setup; live 80-page capture across four sequential shards matched all 3,988 saved rows and passed local Greenlight/dataset generation; no publication was attempted).
+- [ ] Implement D-007 Tier 3 static PNG + OCR fallback with reviewed per-source mappings, 95% minimum token confidence, screenshot/OCR hash evidence, exact count/sequence and duplicate checks, and Greenlight integration. Keep disabled until the source's access directives and reuse terms are reviewed; do not implement video/frame OCR in production.
 
 **Final acceptance work deferred by Owner decision D-005:** The real publicly released PRC batch must still complete acquisition, extraction, Greenlight, dataset generation, GitOps PR, CI, and merge. It is retained as a Phase 5 final Live Acceptance task rather than run during implementation.
 
@@ -50,11 +51,11 @@ These documents are connected by references, not synchronized copies. Each has a
 - [ ] Configure Facebook and Telegram credentials and verify real provider delivery during final Live Acceptance (no credentials or live provider calls during implementation)
 
 ## Phase 4: Frontend Web Worker Search
-- [ ] Build static HTML/CSS UI (including Peak Week "Preparing Mode" UI)
-- [ ] Implement `storage.js` for IndexedDB dataset caching
-- [ ] Implement `search.js` (Web Worker) to search 50,000+ array records without freezing UI
-- [ ] Configure Cloudflare Pages deployment via `.github/workflows/deploy-pages.yml`
-- [ ] Build an Owner-facing website review experience for official preview evidence and extracted name/sequence records before publication, while keeping the public search route read-only (deferred by D-004).
+- [x] Build static HTML/CSS UI (including Peak Week "Preparing Mode" UI) (candidate; desktop/mobile local browser checks passed; live Pages check remains pending)
+- [x] Implement `storage.js` for IndexedDB dataset caching (candidate; repeat-session cache reuse verified; full offline reload is not supported)
+- [x] Implement `search.js` (Web Worker) to search 50,000+ array records without freezing UI (candidate; five Chromium worker searches completed with zero observed >50 ms frame gaps)
+- [x] Configure Cloudflare Pages deployment via `.github/workflows/deploy-pages.yml` (candidate workflow validates assets/secrets and deploys `public/`; production deployment remains pending)
+- [x] Build an Owner-facing website review experience for official preview evidence and extracted name/sequence records before publication, while keeping the public search route read-only (candidate; exact-hash bundle and publication gate tested locally; human Owner review remains pending)
 
 ## Phase 5: Final Live Acceptance & Security
 - [ ] Run the deferred real, publicly released **PRC** result batch through acquisition, extraction, Greenlight, dataset generation, GitOps PR, CI, and merge (deferred from Phase 2 by D-005; CSC testing excluded by D-003)

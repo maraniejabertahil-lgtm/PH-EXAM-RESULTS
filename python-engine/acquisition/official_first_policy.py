@@ -160,8 +160,9 @@ def write_attempt_log(log: dict[str, Any], output_path: str | Path) -> Path:
 def third_party_fallback_gate(attempt_log_path: str | Path) -> dict[str, Any]:
     """Allow fallback only after a persisted, multi-method official failure record.
 
-    CAPTCHA/human-verification and authentication barriers route to manual review;
-    they never authorize automated fallback or access-control circumvention.
+    Human-verification barriers require manual review. An authentication barrier
+    may authorize only the configured public third-party fallback; it never
+    authorizes access-control circumvention.
     """
     path = Path(attempt_log_path).expanduser()
     if not path.is_file():
@@ -183,8 +184,7 @@ def third_party_fallback_gate(attempt_log_path: str | Path) -> dict[str, Any]:
     if "HEAD" not in methods or "GET" not in methods:
         return {"allowed": False, "reason": "official_attempts_lack_head_and_full_get_methods"}
     if any(
-        isinstance(item, dict)
-        and item.get("failure_class") in {"human_verification_required", "authentication_required"}
+        isinstance(item, dict) and item.get("failure_class") == "human_verification_required"
         for item in attempts
     ):
         return {"allowed": False, "reason": "manual_drop_required_access_barrier"}
@@ -192,9 +192,17 @@ def third_party_fallback_gate(attempt_log_path: str | Path) -> dict[str, Any]:
         return {"allowed": False, "reason": "official_pdf_available_use_official_direct"}
     if any(not isinstance(item, dict) or not item.get("attempted_at") or not item.get("http_status") for item in attempts):
         return {"allowed": False, "reason": "official_attempt_log_incomplete"}
+    authentication_barrier = any(
+        isinstance(item, dict) and item.get("failure_class") == "authentication_required"
+        for item in attempts
+    )
     return {
         "allowed": True,
-        "reason": "official_unavailable_after_logged_head_and_get_attempts",
+        "reason": (
+            "official_authentication_required_public_fallback_allowed"
+            if authentication_barrier
+            else "official_unavailable_after_logged_head_and_get_attempts"
+        ),
         "attempt_count": len(attempts),
         "provenance": "third_party_fallback_pending_validation",
     }

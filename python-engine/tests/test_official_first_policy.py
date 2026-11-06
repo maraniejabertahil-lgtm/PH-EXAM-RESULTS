@@ -84,7 +84,7 @@ class OfficialFirstPolicyTests(unittest.TestCase):
         self.assertFalse(result["allowed"])
         self.assertEqual(result["reason"], "manual_drop_required_access_barrier")
 
-    def test_login_interstitial_requires_manual_review(self) -> None:
+    def test_login_interstitial_allows_only_public_third_party_fallback(self) -> None:
         record_attempt(
             self.log, method="HEAD", status_code=200,
             content_type="text/html", final_url="https://www.prc.gov.ph/files/result.pdf",
@@ -93,6 +93,25 @@ class OfficialFirstPolicyTests(unittest.TestCase):
         record_attempt(
             self.log, method="GET", status_code=200,
             content_type="text/html", final_url="https://www.prc.gov.ph/files/result.pdf",
+        )
+        write_attempt_log(self.log, self.log_path)
+        result = third_party_fallback_gate(self.log_path)
+        self.assertTrue(result["allowed"])
+        self.assertEqual(
+            result["reason"],
+            "official_authentication_required_public_fallback_allowed",
+        )
+
+    def test_authentication_barrier_never_permits_human_verification_bypass(self) -> None:
+        record_attempt(
+            self.log, method="HEAD", status_code=200,
+            content_type="text/html", final_url="https://www.prc.gov.ph/files/result.pdf",
+            body_prefix=b"Sign in - authentication required",
+        )
+        record_attempt(
+            self.log, method="GET", status_code=403,
+            content_type="text/html", final_url="https://www.prc.gov.ph/files/result.pdf",
+            body_prefix=b"CAPTCHA: verify you are human",
         )
         write_attempt_log(self.log, self.log_path)
         result = third_party_fallback_gate(self.log_path)

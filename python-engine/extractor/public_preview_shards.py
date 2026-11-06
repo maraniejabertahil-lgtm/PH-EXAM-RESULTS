@@ -99,7 +99,7 @@ def capture_shard(
     page_control_selector: str = 'input[aria-label^="Page is"]',
     page_count_regex: str = r"Page 1 of\s+(\d+)",
     page_marker_template: str = "Page {page} of {count}",
-    per_page_deadline: int = 35, poll_ms: int = 50,
+    per_page_deadline: int = 35, poll_ms: int = 50, max_pages: int = MAX_PAGES,
 ) -> dict:
     """Capture one contiguous shard using the viewer's visible page controls."""
     _validate_url(preview_url, allowed_hosts)
@@ -146,8 +146,10 @@ def capture_shard(
             if not count_match:
                 raise RuntimeError("could not read the public viewer page count")
             page_count = int(count_match.group(1))
-            if not 1 <= page_count <= MAX_PAGES:
-                raise RuntimeError(f"viewer page count is outside the safe bound 1-{MAX_PAGES}")
+            if isinstance(max_pages, bool) or not isinstance(max_pages, int) or not 1 <= max_pages <= MAX_PAGES:
+                raise ValueError(f"max_pages must be between 1 and {MAX_PAGES}")
+            if not 1 <= page_count <= max_pages:
+                raise RuntimeError(f"viewer page count is outside the configured safe bound 1-{max_pages}")
             if _challenge_present(initial + page.content()[:100000]):
                 raise AccessChallengeError("public preview requires permission or human verification")
 
@@ -203,8 +205,10 @@ def capture_shard(
                     "sha256": hashlib.sha256(visible.encode("utf-8")).hexdigest(),
                     "characters": len(visible),
                 })
-                if page_number == 1:
-                    page.screenshot(path=str(output_dir / f"shard-{shard}-page-1.png"), full_page=True)
+                screenshot_path = output_dir / f"shard-{shard}-page-{page_number:04d}.png"
+                page.screenshot(path=str(screenshot_path), animations="disabled")
+                snapshots[-1]["screenshot"] = screenshot_path.name
+                snapshots[-1]["screenshot_sha256"] = hashlib.sha256(screenshot_path.read_bytes()).hexdigest()
                 completed = page_number - start + 1
                 if completed % 25 == 0 or page_number == end:
                     print(f"[shard {shard}] page {page_number}/{end}; {time.monotonic() - loop_started:.1f}s", flush=True)
@@ -263,6 +267,17 @@ def merge_shards(*, shard_count: int, output_dir: Path) -> dict:
                 raise RuntimeError(f"shard {shard} contains a blank page snapshot")
             if snapshot.get("sha256") != hashlib.sha256(text_value.encode("utf-8")).hexdigest():
                 raise RuntimeError(f"shard {shard} page {snapshot.get('viewer_page')} hash mismatch")
+            screenshot_name = snapshot.get("screenshot")
+            screenshot_hash = snapshot.get("screenshot_sha256")
+            if not isinstance(screenshot_name, str) or Path(screenshot_name).name != screenshot_name:
+                raise RuntimeError(f"shard {shard} page {snapshot.get('viewer_page')} screenshot path is invalid")
+            screenshot_path = output_dir / screenshot_name
+            if (
+                not screenshot_path.is_file()
+                or not isinstance(screenshot_hash, str)
+                or hashlib.sha256(screenshot_path.read_bytes()).hexdigest() != screenshot_hash
+            ):
+                raise RuntimeError(f"shard {shard} page {snapshot.get('viewer_page')} screenshot hash mismatch")
         all_snapshots.extend(shard_snapshots)
 
     if [item["viewer_page"] for item in all_snapshots] != list(range(1, page_count + 1)):
@@ -291,6 +306,14 @@ def merge_shards(*, shard_count: int, output_dir: Path) -> dict:
                 "path": snapshots_path.name,
                 "sha256": hashlib.sha256(snapshots_path.read_bytes()).hexdigest(),
             },
+            "screenshots": [
+                {
+                    "viewer_page": item["viewer_page"],
+                    "path": item["screenshot"],
+                    "sha256": item["screenshot_sha256"],
+                }
+                for item in all_snapshots
+            ],
         },
         "shard_metadata": metadata,
     }
@@ -313,6 +336,7 @@ def main() -> int:
     parser.add_argument("--page-marker-template", default="Page {page} of {count}")
     parser.add_argument("--per-page-deadline", type=int, default=35)
     parser.add_argument("--poll-ms", type=int, default=50)
+    parser.add_argument("--max-pages", type=int, default=MAX_PAGES)
     args = parser.parse_args()
     if args.merge:
         print(json.dumps(merge_shards(shard_count=args.shards, output_dir=args.output_dir), indent=2))
@@ -329,6 +353,7 @@ def main() -> int:
         page_count_regex=args.page_count_regex,
         page_marker_template=args.page_marker_template,
         per_page_deadline=args.per_page_deadline, poll_ms=args.poll_ms,
+        max_pages=args.max_pages,
     )
     print(json.dumps(result, ensure_ascii=False, indent=2))
     return 0

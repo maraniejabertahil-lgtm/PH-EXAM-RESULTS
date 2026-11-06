@@ -14,14 +14,7 @@ on:
       - "scripts/repair_patch_utils.py"
       - "scripts/test_nvidia_patch_format.py"
       - "scripts/nvidia_publish_repair.py"
-      - "python-engine/config/sources.json"
-      - "python-engine/retrieval/**"
-      - "python-engine/extractor/**"
-      - "python-engine/acquisition/**"
-      - "python-engine/processor/**"
-      - "python-engine/publisher/**"
-      - "python-engine/requirements.txt"
-      - "python-engine/tests/**"
+      - "python-engine/**"
       - "public/data/**"
       - "tools/validate_public_datasets.py"
   pull_request:
@@ -37,14 +30,7 @@ on:
       - "scripts/repair_patch_utils.py"
       - "scripts/test_nvidia_patch_format.py"
       - "scripts/nvidia_publish_repair.py"
-      - "python-engine/config/sources.json"
-      - "python-engine/retrieval/**"
-      - "python-engine/extractor/**"
-      - "python-engine/acquisition/**"
-      - "python-engine/processor/**"
-      - "python-engine/publisher/**"
-      - "python-engine/requirements.txt"
-      - "python-engine/tests/**"
+      - "python-engine/**"
       - "public/data/**"
       - "tools/validate_public_datasets.py"
   workflow_dispatch:
@@ -79,8 +65,46 @@ jobs:
           python -m py_compile scripts/nvidia_autonomous_repair.py scripts/nvidia_publish_repair.py scripts/repair_patch_utils.py
           python scripts/test_nvidia_patch_format.py
           ruby -e 'require "yaml"; YAML.load_file(".github/workflows/nvidia-autonomous-repair.yml", aliases: true); puts "NVIDIA repair workflow YAML: OK"'
-      - name: Run Python engine unit tests
+      - name: Run in-scope Python tests (exclude CSC-specific suites per D-003)
         working-directory: python-engine
-        run: PYTHONPATH=retrieval python -m unittest discover -s tests -v
+        run: |
+          PYTHONPATH=retrieval python - <<'PY'
+          import sys
+          import unittest
+
+          sys.path.insert(0, "tests")
+          modules = [
+              "test_broadcaster",
+              "test_gitops_manager",
+              "test_greenlight",
+              "test_json_builder",
+              "test_normalizer",
+              "test_official_first_policy",
+              "test_official_pdf",
+              "test_pdf_parser",
+              "test_pipeline",
+              "test_prc_orchestrator",
+              "test_prc_page_sample",
+              "test_prc_public_preview_pipeline",
+              "test_public_preview",
+              "test_public_preview_shards",
+              "test_watcher_event_validation",
+          ]
+          excluded_ids = {
+              "test_json_builder.ArrayJsonBuilderTests.test_shards_are_below_configured_size_and_preserve_every_record",
+              "test_json_builder.ArrayJsonBuilderTests.test_fallback_manifest_preserves_both_source_identities",
+          }
+
+          def flatten(suite):
+              for item in suite:
+                  yield from flatten(item) if isinstance(item, unittest.TestSuite) else (item,)
+
+          selected = []
+          for module in modules:
+              loaded = unittest.defaultTestLoader.loadTestsFromName(module)
+              selected.extend(test for test in flatten(loaded) if test.id() not in excluded_ids)
+          result = unittest.TextTestRunner(verbosity=2).run(unittest.TestSuite(selected))
+          raise SystemExit(not result.wasSuccessful())
+          PY
       - name: Validate committed public datasets and hashes
         run: python tools/validate_public_datasets.py

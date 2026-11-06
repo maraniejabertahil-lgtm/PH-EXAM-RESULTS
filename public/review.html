@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex,nofollow">
+  <meta name="description" content="Review official public-preview evidence and examination records locally.">
+  <title>Owner Review · Exam Results</title>
+  <link rel="stylesheet" href="/assets/css/site.css">
+  <script type="module" src="/assets/js/review.mjs"></script>
+</head>
+<body>
+  <header class="site-header">
+    <a class="brand" href="/" aria-label="PH Exam Results home">
+      <span class="brand-mark" aria-hidden="true">PH</span>
+      <span>Owner Review</span>
+    </a>
+    <span class="header-note">Local-only · No upload or sign-in</span>
+  </header>
+  <main>
+    <section class="search-panel" aria-labelledby="page-title">
+      <p class="eyebrow">LOCAL REVIEW WORKFLOW</p>
+      <h1 id="page-title">Review source evidence and records</h1>
+      <p class="intro">Choose a review bundle created from the validated capture. The bundle stays in this browser; this page does not upload it or send searches to a server.</p>
+      <p class="review-warning"><strong>Important:</strong> This tool does not authenticate reviewers. A downloaded receipt is not an approval by itself. Commit the receipt through the authorized GitHub review process; publication remains blocked unless the receipt matches the exact candidate.</p>
+      <label class="name-field" for="bundle-file">Review bundle JSON
+        <input id="bundle-file" type="file" accept="application/json,.json">
+      </label>
+      <p id="review-status" class="status-message" role="status" aria-live="polite">Select a validated review bundle.</p>
+    </section>
+
+    <section id="review-workspace" class="review-workspace" hidden>
+      <section class="search-panel" aria-labelledby="candidate-title">
+        <p class="eyebrow">CANDIDATE</p>
+        <h2 id="candidate-title"></h2>
+        <p id="candidate-summary"></p>
+        <nav id="source-links" class="source-links" aria-label="Official source links"></nav>
+        <label class="name-field" for="record-query">Find a record
+          <input id="record-query" type="search" placeholder="Name or exact sequence number">
+        </label>
+        <p id="record-count" class="result-note"></p>
+        <ol id="review-records" class="results-list"></ol>
+      </section>
+
+      <section class="search-panel" aria-labelledby="evidence-title">
+        <p class="eyebrow">CAPTURED SOURCE EVIDENCE</p>
+        <h2 id="evidence-title">Visual evidence</h2>
+        <p id="evidence-count" class="result-note"></p>
+        <ol id="review-evidence" class="evidence-list"></ol>
+      </section>
+
+      <section class="search-panel" aria-labelledby="decision-title">
+        <p class="eyebrow">REVIEW OUTCOME</p>
+        <h2 id="decision-title">Record your decision</h2>
+        <form id="review-form" class="search-form">
+          <label for="reviewer-name">Reviewer name
+            <input id="reviewer-name" required maxlength="120" autocomplete="name">
+          </label>
+          <fieldset class="review-confirmations">
+            <legend>Required confirmations</legend>
+            <label>
+              <input id="evidence-reviewed" type="checkbox" required>
+              I reviewed the official source and captured page evidence.
+            </label>
+            <label>
+              <input id="records-reviewed" type="checkbox" required>
+              I reviewed the candidate names and sequence numbers.
+            </label>
+          </fieldset>
+          <label for="review-decision">Decision
+            <select id="review-decision" required>
+              <option value="">Choose outcome</option>
+              <option value="approved">Approve this exact candidate</option>
+              <option value="rejected">Reject this candidate</option>
+            </select>
+          </label>
+          <label for="review-notes">Review notes
+            <textarea id="review-notes" rows="4" maxlength="4000"></textarea>
+          </label>
+          <button class="button" type="submit">Download review receipt</button>
+        </form>
+      </section>
+    </section>
+  </main>
+  <footer class="site-footer">
+    <p>No evidence or review outcome is sent to this website. The receipt must be committed and approved through GitHub.</p>
+    <a href="/">Public results search</a>
+  </footer>
+</body>
+</html>

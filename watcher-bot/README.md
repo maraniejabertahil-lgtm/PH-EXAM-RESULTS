@@ -57,7 +57,7 @@ Do not put the GitHub token in `wrangler.toml`, source code, or GitHub files. Th
 
 ## Source registry additions
 
-The existing registry remains empty until the owner approves exact source URLs. An approved source may optionally include:
+The source registry is maintained in `python-engine/config/sources.json`. Enable a source only after its exact official URL and acquisition policy have been owner-approved. An approved source may optionally include:
 
 ```json
 {
@@ -67,7 +67,7 @@ The existing registry remains empty until the owner approves exact source URLs. 
 }
 ```
 
-Only templates on the same HTTPS origin as that source's `url` are accepted. The example above is illustrative, not an approved PRC/CSC URL. Do not add guessed or unapproved sources.
+Only templates on the same HTTPS origin as that source's `url` are accepted. The example above is illustrative, not an approved source URL. Do not add guessed or unapproved sources.
 
 ## Local tests
 
@@ -88,3 +88,11 @@ A source may opt in to `allow_linked_drive_documents: true` only after its exact
 ### Bounded official result-article discovery
 
 For an owner-approved official listing page, `discover_official_result_articles: true` enables a bounded same-origin crawl across up to three documented listing pages. The PRC registry currently reads up to ten result-related article links per page and processes no more than three newly posted articles per scheduled scan. Only `/article/` and numeric `/node/{id}` paths are followed; external hosts, query strings, and fragments are rejected. With `track_new_articles_only: true`, the first successful scan snapshots existing article URLs without opening their PDFs; later scans process only newly discovered articles. If more than three new articles arrive together, the Watcher processes them in batches and retries the remaining articles on subsequent runs. Article-page Drive links still require `allow_linked_drive_documents: true`, exact Google Drive host/path validation, a verified PDF byte signature, and receiver-side validation of both the registered listing URL and the same-origin article URL. Use `drive_link_text_patterns` to select the intended document label (for example, `list of successful examinees`) when an article contains multiple attachments. Verify the official site's `robots.txt` before enabling this feature.
+
+### PRC release processing
+
+The `prc-release-detected` receiver in `.github/workflows/process-import.yml` attempts bounded HTTPS acquisition of the single official result document. Redirects are limited to approved PRC/Google hosts, response size is capped, and a PDF URL returning HTML (including a sign-in or consent page) is rejected. Automatic normalization requires an exam/level/format entry in `python-engine/config/adapter_mappings.json`; ambiguous links, missing counts, disabled exam-specific sources, unsupported layouts, or any Greenlight failure stop the run without creating a publication batch.
+
+Only a batch that passes ingestion checks is sent to the existing Python Greenlight/GitOps pipeline. The publisher remains fail-closed and can publish only through its validated dataset PR/CI path. A configured exam-specific source overrides the general PRC listing source, so a disabled exam cannot be acquired through the general listing. The current CPALE Drive list remains disabled because its ordinary public route presented a sign-in page; no authentication, CAPTCHA, or access-control workaround is attempted. With no reviewed CPALE PDF mapping, the system cannot yet publish that exam automatically.
+
+This improves the processing path but does not change the one-minute Worker schedule or prove a production run. "Second after PRC" timing is not guaranteed by the current polling interval or by a release whose official linked content is not publicly accessible.

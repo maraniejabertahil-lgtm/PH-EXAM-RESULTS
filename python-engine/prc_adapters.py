@@ -7,7 +7,9 @@ def adapter(fmt):
     def deco(fn): REGISTRY[fmt] = fn; return fn
     return deco
 def _pair(seq, name):
-    seq, name = str(seq).strip().replace(",", ""), str(name)
+    if not isinstance(name, str):
+        raise NeedsReview(f"name must be text, got {type(name).__name__}")
+    seq, name = str(seq).strip().replace(",", ""), name
     if not seq.isdigit() or not name.strip(): raise NeedsReview(f"unparseable row: seq={seq!r} name={name!r}")
     return int(seq), name
 @adapter("csv")
@@ -48,14 +50,19 @@ def html_adapter(raw,mapping):
 def pdf_adapter(raw,mapping):
     try: import pdfplumber
     except ImportError: raise NeedsReview("pdfplumber not installed")
+    from pdfminer.pdfexceptions import PDFException
+    from pdfplumber.utils.exceptions import MalformedPDFException, PdfminerException
     si,ni=mapping.get("seq_idx"),mapping.get("name_idx")
     if si is None or ni is None: raise NeedsReview("no reviewed column mapping for pdf layout")
     out=[]
-    with pdfplumber.open(io.BytesIO(raw)) as pdf:
-        for page in pdf.pages:
-            for table in page.extract_tables():
-                for r in table:
-                    if r and len(r)>max(si,ni) and (r[si] or "").replace(",","").strip().isdigit(): out.append(_pair(r[si],r[ni] or ""))
+    try:
+        with pdfplumber.open(io.BytesIO(raw)) as pdf:
+            for page in pdf.pages:
+                for table in page.extract_tables():
+                    for r in table:
+                        if r and len(r)>max(si,ni) and (r[si] or "").replace(",","").strip().isdigit(): out.append(_pair(r[si],r[ni] or ""))
+    except (MalformedPDFException, PdfminerException, PDFException, OSError, ValueError) as e:
+        raise NeedsReview(f"PDF extraction failed: {e}") from e
     if not out: raise NeedsReview("no table rows found in pdf")
     return out
 def greenlight(records,announced):

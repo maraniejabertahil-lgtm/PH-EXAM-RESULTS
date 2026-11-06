@@ -1,6 +1,14 @@
 name: Deploy Cloudflare Pages
 
 on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "public/**"
+      - "tools/validate_public_datasets.py"
+      - "tools/check_public_secrets.py"
+      - ".github/workflows/deploy-pages.yml"
   push:
     branches:
       - main
@@ -17,10 +25,50 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  validate:
+    name: Validate static site and public datasets
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Validate required static routes
+        run: |
+          test -f public/index.html
+          test -f public/preparing.html
+          test -f public/review.html
+          test -f public/404.html
+          test -f public/_headers
+          test -f public/status.json
+          test -f public/data/catalog.json
+          test -f public/assets/js/app.mjs
+          test -f public/assets/js/storage.mjs
+          test -f public/assets/js/search-worker.mjs
+          test -f public/assets/js/review.mjs
+      - name: Validate JavaScript module syntax
+        run: |
+          node --check public/assets/js/storage.mjs
+          node --check public/assets/js/search-worker.mjs
+          node --check public/assets/js/app.mjs
+          node --check public/assets/js/review-logic.mjs
+          node --check public/assets/js/review.mjs
+      - name: Run browser-side module tests
+        run: node --test public/tests/*.test.mjs
+      - name: Validate committed public datasets
+        run: python tools/validate_public_datasets.py
+      - name: Scan published assets for common credential formats
+        run: python tools/check_public_secrets.py
+
   deploy:
     name: Deploy public/ to Cloudflare Pages
+    needs: validate
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main')
     steps:
       - name: Check out the exact main-branch commit
         uses: actions/checkout@v5
@@ -36,7 +84,7 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CF_PAGES_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
-          PROJECT_NAME: ph-exam-results
+          PROJECT_NAME: ${{ secrets.CF_PAGES_PROJECT_NAME }}
         run: |
           set -euo pipefail
           test -n "$CLOUDFLARE_API_TOKEN" || { echo "::error::Missing GitHub secret CF_PAGES_API_TOKEN (Cloudflare Pages:Edit token)."; exit 1; }
@@ -49,7 +97,7 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CF_PAGES_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
-          PROJECT_NAME: ph-exam-results
+          PROJECT_NAME: ${{ secrets.CF_PAGES_PROJECT_NAME }}
         run: |
           set -euo pipefail
           npx --yes wrangler@4.156.2 pages deploy public \

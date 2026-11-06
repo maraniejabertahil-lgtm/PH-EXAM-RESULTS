@@ -168,3 +168,79 @@ def verify_official_content_link(
     temporary.write_text(json.dumps(evidence, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     temporary.replace(destination)
     return evidence
+
+
+def verify_official_preview_link(
+    *,
+    source: dict[str, Any],
+    article_url: str,
+    content_url: str,
+    evidence_path: str | Path,
+    timeout: int = 20,
+) -> dict[str, Any]:
+    """Verify an official PRC article link before using its ordinary public preview UI."""
+    if (
+        not isinstance(source, dict)
+        or source.get("source_type") != "official"
+        or source.get("authorized") is not True
+        or source.get("enabled") is not True
+        or source.get("allow_linked_drive_documents") is not True
+    ):
+        raise OfficialContentError("Source is not enabled and authorized for linked public previews.")
+
+    _https_url(article_url, "Official article URL")
+    _https_url(content_url, "Official content URL")
+    if _origin(article_url) != _origin(source.get("url", "")):
+        raise OfficialContentError("Official article is outside the approved source origin.")
+    if _origin(content_url)[1] != "drive.google.com":
+        raise OfficialContentError("Public preview is restricted to verified Google Drive links.")
+    robots_url = source.get("robots_policy_url")
+    if source.get("robots_policy_verified") is not True or not isinstance(robots_url, str):
+        raise OfficialContentError("A verified official robots.txt policy is required.")
+    if _origin(robots_url) != _origin(source["url"]):
+        raise OfficialContentError("robots_policy_url must use the approved official origin.")
+    if not _robots_allowed(robots_url, article_url, timeout):
+        raise OfficialContentError("robots.txt disallows the official article.")
+
+    status, headers, final_url, body = _request(article_url, timeout, MAX_ARTICLE_BYTES)
+    if status != 200:
+        raise OfficialContentError(f"Official article returned HTTP {status}.")
+    if len(body) > MAX_ARTICLE_BYTES:
+        raise OfficialContentError("Official article exceeded the configured size limit.")
+    content_type = (headers.get("Content-Type") or "").split(";", 1)[0].strip().lower()
+    if content_type not in {"text/html", "application/xhtml+xml"}:
+        raise OfficialContentError("Official article response was not HTML.")
+    if _origin(final_url) != _origin(source["url"]):
+        raise OfficialContentError("Official article redirected outside the approved source origin.")
+
+    parser = _AnchorParser()
+    parser.feed(body.decode("utf-8", errors="replace"))
+    if not any(
+        _canonical_link(linked) == _canonical_link(content_url)
+        for linked in (urljoin(final_url, href) for href in parser.hrefs)
+        if urlsplit(linked).scheme.lower() == "https"
+    ):
+        raise OfficialContentError("The supplied Drive file is not linked from the official article.")
+
+    evidence = {
+        "schema_version": 1,
+        "source_id": source["id"],
+        "authority": source["authority"],
+        "provenance": "official_direct",
+        "acquisition_method": "ordinary_public_preview_ui",
+        "official_source_url": source["url"],
+        "official_article_url": article_url,
+        "official_content_url": content_url,
+        "official_article_link_verified": True,
+        "public_preview_content_downloaded": False,
+        "pdf_downloaded": False,
+        "access_controls_bypassed": False,
+        "verified_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+        "retrieval_user_agent": USER_AGENT,
+    }
+    destination = Path(evidence_path).expanduser()
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    temporary = destination.with_name(destination.name + ".tmp")
+    temporary.write_text(json.dumps(evidence, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    temporary.replace(destination)
+    return evidence

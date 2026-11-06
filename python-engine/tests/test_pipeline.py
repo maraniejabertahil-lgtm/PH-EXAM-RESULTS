@@ -62,6 +62,28 @@ class ProcessingPipelineTests(unittest.TestCase):
         self.assertEqual(result["report"]["greenlight_score"], 100)
         self.assertTrue((result["dataset_dir"] / "manifest.json").is_file())
 
+    def test_publication_pr_includes_catalog_entry_and_preserves_existing_datasets(self):
+        data_root = self.root / "public" / "data" / "PRC" / "LET" / "2025"
+        data_root.mkdir(parents=True)
+        (data_root / "manifest.json").write_text(json.dumps({
+            "schema_version": 1, "authority": "PRC", "exam": "LET", "year": 2025,
+        }), encoding="utf-8")
+        self.batch.write_text(json.dumps(self.base), encoding="utf-8")
+        with patch("main.extract_pdf", return_value={"source_file_sha256": "a" * 64}), patch(
+            "main.GitHubGitOps"
+        ) as gitops:
+            gitops.return_value.open_dataset_pr.return_value = {"pull_request_number": 12}
+            gitops.return_value.dispatch_ci_and_merge.return_value = {"merged": True}
+            result = publish_batch("batch.json", root=self.root)
+
+        artifacts = gitops.return_value.open_dataset_pr.call_args.kwargs["artifacts"]
+        catalog = json.loads(artifacts["public/data/catalog.json"].decode("utf-8"))
+        self.assertEqual(result["publication"]["merged"], True)
+        self.assertEqual(
+            [(item["exam"], item["year"]) for item in catalog["datasets"]],
+            [("LET", 2025), ("LET", 2026)],
+        )
+
     def test_pipeline_acquires_official_pdf_when_no_local_pdf_is_supplied(self):
         batch = dict(self.base)
         batch.pop("source_pdf")

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 import sys
 from pathlib import Path
 
@@ -45,6 +46,23 @@ def validate_manifest(manifest_path: Path) -> dict:
         raise DatasetValidationError(f"{manifest_path}: dataset is not Greenlight-approved")
     if manifest["record_count"] != manifest["announced_count"]:
         raise DatasetValidationError(f"{manifest_path}: announced count mismatch")
+    if manifest.get("official_content_mode") == "public_preview_capture":
+        review = manifest.get("owner_review")
+        if (
+            not isinstance(review, dict)
+            or review.get("decision") != "approved"
+            or review.get("source_evidence_reviewed") is not True
+            or review.get("records_reviewed") is not True
+            or not isinstance(review.get("reviewer"), str)
+            or not review["reviewer"].strip()
+            or not isinstance(review.get("reviewed_at"), str)
+            or not re.fullmatch(r"[a-f0-9]{64}", str(review.get("candidate_sha256", "")))
+            or not re.fullmatch(r"[a-f0-9]{64}", str(review.get("capture_manifest_sha256", "")))
+            or not re.fullmatch(r"[a-f0-9]{64}", str(review.get("receipt_sha256", "")))
+        ):
+            raise DatasetValidationError(
+                f"{manifest_path}: public-preview dataset lacks a valid owner-review attestation"
+            )
     if not isinstance(manifest["shards"], list) or len(manifest["shards"]) != manifest["shard_count"]:
         raise DatasetValidationError(f"{manifest_path}: shard_count mismatch")
 
