@@ -8,6 +8,7 @@ def main():
     run_id = os.getenv("GITHUB_RUN_ID", "local")
     job = os.getenv("GITHUB_JOB", "unknown")
     status = os.getenv("JOB_STATUS", "warning").lower()
+    status = {"failure": "failed", "cancelled": "blocked", "timed_out": "failed"}.get(status, status)
     if status not in {"success", "failed", "blocked", "warning"}:
         status = "warning"
     record_activity({
