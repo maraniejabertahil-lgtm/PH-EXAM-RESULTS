@@ -12,6 +12,7 @@ import json
 import os
 import re
 import sys
+import time
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -34,6 +35,7 @@ from publication_policy import PublicationPolicyError, requires_owner_visual_rev
 from processor.normalizer import NormalizationError, normalize_extracted_tables
 from publisher.gitops_manager import GitHubGitOps, GitOpsError
 from publisher.json_builder import build_dataset
+from database.d1_client import record_activity
 
 
 class PipelineError(RuntimeError):
@@ -154,7 +156,7 @@ def _approved_public_preview_source(
     return source
 
 
-def process_batch(batch_path: str | Path, *, root: str | Path | None = None) -> dict[str, Any]:
+def _process_batch(batch_path: str | Path, *, root: str | Path | None = None) -> dict[str, Any]:
     """Validate a reviewed batch and build local, non-published dataset artifacts."""
     repository_root = Path(root or Path.cwd()).resolve()
     input_path = _repo_path(str(batch_path), repository_root)
@@ -363,6 +365,57 @@ def process_batch(batch_path: str | Path, *, root: str | Path | None = None) -> 
         "exam": batch["exam"],
         "year": batch["year"],
     }
+
+
+def process_batch(batch_path: str | Path, *, root: str | Path | None = None) -> dict[str, Any]:
+    """Run the batch pipeline and record its outcome without making D1 a dependency."""
+    run_identity = os.getenv("GITHUB_RUN_ID") or str(time.time_ns())
+    batch_key = hashlib.sha256(str(batch_path).encode("utf-8")).hexdigest()[:12]
+    execution_id = f"python:{run_identity}:{batch_key}"
+    started = time.perf_counter()
+    record_activity({
+        "event_id": execution_id + ":started",
+        "execution_id": execution_id,
+        "component": "Python Engine",
+        "operation": "process_result_batch",
+        "status": "running",
+        "message": "Python result-processing pipeline started.",
+        "source": "python_engine",
+    })
+    try:
+        result = _process_batch(batch_path, root=root)
+    except Exception as exc:
+        record_activity({
+            "event_id": execution_id + ":failed",
+            "execution_id": execution_id,
+            "component": "Python Engine",
+            "operation": "process_result_batch",
+            "status": "failed",
+            "severity": "error",
+            "duration_ms": max(0, int((time.perf_counter() - started) * 1000)),
+            "message": "Python result-processing pipeline failed.",
+            "error_code": type(exc).__name__[:80],
+            "error_message": str(exc)[:1000],
+            "source": "python_engine",
+        })
+        raise
+    record_activity({
+        "event_id": execution_id + ":finished",
+        "execution_id": execution_id,
+        "component": "Python Engine",
+        "operation": "process_result_batch",
+        "status": "success",
+        "duration_ms": max(0, int((time.perf_counter() - started) * 1000)),
+        "message": "Python result-processing pipeline completed.",
+        "source": "python_engine",
+        "metadata": {
+            "authority": result.get("authority", ""),
+            "exam": result.get("exam", ""),
+            "records": result.get("report", {}).get("record_count", 0),
+            "greenlight_score": result.get("report", {}).get("greenlight_score", 0),
+        },
+    })
+    return result
 
 
 def _build_public_catalog(
