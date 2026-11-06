@@ -978,6 +978,32 @@ export async function runScheduled({
       await sleepImpl(30_000);
       second = await runScan(sources, budgetEnv, budget.fetch, new Date(scheduledTime + 30_000), true);
     }
+    const scans = [{ phase: "first", scan: first }];
+    if (second) scans.push({ phase: "second", scan: second });
+    for (const item of scans) {
+      for (let index = 0; index < item.scan.results.length; index += 1) {
+        const result = item.scan.results[index];
+        const resultStatus = String(result.status || "unknown");
+        const outcome = /error|failed|budget_reached/.test(resultStatus)
+          ? "failed"
+          : (/skipped|manual_review_required/.test(resultStatus) ? "blocked"
+            : (resultStatus === "not_pdf" ? "warning" : "success"));
+        const sourceId = String(result.source_id || "unknown");
+        await recordActivity(env, {
+          event_id: executionId + ":source:" + item.phase + ":" + index + ":" + sourceId,
+          execution_id: executionId,
+          occurred_at: new Date().toISOString(),
+          operation: "source_check:" + sourceId,
+          status: outcome,
+          severity: outcome === "failed" ? "error" : (outcome === "blocked" || outcome === "warning" ? "warning" : "info"),
+          message: "Source check result: " + resultStatus + ".",
+          error_code: outcome === "failed" ? resultStatus.toUpperCase().slice(0, 80) : null,
+          error_message: result.error ? String(result.error).slice(0, 1000) : null,
+          source: "cloudflare_worker",
+          metadata: { source_id: sourceId, mode: peakWeek ? "peak_week" : "standard" }
+        });
+      }
+    }
     const report = {
       checked_at: isoNow(new Date(scheduledTime)),
       mode: peakWeek ? "peak_week" : "standard",
