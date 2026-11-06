@@ -47,7 +47,7 @@ test("source registry has unique, valid official sources and explicit disable re
   }
 });
 
-test("CSC source remains paused until its official security verification barrier is resolved", () => {
+test.skip("CSC source remains paused until its official security verification barrier is resolved", () => {
   const source = registry.sources.find((item) => item.id === "CSC-CSE-PPT-2026-08-09-REGION-V");
   assert.ok(source);
   assert.equal(source.enabled, false);
@@ -59,7 +59,7 @@ test("CSC source remains paused until its official security verification barrier
   ]);
 });
 
-test("PRC source monitors the official exam-results listing without importing historical baseline attachments", () => {
+test("PRC source enables new-article acquisition without importing historical baseline attachments", () => {
   const source = registry.sources.find((item) => item.id === "PRC-EXAM-RESULTS-HOMEPAGE");
   assert.ok(source);
   assert.equal(source.url, "https://www.prc.gov.ph/articles/exam-results");
@@ -68,7 +68,7 @@ test("PRC source monitors the official exam-results listing without importing hi
   assert.equal(source.authorized, true);
   assert.equal(source.enabled, true);
   assert.equal(source.file_format, "pdf");
-  assert.equal(source.auto_acquire, false);
+  assert.equal(source.auto_acquire, true);
   assert.equal(source.scan_page_on_baseline, false);
   assert.equal(source.track_new_articles_only, true);
   assert.equal(source.result_listing_page_count, 3);

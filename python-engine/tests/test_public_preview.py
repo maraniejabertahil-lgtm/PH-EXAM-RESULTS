@@ -6,7 +6,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from acquisition.public_preview import PublicPreviewCaptureError, load_public_preview_capture
-from main import process_batch
+from main import PipelineError, process_batch, publish_batch
 
 
 def digest(path):
@@ -45,6 +45,7 @@ class PublicPreviewCaptureTests(unittest.TestCase):
             "unresolved_target_record_count": 0,
             "visual_verification_evidence": {
                 "1": {"name": "DOE, JANE A", "screenshot_sha256": self.screenshot_hash},
+                "2": {"name": "SMITH, JOHN B", "screenshot_sha256": self.screenshot_hash},
             },
         }
         self.visual = {
@@ -53,6 +54,10 @@ class PublicPreviewCaptureTests(unittest.TestCase):
             "ocr_is_advisory_only": True, "human_visual_verification": "PENDING",
             "results": [{
                 "sequence": 1, "expected_visible_text": "1 DOE, JANE A",
+                "viewer_text_confirmed": True, "screenshot": "capture/page.png",
+                "screenshot_sha256": self.screenshot_hash,
+            }, {
+                "sequence": 2, "expected_visible_text": "2 SMITH, JOHN B",
                 "viewer_text_confirmed": True, "screenshot": "capture/page.png",
                 "screenshot_sha256": self.screenshot_hash,
             }],
@@ -112,6 +117,123 @@ class PublicPreviewCaptureTests(unittest.TestCase):
         self.assertEqual(result["manifest"]["record_count"], 2)
         self.assertTrue((result["dataset_dir"] / "manifest.json").is_file())
         self.assertEqual(result["report"]["public_preview_capture"]["visual_review_status"], "PENDING")
+
+    def test_review_bundle_contains_candidate_records_and_hash_verified_screenshots(self):
+        from create_review_bundle import create_review_bundle
+
+        batch_path = self.root / "batch.json"
+        batch_path.write_text(json.dumps(self.batch), encoding="utf-8")
+        bundle = create_review_bundle("batch.json", "capture/review-bundle.json", root=self.root)
+        self.assertEqual(bundle["record_count"], 2)
+        self.assertEqual(
+            [sequence for item in bundle["evidence"] for sequence in item.get("sequence_numbers", [item.get("sequence_number")])],
+            ["1", "2"],
+        )
+        self.assertTrue((self.root / "capture/review-bundle.json").is_file())
+
+    def test_public_preview_publication_is_blocked_without_owner_receipt(self):
+        batch_path = self.root / "batch.json"
+        batch_path.write_text(json.dumps(self.batch), encoding="utf-8")
+        with patch("main.verify_official_content_link"), patch("main.GitHubGitOps") as gitops:
+            with self.assertRaisesRegex(PipelineError, "Owner visual-review receipt is required"):
+                publish_batch("batch.json", root=self.root)
+        gitops.assert_not_called()
+
+    def test_matching_approved_owner_receipt_allows_public_preview_publication(self):
+        canonical_records = [
+            {"name": "DOE, JANE A", "sequence_number": "1"},
+            {"name": "SMITH, JOHN B", "sequence_number": "2"},
+        ]
+        candidate_sha256 = hashlib.sha256(
+            json.dumps(canonical_records, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+        ).hexdigest()
+        receipt = {
+            "schema_version": 1,
+            "authority": "PRC",
+            "exam": "LET-ELEMENTARY",
+            "year": 2026,
+            "announced_count": 2,
+            "record_count": 2,
+            "candidate_sha256": candidate_sha256,
+            "capture_manifest_sha256": digest(self.root / "capture/manifest.json"),
+            "reviewer": "Owner",
+            "source_evidence_reviewed": True,
+            "records_reviewed": True,
+            "decision": "approved",
+            "notes": "",
+            "reviewed_at": "2026-11-06T12:00:00Z",
+        }
+        (self.root / "capture/review.json").write_text(json.dumps(receipt), encoding="utf-8")
+        batch = dict(self.batch, owner_review_receipt="capture/review.json")
+        batch_path = self.root / "batch.json"
+        batch_path.write_text(json.dumps(batch), encoding="utf-8")
+        with patch("main.verify_official_content_link"), patch("main.GitHubGitOps") as gitops:
+            gitops.return_value.open_dataset_pr.return_value = {"pull_request_number": 12}
+            gitops.return_value.dispatch_ci_and_merge.return_value = {"merged": True}
+            result = publish_batch("batch.json", root=self.root)
+        self.assertTrue(result["publication"]["merged"])
+        gitops.return_value.open_dataset_pr.assert_called_once()
+        published_manifest = json.loads(
+            (self.root / "python-engine/artifacts/dataset/manifest.json").read_text(encoding="utf-8")
+        )
+        self.assertEqual(published_manifest["owner_review"]["decision"], "approved")
+
+    def test_owner_receipt_for_a_different_candidate_stops_publication(self):
+        receipt = {
+            "schema_version": 1,
+            "authority": "PRC",
+            "exam": "LET-ELEMENTARY",
+            "year": 2026,
+            "announced_count": 2,
+            "record_count": 2,
+            "candidate_sha256": "0" * 64,
+            "capture_manifest_sha256": digest(self.root / "capture/manifest.json"),
+            "reviewer": "Owner",
+            "source_evidence_reviewed": True,
+            "records_reviewed": True,
+            "decision": "approved",
+            "reviewed_at": "2026-11-06T12:00:00Z",
+        }
+        (self.root / "capture/review.json").write_text(json.dumps(receipt), encoding="utf-8")
+        batch_path = self.root / "batch.json"
+        batch_path.write_text(
+            json.dumps(dict(self.batch, owner_review_receipt="capture/review.json")),
+            encoding="utf-8",
+        )
+        with patch("main.verify_official_content_link"), patch("main.GitHubGitOps") as gitops:
+            with self.assertRaisesRegex(PipelineError, "does not match the exact validated candidate"):
+                publish_batch("batch.json", root=self.root)
+        gitops.assert_not_called()
+
+    def test_owner_receipt_requires_both_review_confirmations(self):
+        canonical_records = [
+            {"name": "DOE, JANE A", "sequence_number": "1"},
+            {"name": "SMITH, JOHN B", "sequence_number": "2"},
+        ]
+        receipt = {
+            "schema_version": 1,
+            "authority": "PRC",
+            "exam": "LET-ELEMENTARY",
+            "year": 2026,
+            "announced_count": 2,
+            "record_count": 2,
+            "candidate_sha256": hashlib.sha256(
+                json.dumps(canonical_records, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+            ).hexdigest(),
+            "capture_manifest_sha256": digest(self.root / "capture/manifest.json"),
+            "reviewer": "Owner",
+            "decision": "approved",
+            "reviewed_at": "2026-11-06T12:00:00Z",
+        }
+        (self.root / "capture/review.json").write_text(json.dumps(receipt), encoding="utf-8")
+        (self.root / "batch.json").write_text(
+            json.dumps(dict(self.batch, owner_review_receipt="capture/review.json")),
+            encoding="utf-8",
+        )
+        with patch("main.verify_official_content_link"), patch("main.GitHubGitOps") as gitops:
+            with self.assertRaisesRegex(PipelineError, "does not match the exact validated candidate"):
+                publish_batch("batch.json", root=self.root)
+        gitops.assert_not_called()
 
 
 if __name__ == "__main__":

@@ -69,6 +69,7 @@ For each affected test or test execution:
 - `D-001` — Phase 2 content-first requirement: capture exact passer-name/sequence-number pairs; PDF download is optional.
 - `D-002` — Earlier Phase 2 CSC source-path decision; superseded for testing scope by D-003.
 - `D-003` — Exclude all CSC-specific testing; current Phase 2 source validation is PRC-only.
+- `D-006` — After a logged PRC sign-in barrier, allow only two independent, public, terms-reviewed, Owner-approved fallback sources; never bypass access controls.
 
 ### Status legend
 
@@ -184,13 +185,15 @@ For each affected test or test execution:
 
 - **Pass condition:** The pipeline obtains the actual passer names and their corresponding official sequence numbers from an authorized source.
 - **Evidence:** Run #41663204288 captured the official linked public preview and the Python Engine ingested all 18,376 passer-name/sequence-number pairs. The artifact contains 18,376 parseable JSONL records and exact pair preservation through the generated dataset. The ordinary public preview was used without bypassing access controls. CSC source access and testing are excluded by D-003.
+- **Additional live-source evidence (2026-11-05):** The October 2026 CPALE source link rendered in the ordinary public Google Drive preview without a sign-in or human-verification barrier. All 80 viewer pages were captured in 62.4 seconds using one browser. The extracted 3,988 name/sequence pairs matched PRC's announced 3,988 passers, covered 1–3,988 with no gaps or duplicate sequences, and contained no duplicate names; the generated CSV passed a round-trip count/sequence check. The CSV SHA-256 is `a010e6168cab5a0c386220e66c336e834888b962aba05d04bfc84144e3aad41a`; the independently reproduced canonical record SHA-256 is `c77042c9ffeac17926cf10803a8b930e30fcef8295c5a01db0ffe9b6f3f1fa7c`, calculated from LF-joined `sequence<TAB>name` rows with no trailing LF. This is a local acquisition/extraction trial, not an integrated publication or deployment.
 - **Status:** `PASS`
 
 #### P2-04 — Content-format flexibility
 
 - **Pass condition:** A readable official webpage, portal response, embedded/public dataset, CSV, or other compliant format can be used; PDF possession is not required.
 - **Evidence:** The integrated capture uses the ordinary publicly accessible, JavaScript-rendered Google Drive preview linked by the official PRC article. It traverses 368 viewer pages and captures the cumulative rendered text; no PDF download is required. The full batch passed Python Engine validation. CSC content-format investigation and testing are excluded by D-003.
-- **Status:** `PASS`
+- **Additional gap and candidate update (2026-11-05):** Generic CSV/JSON/HTML automatic acquisition remains unsupported. The isolated candidate was run against the specifically allowlisted CPALE public preview: it verified the PRC article link and robots policy, captured all 80 pages in four sequential shards with screenshot/text hashes, extracted all 3,988 exact records matching the saved CSV, passed local Greenlight at 100/100, and generated one local dataset shard. A first single-browser run crashed at page 76; sequential shards resolved the observed stability issue. A browser crash now returns a safe review stop. This is a local, non-publishing candidate run; GitOps, PR creation, merge, and deployment were not invoked. Generic format flexibility and end-to-end publication remain open.
+- **Status:** `PARTIAL`
 
 #### P2-05 — PDF parsing when applicable
 
@@ -335,10 +338,31 @@ For each affected test or test execution:
 #### P2-28 — Reusable parallel public-preview page capture
 
 - **Pass condition:** A configured set of parallel shards captures contiguous viewer-page ranges; merge verifies every expected page exactly once and rejects gaps, overlaps, missing shards, blank snapshots, or hash mismatches. Access challenges stop automation without retry or bypass.
-- **Evidence:** The earlier exam-specific implementation completed all 16 shards in Actions run #36 and captured all 901 pages (shards 0–14: 57 pages each; shard 15: 46 pages). The reusable implementation is on main in commits `80fe2e3`, `fd562b3`, `1988b90`, `a1bcc05`, and `5a7db2e`; eight local unit tests pass, including the 901-page partition, range coverage, challenge detection, and hash-failure checks. The reusable workflow has not yet been run against a live source.
+- **Evidence:** The earlier exam-specific implementation completed all 16 shards in Actions run #36 and captured all 901 pages (shards 0–14: 57 pages each; shard 15: 46 pages). The reusable implementation is on main in commits `80fe2e3`, `fd562b3`, `1988b90`, `a1bcc05`, and `5a7db2e`; eight local unit tests pass, including the 901-page partition, range coverage, challenge detection, and hash-failure checks. The isolated candidate now invokes the bounded one-shard capture from PRC orchestration for the approved CPALE source and validates its evidence in the existing pipeline. The candidate integration tests pass; the reusable workflow has not yet been run against a live source.
 - **Status:** `PARTIAL`
 
-**Related Owner decisions:** `D-001`, `D-002`, `D-003`, and `D-004` in Part 16. D-003 excludes CSC-specific testing; these Phase 2 acceptance checks apply to PRC only. D-004 defers manual visual review of the Secondary candidate to a future website review experience; it does not authorize publication.
+#### P2-29 — Static screenshot OCR fallback
+
+- **Pass condition:** Only after Tier 1 text extraction and Tier 2 rendered-DOM extraction fail, an authorized source with reviewed terms and an approved exam/source mapping may use stable viewport PNG captures and OCR. Evidence must bind screenshots and OCR output by SHA-256, retain per-token confidence, hold any record with a token below 95% for human review, and pass announced count, exact sequence coverage, duplicate checks, and Greenlight. No access-control, robots, rate-limit, or human-verification barrier may be bypassed.
+- **Evidence to retain:** Source terms/access review, reviewed mapping, screenshot/OCR hashes, per-token confidence report, Greenlight report, and review disposition for low-confidence records.
+- **Status:** `NOT RUN` — architecture approved by D-007; no source-specific OCR mapping or cleared terms are configured.
+
+#### P2-30 — Detection-to-publication timing
+
+- **Pass condition:** Measure, from a real or controlled PRC event, timestamps for detection, acquisition, extraction/Greenlight, GitOps PR/merge, and successful Cloudflare Pages deployment; report total elapsed time and each stage separately.
+- **Evidence:** The 2026-11-05 CPALE local public-preview trial captured 80 viewer pages in 62.4 seconds and verified 3,988 records. The Watcher is configured for a one-minute cron, so a newly posted release can wait up to one polling interval to be detected. No integrated detection-to-Cloudflare-deployment run has been measured; GitHub queue/check and deployment time are unknown. Therefore an end-to-end publishing speed/SLA is **not established**.
+- **Status:** `PARTIAL`
+
+#### P2-31 — Candidate regression and deployment preflight
+
+- **Pass condition:** Focused PRC acquisition, official-fallback, Greenlight, public-preview, website-module, committed-dataset, secret-scan, and whitespace checks pass without running CSC-specific tests or publishing a batch.
+- **Evidence (2026-11-05):** 130 in-scope Python tests passed (CSC-specific test modules/cases and the separate format-acceptance matrix excluded), 9 Node browser-module tests passed, JavaScript syntax checks passed, the committed PRC dataset validated (18,376 rows), the public-assets secret scan passed, and `git diff --check` passed. The separate PRC format matrix remains a blocker: it expects automatic CSV/JSON/HTML processing that is not wired into the current pipeline; a direct approved-CSV probe failed closed with "currently accepts PDF sources only." No live publication, PR merge, or deployment was performed.
+- **Candidate regression (2026-11-05):** 29 focused Python tests passed across PRC orchestration (10), legacy public-preview verification (3), sharded capture (8), and public-preview-to-Greenlight/official-link verification (8). Python compilation, JSON configuration validation, and `git diff --check` passed. This does not include a live browser run, a publication attempt, CSC-specific tests, or the full Phase 5 acceptance run.
+- **Cumulative-snapshot and live-acquisition regression (2026-11-05):** The candidate parser combines page-local and cumulative viewer snapshots, accepting only identical repeated sequence/name pairs across separate snapshots and rejecting within-snapshot duplicates or conflicting names. The live 80-page capture passed through local Greenlight and dataset generation as recorded under P2-04. The expanded automated test run and static checks are recorded below. No publication attempt, CSC-specific tests, GitOps PR, merge, or deployment was performed; human visual review remains pending.
+- **Latest candidate validation (2026-11-05):** 101 in-scope Python tests passed across PRC acquisition, preview capture, Greenlight, dataset, and pipeline modules; the known stale format-acceptance matrix and CSC-specific tests were excluded. All 9 frontend tests passed, JavaScript syntax checks, Python compilation, source/mapping JSON validation, public-assets secret scan, and `git diff --check` passed. A live official-source capture then navigated 80/80 pages using four sequential browser shards, extracted 3,988 records exactly matching the saved CPALE CSV, and passed local Greenlight at 100/100 with one local dataset shard. Capture manifest SHA-256: `988b19a3ea8abaacc9b52521cf8eeb54ec1a6c36f9f202788f51c7c303b318cb`. This was local validation only: GitOps, PR creation, publication, merge, and deployment were not invoked. Visual review remains pending; no end-to-end publishing SLA is established.
+- **Status:** `PARTIAL`
+
+**Related Owner decisions:** `D-001`, `D-002`, `D-003`, `D-004`, `D-006`, and `D-007` in Part 16. D-003 excludes CSC-specific testing; these Phase 2 acceptance checks apply to PRC only. D-004 defers manual visual review of the Secondary candidate to a future website review experience; it does not authorize publication. D-007 approves screenshot OCR as a conditional fallback, not as permission to use a source whose terms have not been reviewed.
 
 **Phase 2 acceptance note:** The active project task is to find and validate a compliant PRC-only official-content access path yielding exact passer-name/sequence-number pairs. A downloadable PDF is not a pass condition. Representative PRC content mapping validation and a real PRC released batch are separate acceptance milestones. CSC-specific tests are excluded by D-003. Manual visual review of the March 2026 LEPT Secondary candidate is deferred under D-004 and remains pending until the future website review experience is implemented and completed; the candidate remains unpublished.
 
@@ -395,84 +419,99 @@ For each affected test or test execution:
 - **Pass condition:** The static site and its assets deploy successfully from the approved repository workflow.
 - **Evidence to retain:** Pages deployment URL and build result.
 - **Status:** `NOT RUN`
+- **Candidate note:** GitHub deployment secret names are configured and the workflow consumes `CF_PAGES_API_TOKEN`, `CF_ACCOUNT_ID`, and `CF_PAGES_PROJECT_NAME`; no Cloudflare deployment or live URL check has been performed.
+- **Merge safety:** `main` currently has no branch-protection rule or ruleset. A merge to `main` triggers production deployment, so require a deliberate Owner review before merging.
 
 #### P4-02 — Searching page
 
 - **Pass condition:** The public Searching page loads and preserves the approved design.
 - **Evidence to retain:** Live URL and desktop/mobile visual check.
-- **Status:** `NOT RUN`
+- **Status:** `PARTIAL`
+- **Candidate evidence:** Local Chromium 156 loaded the candidate at 1440-pixel desktop and 390-pixel mobile widths without horizontal overflow or browser errors. A live Pages URL and visual approval remain outstanding.
 
 #### P4-03 — Preparing page and status
 
 - **Pass condition:** The site reads generated `status.json` and displays the approved Preparing Mode when the status requires it.
 - **Evidence to retain:** Status file and live page evidence.
-- **Status:** `NOT RUN`
+- **Status:** `AUTOMATED PASS`
+- **Candidate evidence:** The local browser displayed Preparing Mode when `status.json` was intercepted with `mode: preparing`. A production status transition remains untested.
 
 #### P4-04 — Dataset loading
 
 - **Pass condition:** The frontend loads the appropriate dataset using the manifest for the selected authority, examination, and year.
 - **Evidence to retain:** Browser network trace and selected manifest entry.
-- **Status:** `NOT RUN`
+- **Status:** `PARTIAL`
+- **Candidate evidence:** The browser loaded the PRC LEPT Elementary catalog entry, matching manifest, and content-addressed shard; the expected name/sequence was returned. Deployed-origin validation remains outstanding.
 
 #### P4-05 — Search fields and result identity
 
 - **Pass condition:** Visitors can search by authority, examination, year, and name; a result shows the passer name with its corresponding sequence number.
 - **Evidence to retain:** Live search examples and expected-record comparison.
-- **Status:** `NOT RUN`
+- **Status:** `PARTIAL`
+- **Candidate evidence:** Local search returned `AALA, DESIREE JOY DE RAMOS` with sequence `1`. A live public-site example remains outstanding.
 
 #### P4-06 — Array-of-Arrays compatibility
 
 - **Pass condition:** The browser correctly reads the approved compact JSON array-of-arrays dataset.
 - **Evidence to retain:** Dataset fixture and browser result.
-- **Status:** `NOT RUN`
+- **Status:** `AUTOMATED PASS`
+- **Candidate evidence:** Frontend module tests validated compact Array-of-Arrays rows; the local browser also searched the real candidate dataset successfully.
 
 #### P4-07 — Manifest and shard routing
 
 - **Pass condition:** The frontend follows manifest routes and loads the required shard(s) correctly.
 - **Evidence to retain:** Manifest, network trace, and search results across shard boundaries.
-- **Status:** `NOT RUN`
+- **Status:** `PARTIAL`
+- **Candidate evidence:** The local page followed the selected manifest and loaded its shard. The current public dataset has one shard; a deployed multi-shard boundary walkthrough remains outstanding.
 
 #### P4-08 — IndexedDB caching
 
 - **Pass condition:** A downloaded dataset is stored in IndexedDB and can be reused on a subsequent search/session as designed.
 - **Evidence to retain:** Browser storage inspection and repeat-load evidence.
-- **Status:** `NOT RUN`
+- **Status:** `PASS`
+- **Candidate evidence:** Browser storage inspection found one SHA-256-keyed dataset in IndexedDB and the same dataset was reused after reload.
 
 #### P4-09 — Local cached search
 
 - **Pass condition:** A subsequent search can use the locally cached dataset without requesting the dataset again when cache is valid.
 - **Evidence to retain:** Browser network trace and search result.
-- **Status:** `NOT RUN`
+- **Status:** `PASS`
+- **Candidate evidence:** After reload, search returned the expected result without another dataset-shard request; the manifest was fetched again. Cached shard reuse was verified online, not as offline reload support.
 
 #### P4-10 — Web Worker offloading
 
 - **Pass condition:** Large search/filter work executes in the browser Web Worker rather than blocking the UI thread.
 - **Evidence to retain:** Runtime inspection/performance trace.
-- **Status:** `NOT RUN`
+- **Status:** `PASS`
+- **Candidate evidence:** A 50,000-row query ran in the module Web Worker; five searches completed with expected results and no page errors.
 
 #### P4-11 — 50,000-record performance
 
 - **Pass condition:** A 50,000-record dataset is searchable in the browser without dropping UI frames. This is the Part 17 Performance criterion.
 - **Evidence to retain:** Reproducible device/browser, dataset, performance trace, and observed UI responsiveness.
-- **Status:** `NOT RUN`
+- **Status:** `PASS`
+- **Candidate evidence:** Chromium 156 headless; synthetic 50,000-row dataset; five worker searches; p50 round trip 47.1 ms, p95 57.4 ms; maximum animation-frame gap 16.8 ms; zero observed gaps above 50 ms. This is a local Codespace measurement, not a mobile-device benchmark.
 
 #### P4-12 — Zero backend search queries
 
 - **Pass condition:** Searching/filtering does not send search requests to a backend or query D1; data is served as static assets and searched locally.
 - **Evidence to retain:** Browser network trace during multiple searches.
-- **Status:** `NOT RUN`
+- **Status:** `PASS`
+- **Candidate evidence:** Network capture during repeated searches showed only static site, status/catalog, manifest, and the initial data-shard requests; no query or search API request was sent.
 
 #### P4-13 — Public-site read-only security
 
 - **Pass condition:** The public Pages application has no mechanism or exposed credential that can write to internal data or repositories.
 - **Evidence to retain:** Source/configuration review and browser inspection.
-- **Status:** `NOT RUN`
+- **Status:** `PARTIAL`
+- **Candidate evidence:** Public asset credential scan found no common credential formats. Source review confirms the candidate is static/read-only, its CSP permits same-origin connections, and no write credentials or internal controls are shipped. Live Cloudflare Pages inspection remains outstanding.
 
 #### P4-14 — Owner-facing source and record review
 
 - **Pass condition:** An Owner-facing website review experience lets the Owner inspect official preview evidence alongside extracted name/sequence records and record a review outcome before publication. The public search route remains read-only and exposes no write credentials or internal controls.
 - **Evidence to retain:** Review-interface walkthrough, source/evidence references, review outcome and audit record, plus a test proving publication remains blocked until the required review gate is satisfied.
-- **Status:** `NOT RUN`
+- **Status:** `PARTIAL`
+- **Candidate evidence:** The candidate generated and loaded a hash-verified review bundle with all 3,988 records and 43 screenshots covering every record. The UI requires source and record confirmations; automated tests prove missing or mismatched approval blocks GitOps, and a mocked full-candidate run passed. No actual Owner review or approval was performed, and the workflow has not run in GitHub.
 
 ---
 

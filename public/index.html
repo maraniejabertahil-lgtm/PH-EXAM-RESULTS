@@ -4,98 +4,77 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#102a43">
-  <meta name="description" content="Search publicly released Philippine examination results by authority, examination, year, and passer name.">
-  <title>PH Exam Results — Search</title>
-  <link rel="stylesheet" href="./assets/css/site.css">
+  <meta name="description" content="Search published Philippine examination results by authority, examination, year, and name.">
+  <title>Exam Results Search</title>
+  <link rel="stylesheet" href="/assets/css/site.css">
+  <script type="module" src="/assets/js/app.mjs"></script>
 </head>
 <body>
-  <a class="skip-link" href="#main">Skip to content</a>
   <header class="site-header">
-    <div class="container header-inner">
-      <a class="brand" href="./index.html" aria-label="PH Exam Results home">
-        <span class="brand-mark" aria-hidden="true">PH</span>
-        <span class="brand-copy"><strong>PH EXAM RESULTS</strong><small>Official-result search portal</small></span>
-      </a>
-      <nav aria-label="Main navigation">
-        <a class="nav-link active" href="./index.html" aria-current="page">Search</a>
-        <a class="nav-link" href="./preparing.html">Release status</a>
-      </nav>
-    </div>
+    <a class="brand" href="/" aria-label="PH Exam Results home">
+      <span class="brand-mark" aria-hidden="true">PH</span>
+      <span>Exam Results</span>
+    </a>
+    <span class="header-note">Officially sourced · Verified before publication</span>
   </header>
 
-  <main id="main" class="container main-content">
-    <section class="hero" aria-labelledby="page-title">
-      <p class="eyebrow">PUBLIC EXAMINATION RESULTS</p>
-      <h1 id="page-title">Find your examination result.</h1>
-      <p class="hero-copy">Search published passer records using the examination authority, exam, year, or your name. Results are served from verified static datasets.</p>
-      <div class="trust-note"><span class="status-dot" aria-hidden="true"></span><span>Only approved result datasets are displayed.</span></div>
+  <main>
+    <section id="preparing-view" class="preparing-panel" hidden aria-labelledby="preparing-title">
+      <p class="eyebrow">RESULTS UPDATE</p>
+      <h1 id="preparing-title">We’re preparing the next results update.</h1>
+      <p>Published results remain available. Please check back soon for newly verified results.</p>
+      <a class="button button-secondary" href="/preparing.html">About this update</a>
     </section>
 
-    <section class="search-panel" aria-labelledby="search-heading">
-      <div class="section-heading">
-        <div>
-          <p class="eyebrow">RESULT LOOKUP</p>
-          <h2 id="search-heading">Search examination results</h2>
-        </div>
-        <span class="panel-tag">Free · No account required</span>
-      </div>
+    <section id="search-view" class="search-panel" aria-labelledby="page-title">
+      <p class="eyebrow">PHILIPPINE EXAMINATION RESULTS</p>
+      <h1 id="page-title">Find your examination result</h1>
+      <p class="intro">Search published results by authority, examination, year, and name. Your search runs on this device.</p>
+
       <form id="search-form" class="search-form">
-        <div class="field">
-          <label for="authority">Examination authority</label>
-          <select id="authority" name="authority">
-            <option value="">All available authorities</option>
-            <option value="PRC">Professional Regulation Commission (PRC)</option>
-            <option value="CSC">Civil Service Commission (CSC)</option>
-          </select>
+        <div class="field-grid">
+          <label>
+            Authority
+            <select id="authority" name="authority" required>
+              <option value="">Choose authority</option>
+            </select>
+          </label>
+          <label>
+            Examination
+            <select id="exam" name="exam" required disabled>
+              <option value="">Choose examination</option>
+            </select>
+          </label>
+          <label>
+            Year
+            <select id="year" name="year" required disabled>
+              <option value="">Choose year</option>
+            </select>
+          </label>
         </div>
-        <div class="field">
-          <label for="exam">Examination</label>
-          <select id="exam" name="exam" disabled>
-            <option value="">Select an authority first</option>
-          </select>
-        </div>
-        <div class="field field-year">
-          <label for="year">Year</label>
-          <select id="year" name="year" disabled>
-            <option value="">Select an examination first</option>
-          </select>
-        </div>
-        <div class="field field-name">
-          <label for="name-query">Passer name</label>
-          <input id="name-query" name="name" type="search" autocomplete="off" placeholder="Enter full name or surname" disabled>
-        </div>
-        <button class="button button-primary search-button" type="submit" disabled>Search results</button>
+        <label class="name-field" for="name-query">
+          Examinee name
+          <input id="name-query" name="name" type="search" autocomplete="name" minlength="2"
+            placeholder="Enter at least 2 letters" required>
+        </label>
+        <button id="search-button" class="button" type="submit" disabled>Search results</button>
       </form>
-      <p class="form-hint" id="search-hint">Choose an available dataset to begin. Search will be enabled when verified results are published.</p>
-    </section>
 
-    <section class="results-section" aria-live="polite" aria-atomic="false">
-      <div class="results-heading">
-        <h2>Search results</h2>
-        <span id="result-count" class="muted">No search performed</span>
-      </div>
-      <div id="results-state" class="empty-state">
-        <div class="empty-icon" aria-hidden="true">⌕</div>
-        <h3>Choose an examination to get started</h3>
-        <p>Available examinations and verified passer records will appear here when a dataset is published.</p>
-      </div>
-      <div id="results-list" class="results-list" hidden></div>
-    </section>
-
-    <section class="notice-card">
-      <div class="notice-icon" aria-hidden="true">✓</div>
-      <div>
-        <h2>Accuracy comes first</h2>
-        <p>Each dataset must pass validation before publication. If a result batch cannot be verified, the previously published dataset remains available.</p>
-      </div>
+      <p id="status-message" class="status-message" role="status" aria-live="polite">Loading published results…</p>
+      <section id="results-section" class="results-section" aria-labelledby="results-title" hidden>
+        <div class="results-heading">
+          <h2 id="results-title">Search results</h2>
+          <span id="result-count"></span>
+        </div>
+        <p id="result-note" class="result-note"></p>
+        <ol id="results-list" class="results-list"></ol>
+      </section>
     </section>
   </main>
 
   <footer class="site-footer">
-    <div class="container footer-inner">
-      <span>PH Exam Results</span>
-      <span>Public search · Read-only · Verified datasets</span>
-    </div>
+    <p>Only published datasets are searchable. Results are searched locally in your browser.</p>
+    <a href="/preparing.html">How updates work</a>
   </footer>
 </body>
 </html>

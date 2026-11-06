@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "datasets": [
+    {
+      "authority": "PRC",
+      "exam": "LEPT-ELEMENTARY",
+      "year": 2026,
+      "manifest": "/data/PRC/LEPT-ELEMENTARY/2026/manifest.json"
+    }
+  ]
+}

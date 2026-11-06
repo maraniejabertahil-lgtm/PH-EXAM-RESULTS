@@ -66,9 +66,14 @@ class MergeValidationTests(unittest.TestCase):
                 snapshots = []
                 for page in range(item["page_start"], item["page_end"] + 1):
                     text = f"Page {page} of 3\nRecord {page}"
+                    screenshot_name = f"shard-{item['shard']}-page-{page:04d}.png"
+                    screenshot_path = root / screenshot_name
+                    screenshot_path.write_bytes(f"fake-png-{page}".encode())
                     snapshots.append({
                         "viewer_page": page, "text": text,
                         "sha256": hashlib.sha256(text.encode()).hexdigest(),
+                        "screenshot": screenshot_name,
+                        "screenshot_sha256": hashlib.sha256(screenshot_path.read_bytes()).hexdigest(),
                     })
                 archive = root / f"shard-{item['shard']}-snapshots.jsonl.gz"
                 with gzip.open(archive, "wt", encoding="utf-8") as stream:
@@ -90,9 +95,14 @@ class MergeValidationTests(unittest.TestCase):
                 snapshots = []
                 for page in range(item["page_start"], item["page_end"] + 1):
                     text = f"Page {page} of 3"
+                    screenshot_name = f"shard-{item['shard']}-page-{page:04d}.png"
+                    screenshot_path = root / screenshot_name
+                    screenshot_path.write_bytes(f"fake-png-{page}".encode())
                     snapshots.append({
                         "viewer_page": page, "text": text,
                         "sha256": "wrong" if page == 2 else hashlib.sha256(text.encode()).hexdigest(),
+                        "screenshot": screenshot_name,
+                        "screenshot_sha256": hashlib.sha256(screenshot_path.read_bytes()).hexdigest(),
                     })
                 archive = root / f"shard-{item['shard']}-snapshots.jsonl.gz"
                 with gzip.open(archive, "wt", encoding="utf-8") as stream:

@@ -1,3 +1,7 @@
 {
-  "_comment": "No production adapter mappings are approved yet. Add an exam:level:format mapping only after a human reviews a real PRC sample. The LEPT PDF column indices in the supplied fixes ZIP were placeholders and are intentionally disabled until verified."
+  "_comment": "Mappings are source-specific and must be reviewed against actual official output. Public-preview extraction reads rendered page text and never treats it as OCR.",
+  "CPALE:2026:public_preview": {
+    "record_pattern": "^\\s*(?P<sequence>\\d+)[.)]?\\s+(?P<name>.+?)\\s*$",
+    "require_comma_in_name": true
+  }
 }
