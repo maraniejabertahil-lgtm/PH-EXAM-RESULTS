@@ -34,6 +34,7 @@ from publication_policy import PublicationPolicyError, requires_owner_visual_rev
 from processor.normalizer import NormalizationError, normalize_extracted_tables
 from publisher.gitops_manager import GitHubGitOps, GitOpsError
 from publisher.json_builder import build_dataset
+from database.activity import read_validation_report, record_pipeline_event
 
 
 class PipelineError(RuntimeError):
@@ -584,11 +585,37 @@ def main() -> int:
         help="Repository-relative visual-review receipt required for public-preview captures.",
     )
     args = parser.parse_args()
+    batch_path = Path(args.batch)
+    try:
+        batch_bytes = batch_path.read_bytes()
+        batch_data = json.loads(batch_bytes.decode("utf-8"))
+        if not isinstance(batch_data, dict):
+            batch_data = {}
+    except (OSError, UnicodeError, json.JSONDecodeError):
+        batch_bytes, batch_data = b"", {}
+    record_pipeline_event(
+        batch_data, event_type="processing_started", status="started",
+        summary="Verified import processing started.", batch_status="processing", batch_bytes=batch_bytes,
+    )
     try:
         result = publish_batch(args.batch, owner_review_receipt=args.owner_review_receipt)
     except (PipelineError, AcquisitionError, GitOpsError, ValueError, TypeError) as exc:
+        failed_greenlight = isinstance(exc, PipelineError) and str(exc).startswith("Greenlight rejected this batch")
+        record_pipeline_event(
+            batch_data,
+            event_type="greenlight_failed" if failed_greenlight else "publication_failed",
+            status="failed", summary="Processing stopped safely; consult the private workflow log.",
+            batch_status="greenlight_failed" if failed_greenlight else "failed",
+            report=read_validation_report(Path.cwd()), batch_bytes=batch_bytes,
+        )
         print(f"PUBLICATION STOPPED: {exc}", file=sys.stderr)
         return 1
+    report = read_validation_report(Path.cwd())
+    record_pipeline_event(
+        batch_data, event_type="publication_completed", status="completed",
+        summary="Verified publication workflow completed successfully.", batch_status="published",
+        report=report, batch_bytes=batch_bytes,
+    )
     print(json.dumps(result, ensure_ascii=False, indent=2))
     return 0
 
