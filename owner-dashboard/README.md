@@ -4,7 +4,7 @@ This is a separate Cloudflare Pages project. It must not be added to the public 
 
 ## Cloudflare setup (one time)
 
-1. In Cloudflare, open **Workers & Pages** and create a new Pages project named **ph-exam-results-owner**. Use the Direct Upload project option; do not connect this project to the public website's deployment.
+1. In the Codespaces terminal, run `npx wrangler@4.156.2 login`, complete Cloudflare authorization, then run `npx wrangler@4.156.2 pages project create ph-exam-results-owner --production-branch main`. This creates a separate Pages project without connecting it to the public website's Git deployment.
 2. Open the new private project's **Settings** and enable its **Access policy**. In Zero Trust, edit the generated Access application and make the Allow policy match only the Owner identity. Keep the default deny behavior. Protect the production pages.dev hostname and preview deployments.
 3. In the private Pages project's **Settings → Variables and Secrets**, add these production variables:
    - CF_ACCESS_TEAM_DOMAIN
