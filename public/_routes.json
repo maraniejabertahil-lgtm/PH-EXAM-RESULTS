@@ -1,5 +1,9 @@
 {
   "version": 1,
-  "include": ["/owner-monitor/*", "/api/owner/*"],
+  "include": [
+    "/owner-monitor",
+    "/owner-monitor/*",
+    "/api/owner/*"
+  ],
   "exclude": []
 }
