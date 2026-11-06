@@ -59,7 +59,7 @@ Alternatively, from the repository root run:
 python python-engine/database/d1_client.py migrate
 ```
 
-The migration is idempotent. It creates `monitoring_logs`, `import_batches`, and `release_predictions` plus activity indexes.
+The migration is idempotent. It creates `monitoring_logs`, `import_batches`, and `release_predictions` plus activity indexes. It also checks existing table columns and adds missing activity fields, preserving records if the earlier private-activity metadata schema has already been created.
 
 ## Browser-side errors
 
