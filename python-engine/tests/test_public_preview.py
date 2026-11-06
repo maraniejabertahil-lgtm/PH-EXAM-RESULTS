@@ -139,6 +139,54 @@ class PublicPreviewCaptureTests(unittest.TestCase):
                 publish_batch("batch.json", root=self.root)
         gitops.assert_not_called()
 
+    def test_explicitly_approved_exam_publishes_automatically_after_greenlight(self):
+        registry_path = self.root / "python-engine/config/sources.json"
+        registry = json.loads(registry_path.read_text(encoding="utf-8"))
+        registry["sources"][0]["auto_publish_exams"] = ["LET-ELEMENTARY-2026"]
+        registry["sources"][0]["owner_visual_review_required_exams"] = []
+        registry_path.write_text(json.dumps(registry), encoding="utf-8")
+        (self.root / "batch.json").write_text(json.dumps(self.batch), encoding="utf-8")
+
+        with patch("main.verify_official_content_link"), patch("main.GitHubGitOps") as gitops:
+            gitops.return_value.open_dataset_pr.return_value = {"pull_request_number": 12}
+            gitops.return_value.dispatch_ci_and_merge.return_value = {"merged": True}
+            result = publish_batch("batch.json", root=self.root)
+
+        self.assertTrue(result["publication"]["merged"])
+        gitops.return_value.open_dataset_pr.assert_called_once()
+        published_manifest = json.loads(
+            (self.root / "python-engine/artifacts/dataset/manifest.json").read_text(encoding="utf-8")
+        )
+        self.assertNotIn("owner_review", published_manifest)
+
+    def test_required_owner_review_overrides_automatic_publication_allowlist(self):
+        registry_path = self.root / "python-engine/config/sources.json"
+        registry = json.loads(registry_path.read_text(encoding="utf-8"))
+        registry["sources"][0]["auto_publish_exams"] = ["LET-ELEMENTARY-2026"]
+        registry["sources"][0]["owner_visual_review_required_exams"] = ["LET-ELEMENTARY"]
+        registry_path.write_text(json.dumps(registry), encoding="utf-8")
+        (self.root / "batch.json").write_text(json.dumps(self.batch), encoding="utf-8")
+
+        with patch("main.verify_official_content_link"), patch("main.GitHubGitOps") as gitops:
+            with self.assertRaisesRegex(PipelineError, "Owner visual-review receipt is required"):
+                publish_batch("batch.json", root=self.root)
+        gitops.assert_not_called()
+
+    def test_auto_publish_allowlist_is_year_specific(self):
+        registry_path = self.root / "python-engine/config/sources.json"
+        registry = json.loads(registry_path.read_text(encoding="utf-8"))
+        registry["sources"][0]["auto_publish_exams"] = ["LET-ELEMENTARY-2026"]
+        registry["sources"][0]["owner_visual_review_required_exams"] = []
+        registry_path.write_text(json.dumps(registry), encoding="utf-8")
+        (self.root / "batch.json").write_text(
+            json.dumps(dict(self.batch, year=2027)), encoding="utf-8"
+        )
+
+        with patch("main.verify_official_content_link"), patch("main.GitHubGitOps") as gitops:
+            with self.assertRaisesRegex(PipelineError, "Owner visual-review receipt is required"):
+                publish_batch("batch.json", root=self.root)
+        gitops.assert_not_called()
+
     def test_matching_approved_owner_receipt_allows_public_preview_publication(self):
         canonical_records = [
             {"name": "DOE, JANE A", "sequence_number": "1"},

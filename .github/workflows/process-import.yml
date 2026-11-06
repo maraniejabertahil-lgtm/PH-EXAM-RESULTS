@@ -275,15 +275,20 @@ jobs:
           set -euo pipefail
           printf '%s' "$CLIENT_PAYLOAD" > event.json
           python3 python-engine/prc_orchestrator.py --event event.json --out prc-release-output
-      - name: Identify public-preview candidates awaiting owner review
+      - name: Check whether this candidate requires owner visual review
         id: candidate
+        env:
+          PYTHONPATH: python-engine
         run: |
           python3 - <<'PY'
           import json
+          import os
           from pathlib import Path
+          from publication_policy import requires_owner_visual_review
+
           batch = json.loads(Path("prc-release-output/release-batch.json").read_text(encoding="utf-8"))
-          required = batch.get("official_content_mode") == "public_preview_capture"
-          with open(__import__("os").environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
+          required = requires_owner_visual_review(batch, root=Path.cwd())
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
               output.write(f"owner_review_required={'true' if required else 'false'}\n")
           PY
       - name: Create local owner-review bundle

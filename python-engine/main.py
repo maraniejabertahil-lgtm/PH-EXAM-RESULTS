@@ -30,6 +30,7 @@ from acquisition.official_content import (
 from acquisition.public_preview import PublicPreviewCaptureError, load_public_preview_capture
 from extractor.pdf_parser import extract_pdf
 from processor.greenlight import validate_records, write_validation_report
+from publication_policy import PublicationPolicyError, requires_owner_visual_review
 from processor.normalizer import NormalizationError, normalize_extracted_tables
 from publisher.gitops_manager import GitHubGitOps, GitOpsError
 from publisher.json_builder import build_dataset
@@ -445,6 +446,11 @@ def _validate_owner_review_receipt(
         raise PipelineError(f"Unable to read batch for owner-review verification: {exc}") from exc
     if not isinstance(batch, dict) or batch.get("official_content_mode") != "public_preview_capture":
         return None
+    try:
+        if not requires_owner_visual_review(batch, root=root):
+            return None
+    except PublicationPolicyError as exc:
+        raise PipelineError(f"Publication policy stopped safely: {exc}") from exc
     receipt_value = receipt_path or batch.get("owner_review_receipt")
     if receipt_value is None:
         raise PipelineError(

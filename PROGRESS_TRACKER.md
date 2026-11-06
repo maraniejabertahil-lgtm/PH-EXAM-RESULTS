@@ -34,7 +34,7 @@ These documents are connected by references, not synchronized copies. Each has a
 - [x] Implement Part 20 Official-First Policy (persist official-attempt evidence before fallback; block fallback on authentication/CAPTCHA; same-origin PDF acquisition is available as an optional method; external Drive links remain manual pending access verification)
 - [x] Build `processor/` & Greenlight Protocol (100/0 fail-closed score; count, blanks, duplicates, anomalies, sequence coverage, and two-source fallback agreement)
 - [x] Implement Array-of-Arrays JSON builder and sharding logic (each data shard strictly below 10 MiB; Greenlight fingerprint required)
-- [x] Integrate the GitOps Manager with the processing workflow so a 100/100 Greenlight batch opens a PR and auto-merges only after all GitHub checks pass (reviewed-batch workflow and Python entry point merged in PRs #48 and #50; exact-commit CI dispatch and fail-closed merge; live result publication remains for final acceptance)
+- [x] Integrate the GitOps Manager with the processing workflow so a 100/100 Greenlight batch opens a PR and auto-merges only after all GitHub checks pass (reviewed-batch workflow and Python entry point merged in PRs #48 and #50; exact-commit CI dispatch and fail-closed merge; the Owner's D-008 one-month trial authorizes real publication only for explicitly pre-approved auto-publish exams)
 - [x] Add explicit, reviewed PDF table-to-record normalization and connect it to Greenlight (PR #51 merged; 98 Python tests passed; mapping-driven, preserves sequence strings, never guesses or renumbers; real official PDF layout validation remains pending)
 - [x] Integrate bounded same-origin official PDF acquisition into the Python pipeline with robots.txt checks, article-link verification, PDF signature checks, and persisted HEAD/GET evidence (PR #52 merged; 104 Python tests passed; external Drive links remain manual-drop until public access policy is verified)
 - [x] Identify and validate a compliant **PRC-only** official-content access path that yields passer names and their exact sequence numbers; PDF download is not required. CSC-specific source discovery, portal access, acquisition, extraction, and testing are excluded by Owner decision D-003. PRC owner-reviewed manual handoff is implemented (PR #53 merged; PR #54 merged to preserve each actual exam identifier when using the general PRC homepage source). Owner supplied a readable image of official PRC March 2026 LEPT Elementary page 2/369; 50 passer names and exact sequence numbers (1–50) were extracted and visually checked. This validates the content-first manual handoff route for a representative official page sample; it does not establish complete-release acquisition.
@@ -42,23 +42,24 @@ These documents are connected by references, not synchronized copies. Each has a
 - [x] Integrate the reusable public-preview capture into the PRC acquisition and Greenlight pipeline for the specifically allowlisted CPALE source (ordinary visible-UI capture, per-page PNG/text/hash evidence, reviewed mapping, count/sequence/duplicate validation, and conditional Playwright/Chromium setup; live 80-page capture across four sequential shards matched all 3,988 saved rows and passed local Greenlight/dataset generation; no publication was attempted).
 - [ ] Implement D-007 Tier 3 static PNG + OCR fallback with reviewed per-source mappings, 95% minimum token confidence, screenshot/OCR hash evidence, exact count/sequence and duplicate checks, and Greenlight integration. Keep disabled until the source's access directives and reuse terms are reviewed; do not implement video/frame OCR in production.
 
-**Final acceptance work deferred by Owner decision D-005:** The real publicly released PRC batch must still complete acquisition, extraction, Greenlight, dataset generation, GitOps PR, CI, and merge. It is retained as a Phase 5 final Live Acceptance task rather than run during implementation.
+**D-008 automated trial:** The Owner requests a one-month real-world trial and automated release-to-publication for explicitly pre-approved exams. D-005's blanket deferral is superseded for that scoped trial; Greenlight, source-policy, access, and required human-review gates remain active. The current allowlist includes CPALE-2026 only. LEPT-SECONDARY remains Owner-review-required under D-004.
 
 ## Phase 3: Automated Broadcasting
 - [x] Implement `broadcaster.py` with Facebook Graph API and Telegram Bot API adapters, credential validation, and safe error handling (PR #96 merged; 11 focused tests included; full GitHub CI passed with 147 Python tests)
-- [x] Implement post-deployment trigger: announcements only after successful Cloudflare Pages deployment and only when a result manifest changed (PR #96 merged; awaits Phase 4 workflow named `Deploy Cloudflare Pages`)
+- [x] Implement post-deployment trigger: announcements only after successful Cloudflare Pages deployment and only when a result manifest changed (PR #96 and Pages workflow in PR #98 merged; live provider delivery still requires Owner credentials and destination approval)
 - [x] Implement durable broadcast idempotency ledger and fail-closed handling for uncertain delivery outcomes (PR #96 merged; ledger stored on a separate automation branch)
 - [ ] Configure Facebook and Telegram credentials and verify real provider delivery during final Live Acceptance (no credentials or live provider calls during implementation)
 
 ## Phase 4: Frontend Web Worker Search
-- [x] Build static HTML/CSS UI (including Peak Week "Preparing Mode" UI) (candidate; desktop/mobile local browser checks passed; live Pages check remains pending)
-- [x] Implement `storage.js` for IndexedDB dataset caching (candidate; repeat-session cache reuse verified; full offline reload is not supported)
-- [x] Implement `search.js` (Web Worker) to search 50,000+ array records without freezing UI (candidate; five Chromium worker searches completed with zero observed >50 ms frame gaps)
-- [x] Configure Cloudflare Pages deployment via `.github/workflows/deploy-pages.yml` (candidate workflow validates assets/secrets and deploys `public/`; production deployment remains pending)
-- [x] Build an Owner-facing website review experience for official preview evidence and extracted name/sequence records before publication, while keeping the public search route read-only (candidate; exact-hash bundle and publication gate tested locally; human Owner review remains pending)
+- [x] Build static HTML/CSS UI (including Peak Week "Preparing Mode" UI) (deployed through PR #98; public URL and routes return HTTP 200)
+- [x] Implement `storage.js` for IndexedDB dataset caching (repeat-session cache reuse verified; full offline reload is not supported)
+- [x] Implement `search.js` (Web Worker) to search 50,000+ array records without freezing UI (five Chromium worker searches completed with zero observed >50 ms frame gaps)
+- [x] Configure Cloudflare Pages deployment via `.github/workflows/deploy-pages.yml` (PR #98 merged; production Pages deployment succeeded)
+- [x] Build an Owner-facing website review experience for official preview evidence and extracted name/sequence records before publication, while keeping the public search route read-only (local-only, exact-hash receipt; human review remains required for D-004 LEPT-SECONDARY)
 
 ## Phase 5: Final Live Acceptance & Security
-- [ ] Run the deferred real, publicly released **PRC** result batch through acquisition, extraction, Greenlight, dataset generation, GitOps PR, CI, and merge (deferred from Phase 2 by D-005; CSC testing excluded by D-003)
+- [ ] Run an eligible PRC release through Watcher detection, capture, Greenlight, GitOps PR, exact-head CI/merge, and Pages deployment under the D-008 one-month trial (only exams explicitly allowlisted for auto-publication; CSC excluded by D-003)
+- [ ] Complete the Owner's one-month real-world website and automation trial; record search accuracy, release-to-publication behavior, failures, and downtime
 - [ ] Verify real Facebook Graph API and Telegram Bot API delivery using Owner-configured credentials
 - [ ] Run Dummy Test: Drop PDF, verify Watcher detects in <30s and wakes Worker
 - [ ] Run Safety Test: Feed a broken PDF (missing sequence numbers) to verify Greenlight Protocol aborts auto-merge
