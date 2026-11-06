@@ -15,6 +15,7 @@ on:
       - main
     paths:
       - "public/**"
+      - "functions/**"
       - ".github/workflows/deploy-pages.yml"
   workflow_dispatch:
 
