@@ -17,6 +17,9 @@ const elements = {
   resultCount: document.querySelector("#result-count"),
   resultNote: document.querySelector("#result-note"),
   resultsList: document.querySelector("#results-list"),
+  errorActions: document.querySelector("#error-actions"),
+  errorReference: document.querySelector("#error-reference"),
+  retryButton: document.querySelector("#retry-button"),
 };
 
 let catalog = [];
@@ -28,6 +31,23 @@ let pendingSearch = null;
 function setMessage(message, kind = "info") {
   elements.message.textContent = message;
   elements.message.dataset.kind = kind;
+  if (kind !== "error") elements.errorActions.hidden = true;
+}
+
+function diagnosticId() {
+  try {
+    if (globalThis.crypto?.randomUUID) return globalThis.crypto.randomUUID();
+  } catch { /* Use the local fallback below. */ }
+  return Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 10);
+}
+
+function reportClientError(userMessage, error) {
+  const reference = diagnosticId();
+  const detail = error instanceof Error ? error : new Error(String(error || "Unknown browser error"));
+  console.error("[PH-EXAM-RESULTS] " + reference, detail);
+  setMessage(userMessage, "error");
+  elements.errorReference.textContent = "Diagnostic reference: " + reference + ". No search query or examinee name was sent.";
+  elements.errorActions.hidden = false;
 }
 
 function resetSelect(select, placeholder) {
@@ -117,7 +137,11 @@ function createWorker() {
       else resolve(data);
     };
     worker.onerror = () => {
-      pendingSearch?.reject(new Error("Search worker failed. Reload the page and try again."));
+      pendingSearch?.reject(new Error("The local search engine stopped unexpectedly."));
+      pendingSearch = null;
+    };
+    worker.onmessageerror = () => {
+      pendingSearch?.reject(new Error("The local search engine returned an unreadable response."));
       pendingSearch = null;
     };
   }
@@ -172,6 +196,16 @@ elements.year.addEventListener("change", () => {
   selectedDataset = null;
 });
 
+elements.retryButton.addEventListener("click", () => window.location.reload());
+
+window.addEventListener("error", (event) => {
+  reportClientError("An unexpected browser error interrupted this page. Reload and try again.", event.error || event.message);
+});
+
+window.addEventListener("unhandledrejection", (event) => {
+  reportClientError("A background website operation failed. Reload and try again.", event.reason);
+});
+
 elements.form.addEventListener("submit", async (event) => {
   event.preventDefault();
   elements.button.disabled = true;
@@ -185,7 +219,8 @@ elements.form.addEventListener("submit", async (event) => {
     renderResults(result);
     setMessage("Search complete. No search query was sent to a server.", "success");
   } catch (error) {
-    setMessage(error instanceof Error ? error.message : "Search could not be completed.", "error");
+    const message = error instanceof Error ? error.message : "Search could not be completed.";
+    reportClientError(message, error);
   } finally {
     elements.button.disabled = !getSelectedEntry();
   }
@@ -195,5 +230,5 @@ try {
   await loadStatus();
   if (!elements.searchView.hidden) await loadCatalog();
 } catch (error) {
-  setMessage(error instanceof Error ? error.message : "Published results could not be loaded.", "error");
+  reportClientError("Published results could not be loaded. Check your connection and try again.", error);
 }
