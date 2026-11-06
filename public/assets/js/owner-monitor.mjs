@@ -57,8 +57,10 @@ function renderEvents(events) {
     const meta = document.createElement("p");
     meta.textContent = items.length + " activity event(s) · latest " + formatDate(items[0].occurred_at);
     identity.append(title, meta);
-    const priority = ["failed", "blocked", "running", "warning", "success"];
-    const groupStatus = priority.find((status) => items.some((item) => item.status === status)) || "warning";
+    const groupStatus = items.some((item) => item.status === "failed") ? "failed"
+      : items.some((item) => item.status === "blocked") ? "blocked"
+        : items[0]?.status === "running" ? "running"
+          : items.some((item) => item.status === "warning") ? "warning" : "success";
     const badge = document.createElement("span");
     badge.className = "status status-" + groupStatus;
     badge.textContent = groupStatus;
