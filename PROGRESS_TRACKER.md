@@ -59,6 +59,7 @@ These documents are connected by references, not synchronized copies. Each has a
 - [x] Build an Owner-facing website review experience for official preview evidence and extracted name/sequence records, while keeping the public search route read-only (local-only, exact-hash receipt; D-009 makes this supplemental for batches passing all automated checks)
 
 ## Phase 5: Final Live Acceptance & Security
+- [ ] Deploy and live-verify the Owner-only activity dashboard on a separate Cloudflare Pages project protected by Cloudflare Access; initialize D1 and verify Watcher/Python metadata writes without exposing records to the public search site (PR #107; implementation and CI only, live setup pending)
 - [ ] Run an eligible PRC release through Watcher detection, capture, Greenlight, GitOps PR, exact-head CI/merge, and Pages deployment under the D-008/D-009 one-month trial (configured sources only; CSC excluded by D-003)
 - [ ] Complete the Owner's one-month real-world website and automation trial; record search accuracy, release-to-publication behavior, failures, and downtime
 - [ ] Verify real Facebook Graph API and Telegram Bot API delivery using Owner-configured credentials
