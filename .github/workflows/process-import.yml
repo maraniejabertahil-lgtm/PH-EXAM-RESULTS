@@ -227,7 +227,9 @@ jobs:
           from urllib.parse import urlsplit
 
           payload = json.loads(os.environ["CLIENT_PAYLOAD"])
-          event = payload if isinstance(payload, dict) else {}
+          event = payload.get("event") if isinstance(payload, dict) else None
+          if not isinstance(event, dict):
+              raise SystemExit("Rejected: nested PRC release event must be an object.")
           identity = event.get("exam_code", "")
           if event.get("result_level"):
               identity += "-" + str(event["result_level"]).upper()
@@ -273,7 +275,20 @@ jobs:
           CLIENT_PAYLOAD: ${{ toJson(github.event.client_payload) }}
         run: |
           set -euo pipefail
-          printf '%s' "$CLIENT_PAYLOAD" > event.json
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          payload = json.loads(os.environ["CLIENT_PAYLOAD"])
+          event = payload.get("event") if isinstance(payload, dict) else None
+          if not isinstance(event, dict):
+              raise SystemExit("Rejected: nested PRC release event must be an object.")
+          Path("event.json").write_text(
+              json.dumps(event, ensure_ascii=False, indent=2) + "\n",
+              encoding="utf-8",
+          )
+          PY
           python3 python-engine/prc_orchestrator.py --event event.json --out prc-release-output
       - name: Check whether this candidate requires owner visual review
         id: candidate
