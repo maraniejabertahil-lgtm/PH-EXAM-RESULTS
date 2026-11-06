@@ -39,13 +39,15 @@ Set these for the production Pages project:
 
 ## Cloudflare Access
 
-Create a Self-hosted Access application for the Pages hostname and protect both paths:
-- \`/owner-monitor/*\`
-- \`/api/owner/*\`
+Create path-specific Self-hosted Access applications in Zero Trust > Access > Applications. Protect these exact paths on the public Pages hostname:
+- `YOUR-PROJECT.pages.dev/owner-monitor/*`
+- `YOUR-PROJECT.pages.dev/api/owner/*`
 
-Create an Allow policy that includes only the owner's exact email address. Do not use an Everyone policy or an email-domain-wide rule. Keep the public homepage outside this protected path.
+Create an Allow policy for each application that includes only the owner's exact email address. Do not use an Everyone policy or an email-domain-wide rule.
 
-If using the Pages \`pages.dev\` hostname, enable the Pages Access policy first, then configure the application hostname and path rules. If the project also has a custom domain, protect the custom domain separately.
+**Important:** Do not enable an Access policy for the entire Pages hostname if that would require every public visitor to sign in. The public homepage and search routes must remain public. Use path-specific Access applications. If Cloudflare does not allow a path-specific application on the project's `pages.dev` hostname in your account, use a dedicated owner subdomain on a domain you control and keep the public Pages hostname unchanged.
+
+The Pages Function middleware independently verifies the Access JWT and exact owner email. It fails closed if Access headers or configuration are missing.
 
 ## Apply the schema
 
