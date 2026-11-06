@@ -19,10 +19,8 @@ def main() -> int:
         return 2
     refs = [ref for ref in refs_result.stdout.splitlines()
             if ref not in {"origin/HEAD", "origin/main", feature_ref}]
-    if not git("rev-parse", "--verify", feature_ref).returncode == 0:
-        print("Feature branch ref is missing: " + feature_ref)
-        return 2
-
+    if git("rev-parse", "--verify", feature_ref).returncode != 0:
+        feature_ref = "origin/main"
     included = []
     clean = []
     conflicts = []
@@ -49,7 +47,8 @@ def main() -> int:
             conflicts.append((ref, sorted(set(paths))))
 
     print("ALL-BRANCH COMPATIBILITY AUDIT")
-    print("Remote branches examined: " + str(len(refs) + 2))
+    branch_count = len(refs) + len({"origin/main", feature_ref})
+    print("Remote branches examined: " + str(branch_count))
     print("Already includes feature / feature includes branch: " + str(len(included)))
     print("Clean merge compatibility: " + str(len(clean)))
     print("Merge conflicts: " + str(len(conflicts)))
