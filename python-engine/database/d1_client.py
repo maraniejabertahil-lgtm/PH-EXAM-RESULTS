@@ -38,7 +38,10 @@ def execute(sql: str, params=(), *, opener=urlopen, timeout=15):
         raise RuntimeError("Cloudflare D1 is not configured.")
     token, account, database = config
     url = f"{API_ROOT}/accounts/{account}/d1/database/{database}/query"
-    body = json.dumps({"sql": sql, "params": list(params)}).encode("utf-8")
+    parameters = list(params)
+    if any(not isinstance(value, str) for value in parameters):
+        raise TypeError("Cloudflare D1 REST API parameters must be strings.")
+    body = json.dumps({"sql": sql, "params": parameters}).encode("utf-8")
     request = Request(url, data=body, method="POST", headers={
         "Authorization": f"Bearer {token}", "Content-Type": "application/json", "Accept": "application/json"
     })
