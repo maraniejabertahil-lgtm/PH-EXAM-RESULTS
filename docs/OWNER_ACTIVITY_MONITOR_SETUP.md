@@ -10,32 +10,32 @@
 
 ## Required Cloudflare resources
 
-Create one D1 database named \`ph-exam-results-operations\`. Record its database UUID.
+Create one D1 database named `ph-exam-results-operations`. Record its database UUID.
 
 Create a dedicated Cloudflare Account API token with Account / D1 / Edit permission for trusted writers. Create a second token with Account / D1 / Read permission for the Pages dashboard. Do not reuse the Pages deployment token or the read-only diagnostics token for writes.
 
 ## Required GitHub Actions secrets
 
-- \`CF_D1_API_TOKEN\` — dedicated D1 Edit token
-- \`CF_ACCOUNT_ID\` — existing Cloudflare account ID
-- \`CF_D1_DATABASE_ID\` — new D1 database UUID
+- `CF_D1_API_TOKEN` — dedicated D1 Edit token
+- `CF_ACCOUNT_ID` — existing Cloudflare account ID
+- `CF_D1_DATABASE_ID` — new D1 database UUID
 
 ## Required Cloudflare Worker secrets
 
 Set the same three names in the production Watcher Worker:
-- \`CF_D1_API_TOKEN\`
-- \`CF_ACCOUNT_ID\`
-- \`CF_D1_DATABASE_ID\`
+- `CF_D1_API_TOKEN`
+- `CF_ACCOUNT_ID`
+- `CF_D1_DATABASE_ID`
 
 ## Required Cloudflare Pages environment variables/secrets
 
 Set these for the production Pages project:
-- \`CF_D1_API_TOKEN\` (secret)
-- \`CF_ACCOUNT_ID\`
-- \`CF_D1_DATABASE_ID\`
-- \`CF_ACCESS_TEAM_DOMAIN\` (your Zero Trust team domain without https://)
-- \`CF_ACCESS_AUD\` (the Access application's audience tag)
-- \`OWNER_EMAIL\` (the exact owner sign-in email)
+- `CF_D1_READ_API_TOKEN` (separate D1 Read token; secret)
+- `CF_ACCOUNT_ID`
+- `CF_D1_DATABASE_ID`
+- `CF_ACCESS_TEAM_DOMAIN` (your Zero Trust team domain without https://)
+- `CF_ACCESS_AUD` (the Access application's audience tag)
+- `OWNER_EMAIL` (the exact owner sign-in email)
 
 ## Cloudflare Access
 
@@ -53,11 +53,11 @@ The Pages Function middleware independently verifies the Access JWT and exact ow
 
 After the D1 database and GitHub secrets exist, run:
 
-\`\`\`bash
+```bash
 python python-engine/database/d1_client.py migrate
-\`\`\`
+```
 
-The migration is idempotent. It creates \`monitoring_logs\`, \`import_batches\`, and \`release_predictions\` plus activity indexes.
+The migration is idempotent. It creates `monitoring_logs`, `import_batches`, and `release_predictions` plus activity indexes.
 
 ## Browser-side errors
 
@@ -67,7 +67,7 @@ The public search UI reports a safe user-facing diagnostic reference and writes 
 
 1. Confirm the migration created all three tables.
 2. Run a Watcher scheduled check and a GitHub processing workflow.
-3. Open \`/owner-monitor/\` while signed in as the owner.
+3. Open `/owner-monitor/` while signed in as the owner.
 4. Confirm the timeline shows events and events sharing an execution ID can be correlated.
 5. Open the same URL signed out and confirm it is inaccessible.
-6. Confirm no D1 token, owner email, or Access audience appears in \`public/\`.
+6. Confirm no D1 token, owner email, or Access audience appears in `public/`.
