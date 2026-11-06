@@ -71,7 +71,7 @@ class D1Client:
         exam_year: int | None = None, source_id: str | None = None,
         correlation_id: str | None = None,
     ) -> str:
-        allowed_events = {"processing_started", "greenlight_passed", "greenlight_failed", "publication_completed", "publication_failed"}
+        allowed_events = {"watcher_scan", "release_detected", "processing_started", "greenlight_passed", "greenlight_failed", "publication_completed", "publication_failed"}
         allowed_status = {"started", "passed", "failed", "completed"}
         if event_type not in allowed_events or status not in allowed_status:
             raise ValueError("Unsupported operational event type or status.")
