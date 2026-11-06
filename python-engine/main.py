@@ -565,11 +565,12 @@ def _validate_owner_review_receipt(
     }
 
 
-def publish_batch(
+def _publish_batch(
     batch_path: str | Path,
     *,
     root: str | Path | None = None,
     owner_review_receipt: str | Path | None = None,
+    activity_execution_id: str | None = None,
 ) -> dict[str, Any]:
     """Run Greenlight, build data artifacts, open a PR, dispatch CI, then merge."""
     repository_root = Path(root or Path.cwd()).resolve()
