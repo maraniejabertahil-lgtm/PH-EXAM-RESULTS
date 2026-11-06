@@ -695,11 +695,11 @@ test("opt-in PRC listing discovery scans only same-origin result articles and ve
   assert.equal(report.first_check.results[0].status, "baseline_created");
   assert.equal(dispatches.length, 1);
   assert.equal(dispatches[0].event_type, "prc-release-detected");
-  assert.equal(dispatches[0].client_payload.exam_code, "CPALE");
-  assert.equal(dispatches[0].client_payload.exam_year, 2026);
-  assert.equal(dispatches[0].client_payload.article_url, articleUrl);
-  assert.equal(dispatches[0].client_payload.content_urls[0].format, "pdf");
-  assert.equal(dispatches[0].client_payload.content_urls[0].url,
+  assert.equal(dispatches[0].client_payload.event.exam_code, "CPALE");
+  assert.equal(dispatches[0].client_payload.event.exam_year, 2026);
+  assert.equal(dispatches[0].client_payload.event.article_url, articleUrl);
+  assert.equal(dispatches[0].client_payload.event.content_urls[0].format, "pdf");
+  assert.equal(dispatches[0].client_payload.event.content_urls[0].url,
     "https://drive.google.com/file/d/" + discoveredId + "/view?usp=sharing");
 });
 
@@ -876,8 +876,8 @@ test("PRC listing snapshots historical pages and processes newly posted result a
   assert.equal(secondBatch.first_check.results[0].status, "changed");
   assert.equal(dispatches.length, 4);
   assert.equal(dispatches[3].event_type, "prc-release-detected");
-  assert.equal(dispatches[3].client_payload.exam_code, "LEPT");
-  assert.equal(dispatches[3].client_payload.result_level, "secondary");
-  assert.equal(dispatches[3].client_payload.article_url, newArticles[3]);
+  assert.equal(dispatches[3].client_payload.event.exam_code, "LEPT");
+  assert.equal(dispatches[3].client_payload.event.result_level, "secondary");
+  assert.equal(dispatches[3].client_payload.event.article_url, newArticles[3]);
   assert.ok(secondBatch.outbound_subrequests_used <= secondBatch.outbound_subrequest_safety_limit);
 });
