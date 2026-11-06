@@ -235,3 +235,20 @@ h2 { margin: 0; color: var(--navy); font-size: 1.3rem; }
   .search-panel, .preparing-panel { padding: 24px 20px; border-radius: 13px; }
   .result-card { align-items: flex-start; }
 }
+
+
+.error-actions {
+  margin-top: 14px;
+  padding: 14px 16px;
+  border: 1px solid #e6b7b7;
+  border-radius: 10px;
+  background: #fff5f5;
+}
+.error-actions[hidden] { display: none; }
+.error-reference {
+  margin: 0;
+  color: #713333;
+  font-size: .86rem;
+  overflow-wrap: anywhere;
+}
+.error-actions .button { margin-top: 12px; }

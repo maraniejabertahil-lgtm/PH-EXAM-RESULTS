@@ -61,6 +61,10 @@
       </form>
 
       <p id="status-message" class="status-message" role="status" aria-live="polite">Loading published results…</p>
+      <div id="error-actions" class="error-actions" hidden>
+        <p id="error-reference" class="error-reference" aria-live="polite"></p>
+        <button id="retry-button" class="button button-secondary" type="button">Reload and try again</button>
+      </div>
       <section id="results-section" class="results-section" aria-labelledby="results-title" hidden>
         <div class="results-heading">
           <h2 id="results-title">Search results</h2>

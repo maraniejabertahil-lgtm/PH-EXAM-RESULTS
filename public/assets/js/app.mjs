@@ -1,4 +1,5 @@
 import { loadDataset } from "./storage.mjs";
+import { createDiagnosticReference, safeErrorMessage } from "./error-messages.mjs";
 
 const CATALOG_URL = "/data/catalog.json";
 const STATUS_URL = "/status.json";
@@ -17,6 +18,9 @@ const elements = {
   resultCount: document.querySelector("#result-count"),
   resultNote: document.querySelector("#result-note"),
   resultsList: document.querySelector("#results-list"),
+  errorActions: document.querySelector("#error-actions"),
+  errorReference: document.querySelector("#error-reference"),
+  retryButton: document.querySelector("#retry-button"),
 };
 
 let catalog = [];
@@ -28,6 +32,21 @@ let pendingSearch = null;
 function setMessage(message, kind = "info") {
   elements.message.textContent = message;
   elements.message.dataset.kind = kind;
+  if (kind !== "error") elements.errorActions.hidden = true;
+}
+
+function showSafeError(context, error) {
+  const diagnosticReference = createDiagnosticReference();
+  elements.message.textContent = safeErrorMessage(context);
+  elements.message.dataset.kind = "error";
+  elements.errorReference.textContent = `Reference: ${diagnosticReference}`;
+  elements.errorActions.hidden = false;
+  // Keep diagnostics local. Do not log the raw error, stack, URL, or search input.
+  console.error("[PH Exam Results] Browser operation failed.", {
+    context,
+    diagnosticReference,
+    errorType: error instanceof Error ? error.name : "UnknownError",
+  });
 }
 
 function resetSelect(select, placeholder) {
@@ -176,16 +195,19 @@ elements.form.addEventListener("submit", async (event) => {
   event.preventDefault();
   elements.button.disabled = true;
   elements.resultsSection.hidden = true;
+  let errorContext = "search";
   try {
     const query = elements.name.value.trim();
     if (query.length < 2) throw new Error("Enter at least two characters to search.");
+    errorContext = "dataset";
     const dataset = await ensureDataset();
+    errorContext = "search";
     setMessage("Searching this device…");
     const result = await search(query, dataset.rows);
     renderResults(result);
     setMessage("Search complete. No search query was sent to a server.", "success");
   } catch (error) {
-    setMessage(error instanceof Error ? error.message : "Search could not be completed.", "error");
+    showSafeError(errorContext, error);
   } finally {
     elements.button.disabled = !getSelectedEntry();
   }
@@ -195,5 +217,15 @@ try {
   await loadStatus();
   if (!elements.searchView.hidden) await loadCatalog();
 } catch (error) {
-  setMessage(error instanceof Error ? error.message : "Published results could not be loaded.", "error");
+  showSafeError("startup", error);
 }
+
+elements.retryButton.addEventListener("click", () => window.location.reload());
+
+window.addEventListener("error", (event) => {
+  showSafeError("unexpected", event.error);
+});
+
+window.addEventListener("unhandledrejection", (event) => {
+  showSafeError("unexpected", event.reason);
+});
