@@ -199,7 +199,8 @@ elements.year.addEventListener("change", () => {
 elements.retryButton.addEventListener("click", () => window.location.reload());
 
 window.addEventListener("error", (event) => {
-  reportClientError("An unexpected browser error interrupted this page. Reload and try again.", event.error || event.message);
+  if (event.target !== window) return;
+  reportClientError("An unexpected website error occurred. Reload and try again.", event.error || event.message);
 });
 
 window.addEventListener("unhandledrejection", (event) => {
@@ -219,8 +220,11 @@ elements.form.addEventListener("submit", async (event) => {
     renderResults(result);
     setMessage("Search complete. No search query was sent to a server.", "success");
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Search could not be completed.";
-    reportClientError(message, error);
+    if (error instanceof Error && error.message === "Enter at least two characters to search.") {
+      setMessage(error.message, "info");
+    } else {
+      reportClientError("We could not complete your search. Reload and try again.", error);
+    }
   } finally {
     elements.button.disabled = !getSelectedEntry();
   }
