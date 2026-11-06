@@ -36,7 +36,7 @@ function cleanContentUrls(links, articleUrl) {
     if (u.protocol !== "https:") continue;
     u.hash = "";                                   // drops #main, #footer, #page
     if (u.href === new URL(articleUrl).href) continue;  // self-links
-    const isDrive = u.hostname === "drive.google.com" && /^\\/file\\/d\\/[^/]+\\/view$/.test(u.pathname);
+    const isDrive = u.hostname === "drive.google.com" && /^\/file\/d\/[^/]+\/view$/.test(u.pathname);
     const isPdf = u.pathname.toLowerCase().endsWith(".pdf");
     if (!isDrive && !isPdf) continue;              // only result-list candidates
     if (seen.has(u.href)) continue;
