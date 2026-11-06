@@ -16,7 +16,7 @@ Create a dedicated Cloudflare Account API token with Account / D1 / Edit permiss
 
 ## Required GitHub Actions secrets
 
-- `CF_D1_API_TOKEN` — dedicated D1 Edit token
+- `CF_D1_API_TOKEN` — dedicated D1 Write token
 - `CF_ACCOUNT_ID` — existing Cloudflare account ID
 - `CF_D1_DATABASE_ID` — new D1 database UUID
 
