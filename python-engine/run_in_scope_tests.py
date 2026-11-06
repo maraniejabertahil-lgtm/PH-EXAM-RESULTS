@@ -8,6 +8,7 @@ import unittest
 
 MODULES = (
     "test_broadcaster",
+    "test_d1_client",
     "test_gitops_manager",
     "test_greenlight",
     "test_json_builder",
