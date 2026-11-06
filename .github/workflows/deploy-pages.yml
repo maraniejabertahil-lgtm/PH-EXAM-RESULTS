@@ -74,6 +74,8 @@ jobs:
         run: node --test public/tests/*.test.mjs
       - name: Test private owner-monitor Pages Functions
         run: node --test functions/tests/*.test.mjs
+      - name: Build Pages Functions bundle
+        run: npx --yes wrangler@4.156.2 pages functions build functions --outdir /tmp/ph-exam-pages-functions --project-directory .
       - name: Validate committed public datasets
         run: python tools/validate_public_datasets.py
       - name: Scan published assets for common credential formats
