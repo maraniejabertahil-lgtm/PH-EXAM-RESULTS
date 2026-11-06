@@ -156,3 +156,51 @@ The registry now contains two source records:
 - No preemptive URL template has been proven against a genuine official PDF appearing before its announcement page changes.
 
 **Updated decision: PHASE 1 REMAINS NOT ACCEPTED.** The PRC source path is now configured and safely gated, but acceptance still requires a genuine live detection-to-receiver event, duplicate-prevention evidence for that event, complete approved source coverage, and an operational CSC fallback path.
+
+
+## 13. Phase-boundary clarification and latest live-cron evidence — 2026-11-03
+
+This section clarifies acceptance scope against the approved `Master_Technical_Blueprint.md` and supersedes any interpretation that treats manual-drop extraction as a Phase 1 Watcher acceptance blocker.
+
+### Phase 1 scope
+
+Phase 1 is the Watcher: its one-minute scheduled invocation, standard-mode source checks, Peak Week KV mode selection and two-scan 30-second Peak Week behavior, preemptive URL HEAD checks, and safe GitHub event dispatch. The Phase 1 receiver validates provenance and owner authorization without acquiring PDFs, extracting passer data, or publishing results.
+
+Manual-drop extraction and processing are processing/worker integration responsibilities. The existing `manual-drop/` push acknowledgement is not a completed operational fallback, but it must be tracked as a later processing/integration dependency rather than incorrectly counted as a standalone Phase 1 Watcher failure. It remains required before the overall system can claim a usable manual fallback.
+
+### Latest live scheduled evidence
+
+The latest main-branch audit update records a post-PR #32 live scheduled Worker event. It confirms that the production cron ran, read the production registry, observed two configured sources and one enabled source, and checked the enabled PRC homepage baseline without runtime exceptions. This is genuine scheduled-runtime evidence for the configured baseline check; it is **not** evidence of a newly published result article, a detected official PDF, a successful production event dispatch, or a genuine preemptive PDF hit.
+
+### Corrected outstanding Phase 1 acceptance items
+
+1. **Source coverage:** Expand the owner-approved official PRC/CSC monitoring registry to the intended examination coverage. The current PRC homepage discovery path is enabled but bounded to up to three same-origin result articles when its homepage fingerprint changes. CSC Region V remains paused due to HTTP 403. Do not infer coverage of all PRC examinations or CSC regions from these two records.
+2. **Genuine detection-to-receiver proof:** Observe a real newly available official result article/PDF through the production Watcher and verify that the resulting owner-authorized event is accepted by the production receiver. Preserve evidence of duplicate suppression on repeat observation and rejection of unapproved events.
+3. **Genuine preemptive proof:** Establish a documented, official URL pattern from sufficient historical evidence, then demonstrate a real official PDF is found by the preemptive HEAD path before the relevant announcement page changes. No guessed template may be enabled merely to satisfy a test.
+4. **Peak Week behavior:** The post-PR #32 live scheduled event already records `PEAK_WEEK=true`, `mode=peak_week`, and the PRC homepage check in both Peak Week scans. This is production evidence that the configured two-scan path executed for that scheduled invocation. Preserve this evidence; do not modify production KV without explicit owner authorization for a real Peak Week activation.
+
+### Separate downstream dependency — not Phase 1 acceptance
+
+The owner-triggered manual-drop processing route remains unimplemented: the current push workflow only acknowledges a file change and explicitly performs no acquisition, extraction, or publication. Track this under the processing/worker integration phase and keep publication disabled until its own validation and approval gates pass.
+
+**Corrected Phase 1 decision: NOT ACCEPTED.** The live cron and PRC baseline check are verified, but full owner-approved source coverage, a genuine live detection-to-receiver event with duplicate evidence, and genuine preemptive URL detection remain unproven. Peak Week two-scan execution is already evidenced by the recorded production event.
+
+
+## 13. Superseding follow-up — manual-source validation workflow merged to main
+
+A later commit on `main` (`adbdbbb93ca329e6f023d976ae4b642b3bbf12de`) added the owner-triggered **Manual Source Validation** workflow, its Python validation module, tests, and operating instructions.
+
+Verified behavior from the merged implementation:
+
+- The workflow accepts only the configured disabled, owner-authorized official source marked `manual_drop_required: true`.
+- The selected Google Drive file ID must exactly match an ID already present in that source's allowlist.
+- The workflow requires an explicit validation-only confirmation.
+- It performs no network request and downloads no PDF bytes.
+- Its report explicitly sets `pdf_acquired=false`, `extraction_performed=false`, and `published=false`.
+- The `manual-drop/**` push trigger still only acknowledges the folder change; it does not import or process the file.
+
+**Correction to the previous wording:** an owner-triggered *validation-only confirmation route* is now implemented. A functioning manual PDF acquisition, extraction, validation, and import route is still not implemented. The new workflow is useful for confirming an exact pre-approved Drive ID, but it is not a usable manual result-ingestion fallback and does not satisfy genuine Watcher detection-to-receiver acceptance.
+
+The workflow's Python tests exist in the repository, but this audit did not find a workflow run associated with the merge commit; therefore no CI pass is claimed here.
+
+**Phase 1 remains NOT ACCEPTED.** The source coverage, genuine live detection-to-receiver proof, and genuine preemptive detection gaps remain.
