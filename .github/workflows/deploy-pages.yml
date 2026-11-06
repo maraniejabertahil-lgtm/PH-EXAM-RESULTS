@@ -38,6 +38,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
       - uses: actions/setup-node@v5
         with:
           node-version: "22"
@@ -76,6 +78,10 @@ jobs:
         run: node --test functions/tests/*.test.mjs
       - name: Build Pages Functions bundle
         run: npx --yes wrangler@4.156.2 pages functions build functions --outdir /tmp/ph-exam-pages-functions --project-directory .
+      - name: Audit merge compatibility against every repository branch
+        env:
+          FEATURE_BRANCH: feature/private-activity-monitor-rebased-20261107
+        run: python tools/check_all_branch_compatibility.py
       - name: Validate committed public datasets
         run: python tools/validate_public_datasets.py
       - name: Scan published assets for common credential formats
