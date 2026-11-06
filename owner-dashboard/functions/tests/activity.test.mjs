@@ -41,7 +41,7 @@ test("valid Access JWT is verified before the three private D1 reads", async () 
   try {
     const response = await onRequestGet({
       request: new Request("https://example.test/api/owner/activity", { headers: { "cf-access-jwt-assertion": token } }),
-      env: { CF_ACCESS_TEAM_DOMAIN: issuer, CF_ACCESS_AUD: audience, CF_ACCOUNT_ID: "account", CF_D1_DATABASE_ID: "database", CF_D1_API_TOKEN: "secret" },
+      env: { CF_ACCESS_TEAM_DOMAIN: issuer, CF_ACCESS_AUD: audience, CF_ACCOUNT_ID: "account", CF_D1_DATABASE_ID: "database", CF_D1_READ_TOKEN: "secret" },
     });
     assert.equal(response.status, 200);
     assert.equal(d1Calls, 3);
