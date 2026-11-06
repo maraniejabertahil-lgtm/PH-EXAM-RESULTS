@@ -308,8 +308,8 @@ For each affected test or test execution:
 #### P2-23 — D1 metadata handling
 
 - **Pass condition:** Operational metadata is written through the Cloudflare D1 REST API; no direct SQL driver or public frontend database query is introduced.
-- **Evidence to retain:** Sanitized API/workflow evidence and architecture check.
-- **Status:** `NOT RUN`
+- **Evidence:** Draft PR #107 implements the D1 REST client, metadata schema, optional Python pipeline logging, Watcher scan/release event logging, and a separate Access-protected Pages Function that reads only operational metadata. The private dashboard API/JWT tests, Python D1 client tests, Python compilation, Watcher tests, approved PDF retrieval tests, and in-scope Python suite passed on commit `de2982e`. The schema was also smoke-tested against SQLite in-memory. Live Cloudflare D1 writes, deployed Access policy, and authenticated/unauthenticated production checks have not yet run; the PR remains draft and no production deployment occurred.
+- **Status:** `PARTIAL`
 
 #### P2-24 — GitOps PR creation
 
