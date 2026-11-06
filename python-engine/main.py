@@ -612,6 +612,11 @@ def main() -> int:
         return 1
     report = read_validation_report(Path.cwd())
     record_pipeline_event(
+        batch_data, event_type="greenlight_passed", status="passed",
+        summary="All Greenlight validation checks passed.", batch_status="greenlight_passed",
+        report=report, batch_bytes=batch_bytes,
+    )
+    record_pipeline_event(
         batch_data, event_type="publication_completed", status="completed",
         summary="Verified publication workflow completed successfully.", batch_status="published",
         report=report, batch_bytes=batch_bytes,
