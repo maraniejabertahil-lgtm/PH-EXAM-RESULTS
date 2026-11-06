@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { runScheduled, expandPreemptiveTemplates } from "../src/index.js";
+import { runScheduled, expandPreemptiveTemplates, recordWatcherActivity } from "../src/index.js";
 
 const repository = "owner/repository";
 class MemoryKV {
@@ -880,4 +880,21 @@ test("PRC listing snapshots historical pages and processes newly posted result a
   assert.equal(dispatches[3].client_payload.event.result_level, "secondary");
   assert.equal(dispatches[3].client_payload.event.article_url, newArticles[3]);
   assert.ok(secondBatch.outbound_subrequests_used <= secondBatch.outbound_subrequest_safety_limit);
+});
+
+
+test("records only sanitized Watcher activity through the D1 REST API", async () => {
+  let request;
+  const fetchMock = async (url, init) => {
+    request = { url, init };
+    return new Response(JSON.stringify({ success: true, result: [{ results: [] }] }), { status: 200 });
+  };
+  const env = { CF_ACCOUNT_ID: "account", CF_D1_DATABASE_ID: "database", CF_D1_API_TOKEN: "token" };
+  assert.equal(await recordWatcherActivity(env, "watcher_scan", "completed", "scan\ncompleted", fetchMock), true);
+  assert.match(request.url, /d1\/database\/database\/query$/);
+  const payload = JSON.parse(request.init.body);
+  assert.match(payload.sql, /INSERT INTO monitoring_logs/);
+  assert.equal(payload.params[1], "watcher_scan");
+  assert.equal(payload.params[3], "scan completed");
+  assert.equal(await recordWatcherActivity({}, "watcher_scan", "completed", "ignored", fetchMock), false);
 });
