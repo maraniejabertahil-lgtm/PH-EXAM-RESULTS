@@ -10,9 +10,11 @@
 
 ## Required Cloudflare resources
 
-Create one D1 database named `ph-exam-results-operations`. Record its database UUID.
+1. In Cloudflare, open **Workers & Pages > D1 SQL Database** and create a database named `ph-exam-results-operations`. Record its database UUID.
+2. In **My Profile > API Tokens**, create a dedicated custom token with Account / D1 / Write permission for trusted writers.
+3. Create a second custom token with Account / D1 / Read permission for the Pages dashboard.
 
-Create a dedicated Cloudflare Account API token with Account / D1 / Edit permission for trusted writers. Create a second token with Account / D1 / Read permission for the Pages dashboard. Do not reuse the Pages deployment token or the read-only diagnostics token for writes.
+Create a dedicated Cloudflare Account API token with Account / D1 / Write permission for trusted writers. Create a second token with Account / D1 / Read permission for the Pages dashboard. Do not reuse the Pages deployment token or the read-only diagnostics token for writes.
 
 ## Required GitHub Actions secrets
 
@@ -51,13 +53,7 @@ The Pages Function middleware independently verifies the Access JWT and exact ow
 
 ## Apply the schema
 
-After the D1 database and GitHub secrets exist, run:
-
-```bash
-python python-engine/database/d1_client.py migrate
-```
-
-The migration is idempotent. It creates `monitoring_logs`, `import_batches`, and `release_predictions` plus activity indexes.
+After the D1 database and GitHub secrets exist, open the repository's **Actions** tab, select **Migrate Private Activity Monitor D1**, and choose **Run workflow** on `main`. This applies the idempotent migration through the Cloudflare REST API. You can alternatively run the Python migration command from the repository root: It creates `monitoring_logs`, `import_batches`, and `release_predictions` plus activity indexes.
 
 ## Browser-side errors
 
