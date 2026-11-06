@@ -1,75 +1,107 @@
-# Private Owner Activity Monitor — Setup
+# Private Owner Activity Dashboard — Setup
 
-## Security and architecture
+## What this adds
 
-- Public search remains static-first and browser-local.
-- No browser-side search query, examinee name, or anonymous client event is sent to D1. This preserves the Master Blueprint's rule that the public site has no write path.
-- Trusted server-side components (Cloudflare Watcher, Python, and GitHub Actions) write sanitized operational events through the Cloudflare D1 REST API.
-- The owner dashboard and API are protected by Cloudflare Access plus server-side JWT verification that allowlists the exact `OWNER_EMAIL`.
-- D1 credentials never appear in public assets.
+A separate Cloudflare Pages project hosts the owner-only activity timeline. It is not part of the public results website and does not change the public site's routes, headers, search code, or deployment.
 
-## Required Cloudflare resources
+The dashboard shows individual operational events with timestamps, component, operation, status, duration, execution ID, and available failure details. Related events share an execution ID.
 
-1. Open **Workers & Pages > D1 SQL Database** and create a database named `ph-exam-results-operations`. Record its database UUID.
-2. In **My Profile > API Tokens**, create a custom token with **Account / D1 / Write** permission for trusted writers.
-3. Create a second custom token with **Account / D1 / Read** permission for the Pages dashboard. Keep the read-only token separate.
+## Privacy and security
 
-## Required GitHub Actions secrets
+- Deploy the dashboard to a **separate Pages project and hostname** (for example, a project named `ph-exam-owner-dashboard`).
+- Protect the entire dashboard hostname with Cloudflare Access. The Allow policy must contain only the Owner's exact email address.
+- The dashboard API independently verifies the Access JWT signature, issuer, audience, expiry, and exact `OWNER_EMAIL`.
+- The API uses a separate D1 Read token. D1 Write credentials are used only by trusted server-side writers.
+- Public search remains static-first and browser-local. No examinee names, result rows, or raw visitor search queries are written to D1.
+- The public website's browser-side error messages were fixed separately and remain local to the visitor's browser. Anonymous browser error ingestion is not added because it would create a public write path.
 
-- `CF_D1_API_TOKEN` — dedicated D1 Write token
+## 1. Create the private Pages project
+
+In Cloudflare, create a new Pages project dedicated to the owner dashboard. Do not reuse the public results Pages project or its hostname.
+
+Choose a separate project name, such as `ph-exam-owner-dashboard`. Record the exact project name and its `*.pages.dev` hostname.
+
+## 2. Protect the entire dashboard hostname
+
+In **Zero Trust → Access → Applications**, create a Self-hosted application for the entire new dashboard hostname, for example:
+
+`https://ph-exam-owner-dashboard.pages.dev/*`
+
+Create an Allow policy containing only the Owner's exact sign-in email. Do not use Everyone or a whole email-domain rule.
+
+The dashboard API also verifies the exact owner email. If Access settings or identity configuration are missing, the API fails closed and returns no activity data.
+
+## 3. Create D1 and API tokens
+
+1. In **Workers & Pages → D1 SQL Database**, create a database, for example `ph-exam-results-operations`. Record its database UUID.
+2. Create a Cloudflare API token with **Account / D1 / Write** permission for trusted writers.
+3. Create a separate Cloudflare API token with **Account / D1 / Read** permission for the private dashboard.
+4. Create a Cloudflare Pages deployment token with permission to deploy Pages projects.
+
+The schema and client use the Cloudflare D1 REST API. No direct SQL driver or public browser database query is introduced.
+
+## 4. Configure GitHub Actions secrets
+
+Add these repository secrets:
+
+- `CF_D1_API_TOKEN` — D1 Write token
 - `CF_ACCOUNT_ID` — Cloudflare account ID
-- `CF_D1_DATABASE_ID` — new D1 database UUID
+- `CF_D1_DATABASE_ID` — D1 database UUID
+- `CF_PAGES_API_TOKEN` — Cloudflare Pages deployment token
+- `CF_OWNER_PAGES_PROJECT_NAME` — exact separate owner dashboard Pages project name
 
-## Required Cloudflare Worker variables/secrets
+Add this repository variable only after the private Pages project and Access policy are ready:
 
-Set these in the production Watcher Worker:
+- `CF_OWNER_DASHBOARD_ENABLED` = `true`
+
+The dashboard deployment job remains disabled until that variable is enabled. You can also run **Deploy Private Owner Dashboard** manually from Actions on `main`.
+
+## 5. Configure the production Watcher
+
+Set these in the Cloudflare Watcher Worker:
+
 - `CF_D1_API_TOKEN` — secret, D1 Write token
 - `CF_ACCOUNT_ID` — variable
 - `CF_D1_DATABASE_ID` — variable
 
-## Required Cloudflare Pages production variables/secrets
+The Watcher batches its activity records into one D1 REST request per scheduled invocation so monitoring does not consume one Worker subrequest per event.
+
+## 6. Configure the private Pages project
+
+In the separate owner dashboard Pages project, add these production environment variables/secrets:
 
 - `CF_D1_READ_API_TOKEN` — secret, separate D1 Read token
 - `CF_ACCOUNT_ID` — variable
 - `CF_D1_DATABASE_ID` — variable
-- `CF_ACCESS_TEAM_DOMAIN` — Zero Trust team domain without `https://`
-- `CF_ACCESS_AUD` — Access application's audience tag
-- `OWNER_EMAIL` — exact owner sign-in email
+- `CF_ACCESS_TEAM_DOMAIN` — Zero Trust team domain, without `https://`
+- `CF_ACCESS_AUD` — audience tag of the Access application
+- `OWNER_EMAIL` — exact Owner email allowed by the Access policy
 
-## Cloudflare Access
+Do not add the D1 Read token until the Access application and its owner-only policy are active.
 
-In **Zero Trust > Access > Applications**, create path-specific Self-hosted applications for the Pages hostname:
+## 7. Run the D1 migration
 
-- `YOUR-PROJECT.pages.dev/owner-monitor`
-- `YOUR-PROJECT.pages.dev/api/owner`
+After adding the GitHub D1 Write secrets, open **Actions → Migrate Private Activity Monitor D1 → Run workflow** on `main`.
 
-Give each application an Allow policy containing only the owner's exact email address. Do not use Everyone or an email-domain-wide rule.
+The migration creates or upgrades these tables:
 
-**Do not protect the entire Pages hostname** if that would require public visitors to sign in. The public homepage and search routes must remain public. Use path-specific Access applications. If Cloudflare does not allow path-specific protection on the project's `pages.dev` hostname in your account, use a dedicated owner subdomain on a domain you control and leave the public Pages hostname unchanged.
+- `monitoring_logs` — per-operation activity timeline and diagnostics
+- `import_batches` — acquisition and Greenlight batch history
+- `release_predictions` — release prediction metadata
 
-The Pages Function middleware independently verifies the Access JWT signature, issuer, audience, expiry, and exact owner email. It fails closed if Access headers or configuration are missing.
+The migration is additive and checks existing table columns before adding missing fields. It is compatible with the earlier private-activity metadata schema and preserves existing records.
 
-## Apply the schema
+## 8. Deploy and verify
 
-After creating the database and adding the GitHub Actions secrets, open the repository's **Actions** tab, select **Migrate Private Activity Monitor D1**, and choose **Run workflow** on `main`.
+1. Confirm the private Pages project and its Access policy are configured.
+2. Set `CF_OWNER_DASHBOARD_ENABLED=true`.
+3. Run **Deploy Private Owner Dashboard** from Actions on `main`.
+4. Open the separate `*.pages.dev` dashboard hostname while signed in as the Owner.
+5. Run a Watcher scheduled check and a Python processing workflow.
+6. Confirm each operation appears as an individual activity and related events share an execution ID.
+7. Open the dashboard signed out or with another email; it must be blocked.
+8. Confirm the public results website still opens without login and its search remains unchanged.
 
-Alternatively, from the repository root run:
+## Browser-side errors: current boundary
 
-```bash
-python python-engine/database/d1_client.py migrate
-```
-
-The migration is idempotent. It creates `monitoring_logs`, `import_batches`, and `release_predictions` plus activity indexes. It also checks existing table columns and adds missing activity fields, preserving records if the earlier private-activity metadata schema has already been created.
-
-## Browser-side errors
-
-The public search UI now shows a safe user-facing diagnostic reference and a reload action, while keeping technical details in that browser's developer console. It does not transmit client-side errors to D1 because the approved public architecture has no anonymous write endpoint. Central collection of errors from anonymous visitors would require the Owner to explicitly approve a narrow, rate-limited diagnostic-ingestion exception to the Master Blueprint.
-
-## First verification
-
-1. Confirm the migration created all three tables.
-2. Run a Watcher scheduled check and a GitHub processing workflow.
-3. Open `/owner-monitor/` while signed in as the owner.
-4. Confirm the timeline shows events and related events share an execution ID.
-5. Open the same URL signed out and confirm it is inaccessible.
-6. Confirm no D1 token, owner email, or Access audience appears in `public/`.
+The public website now displays safe user-facing error messages and diagnostic references. Those browser errors are not centrally collected. Sending errors from anonymous visitors to D1 would require a separate, explicitly approved, rate-limited ingestion design. The current implementation does not create that public write endpoint.
