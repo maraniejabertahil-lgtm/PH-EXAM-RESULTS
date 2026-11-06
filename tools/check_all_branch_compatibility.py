@@ -62,7 +62,7 @@ def main() -> int:
     if summary_path:
         with open(summary_path, "a", encoding="utf-8") as summary:
             summary.write("## All-branch compatibility audit\n\n")
-            summary.write(f"- Remote branches examined: {len(refs) + 2}\n")
+            summary.write(f"- Remote branches examined: {branch_count}\n")
             summary.write(f"- Already included/contains feature: {len(included)}\n")
             summary.write(f"- Clean merge compatibility: {len(clean)}\n")
             summary.write(f"- Merge conflicts: {len(conflicts)}\n")
