@@ -1,3 +1,4 @@
+import { recordActivities } from "./activity-log.js";
 import { buildReleaseEvent } from "./release-event.js";
 const GITHUB_API = "https://api.github.com";
 const GITHUB_API_VERSION = "2022-11-28";
@@ -955,32 +956,91 @@ export async function runScheduled({
   sleepImpl = (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
   scheduledTime = Date.now()
 }) {
-  if (!env.PEAK_WEEK || typeof env.PEAK_WEEK.get !== "function" || typeof env.PEAK_WEEK.put !== "function") {
-    throw new Error("The PEAK_WEEK KV namespace binding is not configured.");
+  const startedAt = Date.now();
+  const executionId = "watcher:" + scheduledTime;
+  const activityEvents = [{
+    event_id: executionId + ":started", execution_id: executionId,
+    occurred_at: isoNow(new Date(scheduledTime)), operation: "scheduled_scan",
+    status: "running", message: "Watcher scheduled scan started.", source: "cloudflare_worker"
+  }];
+  try {
+    if (!env.PEAK_WEEK || typeof env.PEAK_WEEK.get !== "function" || typeof env.PEAK_WEEK.put !== "function") {
+      throw new Error("The PEAK_WEEK KV namespace binding is not configured.");
+    }
+    const budget = createSubrequestBudget(env, fetchImpl);
+    const budgetEnv = { ...env, PEAK_WEEK: budget.kv };
+    const peakWeek = parseBoolean(await budget.kv.get("PEAK_WEEK"));
+    const sources = await readSourceRegistry(env, budget.fetch);
+    const activeSources = sources.filter(isApprovedSource);
+    const first = await runScan(sources, budgetEnv, budget.fetch, new Date(scheduledTime), peakWeek);
+    let second = null;
+    if (peakWeek) {
+      await sleepImpl(30_000);
+      second = await runScan(sources, budgetEnv, budget.fetch, new Date(scheduledTime + 30_000), true);
+    }
+    const scans = [{ phase: "first", scan: first }];
+    if (second) scans.push({ phase: "second", scan: second });
+    for (const item of scans) {
+      for (let index = 0; index < item.scan.results.length; index += 1) {
+        const result = item.scan.results[index];
+        const resultStatus = String(result.status || "unknown");
+        const outcome = /skipped|manual_review_required/.test(resultStatus)
+          ? "blocked"
+          : (/recovered|not_pdf/.test(resultStatus) ? "warning"
+            : (/error|failed|budget_reached/.test(resultStatus) ? "failed" : "success"));
+        const sourceId = String(result.source_id || "unknown");
+        activityEvents.push({
+          event_id: executionId + ":source:" + item.phase + ":" + index + ":" + sourceId,
+          execution_id: executionId,
+          occurred_at: new Date().toISOString(),
+          operation: "source_check:" + sourceId,
+          status: outcome,
+          severity: outcome === "failed" ? "error" : (outcome === "blocked" || outcome === "warning" ? "warning" : "info"),
+          message: "Source check result: " + resultStatus + ".",
+          error_code: outcome === "failed" ? resultStatus.toUpperCase().slice(0, 80) : null,
+          error_message: result.error ? String(result.error).slice(0, 1000) : null,
+          source: "cloudflare_worker",
+          metadata: { source_id: sourceId, mode: peakWeek ? "peak_week" : "standard" }
+        });
+      }
+    }
+    const report = {
+      checked_at: isoNow(new Date(scheduledTime)),
+      mode: peakWeek ? "peak_week" : "standard",
+      configured_sources: sources.length,
+      approved_enabled_sources: activeSources.length,
+      outbound_subrequests_used: budget.used(),
+      outbound_subrequest_safety_limit: MAX_SUBREQUESTS_PER_INVOCATION,
+      first_check: first,
+      second_check: second
+    };
+    console.log(JSON.stringify(report));
+    activityEvents.push({
+      event_id: executionId + ":finished", execution_id: executionId,
+      occurred_at: new Date().toISOString(), operation: "scheduled_scan",
+      status: "success", duration_ms: Date.now() - startedAt,
+      message: "Watcher scheduled scan completed.",
+      source: "cloudflare_worker",
+      metadata: {
+        mode: report.mode, checked_targets: first.checked_targets + (second?.checked_targets || 0),
+        skipped_targets: first.skipped_targets + (second?.skipped_targets || 0)
+      }
+    });
+    await recordActivities(env, activityEvents);
+    return report;
+  } catch (error) {
+    activityEvents.push({
+      event_id: executionId + ":failed", execution_id: executionId,
+      occurred_at: new Date().toISOString(), operation: "scheduled_scan",
+      status: "failed", severity: "error", duration_ms: Date.now() - startedAt,
+      message: "Watcher scheduled scan failed.",
+      error_code: "WATCHER_SCAN_FAILED",
+      error_message: String(error?.message || error).slice(0, 1000),
+      source: "cloudflare_worker"
+    });
+    await recordActivities(env, activityEvents);
+    throw error;
   }
-  const budget = createSubrequestBudget(env, fetchImpl);
-  const budgetEnv = { ...env, PEAK_WEEK: budget.kv };
-  const peakWeek = parseBoolean(await budget.kv.get("PEAK_WEEK"));
-  const sources = await readSourceRegistry(env, budget.fetch);
-  const activeSources = sources.filter(isApprovedSource);
-  const first = await runScan(sources, budgetEnv, budget.fetch, new Date(scheduledTime), peakWeek);
-  let second = null;
-  if (peakWeek) {
-    await sleepImpl(30_000);
-    second = await runScan(sources, budgetEnv, budget.fetch, new Date(scheduledTime + 30_000), true);
-  }
-  const report = {
-    checked_at: isoNow(new Date(scheduledTime)),
-    mode: peakWeek ? "peak_week" : "standard",
-    configured_sources: sources.length,
-    approved_enabled_sources: activeSources.length,
-    outbound_subrequests_used: budget.used(),
-    outbound_subrequest_safety_limit: MAX_SUBREQUESTS_PER_INVOCATION,
-    first_check: first,
-    second_check: second
-  };
-  console.log(JSON.stringify(report));
-  return report;
 }
 
 export default {
