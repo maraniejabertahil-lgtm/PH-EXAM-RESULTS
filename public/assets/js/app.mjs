@@ -195,16 +195,19 @@ elements.form.addEventListener("submit", async (event) => {
   event.preventDefault();
   elements.button.disabled = true;
   elements.resultsSection.hidden = true;
+  let errorContext = "search";
   try {
     const query = elements.name.value.trim();
     if (query.length < 2) throw new Error("Enter at least two characters to search.");
+    errorContext = "dataset";
     const dataset = await ensureDataset();
+    errorContext = "search";
     setMessage("Searching this device…");
     const result = await search(query, dataset.rows);
     renderResults(result);
     setMessage("Search complete. No search query was sent to a server.", "success");
   } catch (error) {
-    showSafeError(error?.message?.includes("Dataset") || error?.message?.includes("Manifest") ? "dataset" : "search", error);
+    showSafeError(errorContext, error);
   } finally {
     elements.button.disabled = !getSelectedEntry();
   }
