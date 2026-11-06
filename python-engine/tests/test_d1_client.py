@@ -65,6 +65,25 @@ class D1ClientTests(unittest.TestCase):
         self.assertEqual(captured["params"][0], "evt-2")
         self.assertEqual(captured["params"][3], "failed")
 
+    def test_activity_maps_display_statuses_to_legacy_d1_constraints(self):
+        captured = {}
+        def fake_query(account, database, token, sql, params, **kwargs):
+            captured["params"] = list(params)
+            return []
+        with patch.dict(os.environ, {
+            "CF_D1_API_TOKEN": "test-token", "CF_ACCOUNT_ID": "account", "CF_D1_DATABASE_ID": "database",
+        }, clear=True), patch.object(d1_client, "_query", fake_query):
+            self.assertTrue(d1_client.record_activity({
+                "event_id": "evt-blocked", "execution_id": "exec-blocked",
+                "component": "Python Engine", "operation": "prc_release_acquisition",
+                "status": "blocked", "severity": "warning",
+                "error_code": "PRC_REVIEW_REQUIRED",
+            }))
+        self.assertEqual(captured["params"][2], "greenlight_failed")
+        self.assertEqual(captured["params"][3], "failed")
+        self.assertEqual(captured["params"][18], "BLOCKED:PRC_REVIEW_REQUIRED")
+        self.assertEqual(captured["params"][15], "warning")
+
     def test_rest_query_uses_string_parameters_and_cloudflare_endpoint(self):
         captured = {}
         def fake_opener(request, timeout):
