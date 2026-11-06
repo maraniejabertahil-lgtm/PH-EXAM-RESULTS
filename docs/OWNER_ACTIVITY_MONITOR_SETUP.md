@@ -40,8 +40,8 @@ Set these in the production Watcher Worker:
 
 In **Zero Trust > Access > Applications**, create path-specific Self-hosted applications for the Pages hostname:
 
-- `YOUR-PROJECT.pages.dev/owner-monitor/*`
-- `YOUR-PROJECT.pages.dev/api/owner/*`
+- `YOUR-PROJECT.pages.dev/owner-monitor`
+- `YOUR-PROJECT.pages.dev/api/owner`
 
 Give each application an Allow policy containing only the owner's exact email address. Do not use Everyone or an email-domain-wide rule.
 
