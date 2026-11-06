@@ -67,4 +67,5 @@ CREATE INDEX IF NOT EXISTS idx_monitoring_logs_status ON monitoring_logs(status,
 CREATE INDEX IF NOT EXISTS idx_monitoring_logs_component ON monitoring_logs(component, occurred_at DESC);
 CREATE INDEX IF NOT EXISTS idx_monitoring_logs_created ON monitoring_logs(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_import_batches_updated ON import_batches(updated_at DESC);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_release_predictions_prediction_id ON release_predictions(prediction_id);
 CREATE INDEX IF NOT EXISTS idx_release_predictions_date ON release_predictions(predicted_release_date);
