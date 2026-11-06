@@ -52,7 +52,10 @@ def execute(sql: str, params=(), *, opener=urlopen, timeout=15):
         raise RuntimeError(f"Cloudflare D1 request failed: {exc}") from exc
     if not isinstance(payload, dict) or payload.get("success") is not True:
         raise RuntimeError("Cloudflare D1 API reported an unsuccessful query.")
-    return payload.get("result", [])
+    results = payload.get("result", [])
+    if any(isinstance(item, dict) and item.get("success") is False for item in results):
+        raise RuntimeError("Cloudflare D1 reported a failed SQL statement.")
+    return results
 
 def record_activity(event: dict) -> bool:
     """Insert one idempotent event. Returns False when D1 is not configured."""
@@ -78,10 +81,11 @@ def record_activity(event: dict) -> bool:
     sql = """INSERT OR IGNORE INTO monitoring_logs
       (event_id, execution_id, occurred_at, component, operation, status, severity,
        duration_ms, message, error_code, error_message, source, metadata_json)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"""
+      VALUES (?, ?, ?, ?, ?, ?, ?, NULLIF(?, ''), ?, NULLIF(?, ''), NULLIF(?, ''), ?, ?)"""
     try:
         execute(sql, (event_id, execution_id, occurred_at, component, operation, status, severity,
-                      duration, message, error_code, error_message, source, metadata))
+                      "" if duration is None else str(duration), message, error_code or "",
+                      error_message or "", source, metadata))
         return True
     except Exception as exc:
         print(f"ACTIVITY_LOG_WARNING: {str(exc)[:300]}", file=sys.stderr)
