@@ -139,13 +139,14 @@ class PublicPreviewCaptureTests(unittest.TestCase):
                 publish_batch("batch.json", root=self.root)
         gitops.assert_not_called()
 
-    def test_explicitly_approved_exam_publishes_automatically_after_greenlight(self):
+    def test_source_approved_automation_publishes_any_greenlighted_exam_year(self):
         registry_path = self.root / "python-engine/config/sources.json"
         registry = json.loads(registry_path.read_text(encoding="utf-8"))
-        registry["sources"][0]["auto_publish_exams"] = ["LET-ELEMENTARY-2026"]
+        registry["sources"][0]["auto_publish_after_greenlight"] = True
         registry["sources"][0]["owner_visual_review_required_exams"] = []
         registry_path.write_text(json.dumps(registry), encoding="utf-8")
-        (self.root / "batch.json").write_text(json.dumps(self.batch), encoding="utf-8")
+        candidate = dict(self.batch, exam="LEPT-SECONDARY", year=2027)
+        (self.root / "batch.json").write_text(json.dumps(candidate), encoding="utf-8")
 
         with patch("main.verify_official_content_link"), patch("main.GitHubGitOps") as gitops:
             gitops.return_value.open_dataset_pr.return_value = {"pull_request_number": 12}
@@ -158,10 +159,38 @@ class PublicPreviewCaptureTests(unittest.TestCase):
             (self.root / "python-engine/artifacts/dataset/manifest.json").read_text(encoding="utf-8")
         )
         self.assertNotIn("owner_review", published_manifest)
+        self.assertEqual(published_manifest["exam"], "LEPT-SECONDARY")
+        self.assertEqual(published_manifest["year"], 2027)
+
+    def test_invalid_source_wide_auto_publish_policy_fails_closed(self):
+        registry_path = self.root / "python-engine/config/sources.json"
+        registry = json.loads(registry_path.read_text(encoding="utf-8"))
+        registry["sources"][0]["auto_publish_after_greenlight"] = "true"
+        registry_path.write_text(json.dumps(registry), encoding="utf-8")
+        (self.root / "batch.json").write_text(json.dumps(self.batch), encoding="utf-8")
+
+        with patch("main.verify_official_content_link"), patch("main.GitHubGitOps") as gitops:
+            with self.assertRaisesRegex(PipelineError, "Publication policy stopped safely"):
+                publish_batch("batch.json", root=self.root)
+        gitops.assert_not_called()
+
+    def test_auto_publish_holds_announced_count_mismatch_without_opening_gitops_pr(self):
+        registry_path = self.root / "python-engine/config/sources.json"
+        registry = json.loads(registry_path.read_text(encoding="utf-8"))
+        registry["sources"][0]["auto_publish_after_greenlight"] = True
+        registry_path.write_text(json.dumps(registry), encoding="utf-8")
+        candidate = dict(self.batch, announced_count=3)
+        (self.root / "batch.json").write_text(json.dumps(candidate), encoding="utf-8")
+
+        with patch("main.verify_official_content_link"), patch("main.GitHubGitOps") as gitops:
+            with self.assertRaisesRegex(PipelineError, "Extraction counts do not match"):
+                publish_batch("batch.json", root=self.root)
+        gitops.assert_not_called()
 
     def test_required_owner_review_overrides_automatic_publication_allowlist(self):
         registry_path = self.root / "python-engine/config/sources.json"
         registry = json.loads(registry_path.read_text(encoding="utf-8"))
+        registry["sources"][0]["auto_publish_after_greenlight"] = True
         registry["sources"][0]["auto_publish_exams"] = ["LET-ELEMENTARY-2026"]
         registry["sources"][0]["owner_visual_review_required_exams"] = ["LET-ELEMENTARY"]
         registry_path.write_text(json.dumps(registry), encoding="utf-8")

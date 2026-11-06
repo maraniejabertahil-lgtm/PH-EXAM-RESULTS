@@ -34,11 +34,13 @@ def requires_owner_visual_review(batch: dict[str, Any], *, root: str | Path) -> 
     source = matches[0]
     required = source.get("owner_visual_review_required_exams", [])
     automatic = source.get("auto_publish_exams", [])
+    auto_publish_after_greenlight = source.get("auto_publish_after_greenlight", False)
     if (
         not isinstance(required, list)
         or any(not isinstance(exam, str) or not exam for exam in required)
         or not isinstance(automatic, list)
         or any(not isinstance(exam, str) or not exam for exam in automatic)
+        or not isinstance(auto_publish_after_greenlight, bool)
     ):
         raise PublicationPolicyError("Source visual-review publication policy is invalid.")
 
@@ -47,4 +49,6 @@ def requires_owner_visual_review(batch: dict[str, Any], *, root: str | Path) -> 
     exam_year = f"{exam}-{year}" if isinstance(exam, str) and isinstance(year, int) else None
     if exam in required or exam_year in required:
         return True
+    if auto_publish_after_greenlight:
+        return False
     return exam_year not in automatic

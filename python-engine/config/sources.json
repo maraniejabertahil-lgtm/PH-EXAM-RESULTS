@@ -27,12 +27,8 @@
       "authority": "PRC",
       "exam": "LICENSURE-EXAM-RESULTS",
       "exam_scope": "all",
-      "owner_visual_review_required_exams": [
-        "LEPT-SECONDARY"
-      ],
-      "auto_publish_exams": [
-        "CPALE-2026"
-      ],
+      "owner_visual_review_required_exams": [],
+      "auto_publish_after_greenlight": true,
       "source_type": "official",
       "authorized": true,
       "enabled": true,
