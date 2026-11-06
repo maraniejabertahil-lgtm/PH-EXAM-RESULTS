@@ -14,16 +14,16 @@ export async function recordActivity(env, event, fetchImpl = fetch) {
   }
   const sql = "INSERT OR IGNORE INTO monitoring_logs " +
     "(event_id, execution_id, occurred_at, component, operation, status, severity, duration_ms, message, error_code, error_message, source, metadata_json) " +
-    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+    "VALUES (?, ?, ?, ?, ?, ?, ?, NULLIF(?, ''), ?, NULLIF(?, ''), NULLIF(?, ''), ?, ?)";
   const params = [
     String(event.event_id).slice(0, 160), String(event.execution_id).slice(0, 160),
     String(event.occurred_at || new Date().toISOString()), "Cloudflare Watcher",
     String(event.operation || "scheduled_scan").slice(0, 120), event.status,
     event.status === "failed" ? "error" : "info",
-    Number.isInteger(event.duration_ms) && event.duration_ms >= 0 ? event.duration_ms : null,
+    Number.isInteger(event.duration_ms) && event.duration_ms >= 0 ? String(event.duration_ms) : "",
     String(event.message || "Watcher activity").slice(0, 240),
-    event.error_code ? String(event.error_code).slice(0, 80) : null,
-    event.error_message ? String(event.error_message).slice(0, 1000) : null,
+    event.error_code ? String(event.error_code).slice(0, 80) : "",
+    event.error_message ? String(event.error_message).slice(0, 1000) : "",
     "cloudflare_worker", JSON.stringify(metadata)
   ];
   try {
@@ -33,7 +33,9 @@ export async function recordActivity(env, event, fetchImpl = fetch) {
       body: JSON.stringify({ sql, params }),
     });
     const payload = await response.json().catch(() => null);
-    if (!response.ok || payload?.success !== true) throw new Error("D1 activity write failed (HTTP " + response.status + ").");
+    if (!response.ok || payload?.success !== true || payload.result?.some((item) => item?.success === false)) {
+      throw new Error("D1 activity write failed (HTTP " + response.status + ").");
+    }
     return true;
   } catch (error) {
     console.warn("ACTIVITY_LOG_WARNING", String(error?.message || error).slice(0, 240));
