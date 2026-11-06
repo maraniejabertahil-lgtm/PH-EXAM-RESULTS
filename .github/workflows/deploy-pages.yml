@@ -8,6 +8,7 @@ on:
       - "public/**"
       - "functions/**"
       - "python-engine/database/**"
+      - "tools/check_all_branch_compatibility.py"
       - ".github/workflows/record-workflow-activity.yml"
       - ".github/workflows/migrate-d1-monitoring.yml"
       - "tools/validate_public_datasets.py"
