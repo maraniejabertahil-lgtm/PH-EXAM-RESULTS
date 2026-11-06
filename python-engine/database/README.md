@@ -29,6 +29,7 @@ Create one Cloudflare D1 database for internal metadata only. Configure these Gi
 - CF_ACCOUNT_ID
 - CF_D1_DATABASE_ID
 - CF_D1_API_TOKEN — D1 edit access scoped to the required database operations
+- CF_OWNER_PAGES_PROJECT_NAME — the dedicated private Pages project name (recommended: ph-exam-results-owner)
 
 Configure the Watcher Worker variables CF_ACCOUNT_ID and CF_D1_DATABASE_ID, and the Worker secret CF_D1_API_TOKEN. Watcher logging is best-effort; D1 failures never stop source monitoring.
 
