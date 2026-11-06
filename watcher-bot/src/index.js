@@ -984,10 +984,10 @@ export async function runScheduled({
       for (let index = 0; index < item.scan.results.length; index += 1) {
         const result = item.scan.results[index];
         const resultStatus = String(result.status || "unknown");
-        const outcome = /error|failed|budget_reached/.test(resultStatus)
-          ? "failed"
-          : (/skipped|manual_review_required/.test(resultStatus) ? "blocked"
-            : (resultStatus === "not_pdf" ? "warning" : "success"));
+        const outcome = /skipped|manual_review_required/.test(resultStatus)
+          ? "blocked"
+          : (/recovered|not_pdf/.test(resultStatus) ? "warning"
+            : (/error|failed|budget_reached/.test(resultStatus) ? "failed" : "success"));
         const sourceId = String(result.source_id || "unknown");
         await recordActivity(env, {
           event_id: executionId + ":source:" + item.phase + ":" + index + ":" + sourceId,
