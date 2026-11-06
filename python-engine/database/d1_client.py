@@ -146,6 +146,8 @@ def record_activity(event: dict) -> bool:
     error_code = str(event.get("error_code") or "")[:80]
     if status == "blocked" and not error_code:
         error_code = "BLOCKED"
+    if status in {"blocked", "warning"} and severity == "info":
+        severity = "warning"
     error_message = str(event.get("error_message") or "")[:1000]
     source = str(event.get("source") or "system")[:40]
     event_type = event.get("event_type")
@@ -246,7 +248,9 @@ class D1Client:
 
 COLUMN_DEFINITIONS = {
     "monitoring_logs": {
-        "event_id": "TEXT", "execution_id": "TEXT", "occurred_at": "TEXT",
+        "id": "TEXT", "event_id": "TEXT", "event_type": "TEXT", "summary": "TEXT NOT NULL DEFAULT ''",
+        "authority": "TEXT", "exam": "TEXT", "exam_year": "INTEGER", "source_id": "TEXT",
+        "correlation_id": "TEXT", "created_at": "TEXT", "execution_id": "TEXT", "occurred_at": "TEXT",
         "component": "TEXT", "operation": "TEXT", "severity": "TEXT NOT NULL DEFAULT 'info'",
         "duration_ms": "INTEGER", "message": "TEXT", "error_code": "TEXT",
         "error_message": "TEXT", "source": "TEXT", "metadata_json": "TEXT NOT NULL DEFAULT '{}'",
