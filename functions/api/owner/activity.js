@@ -20,15 +20,27 @@ export async function onRequestGet({ request, env }) {
   const allowedStatuses = new Set(["running", "success", "failed", "blocked", "warning"]);
   if (status && !allowedStatuses.has(status)) return json({ error: "Invalid status filter." }, 400);
   if (component.length > 80) return json({ error: "Invalid component filter." }, 400);
+  const statusExpression = "CASE WHEN status = 'started' THEN 'running' " +
+    "WHEN status = 'passed' THEN 'success' " +
+    "WHEN status = 'completed' AND severity = 'warning' THEN 'warning' " +
+    "WHEN status = 'completed' THEN 'success' " +
+    "WHEN status = 'failed' AND error_code = 'BLOCKED' THEN 'blocked' " +
+    "WHEN status = 'failed' THEN 'failed' ELSE 'warning' END";
   const where = [];
   const params = [];
-  if (status) { where.push("status = ?"); params.push(status); }
-  if (component) { where.push("component = ?"); params.push(component); }
+  if (status) { where.push(statusExpression + " = ?"); params.push(status); }
+  if (component) { where.push("COALESCE(component, event_type) = ?"); params.push(component); }
   params.push(String(limit));
-  const sql = "SELECT event_id, execution_id, occurred_at, component, operation, status, severity, " +
-    "duration_ms, message, error_code, error_message, source, metadata_json FROM monitoring_logs " +
-    (where.length ? "WHERE " + where.join(" AND ") + " " : "") +
-    "ORDER BY occurred_at DESC LIMIT ?";
+  const sql = "SELECT COALESCE(event_id, id) AS event_id, " +
+    "COALESCE(execution_id, correlation_id) AS execution_id, " +
+    "COALESCE(occurred_at, created_at) AS occurred_at, " +
+    "COALESCE(component, event_type) AS component, " +
+    "COALESCE(operation, event_type) AS operation, " +
+    statusExpression + " AS status, severity, duration_ms, " +
+    "COALESCE(message, summary) AS message, error_code, error_message, source, metadata_json " +
+    "FROM monitoring_logs " + (where.length ? "WHERE " + where.join(" AND ") + " " : "") +
+    "ORDER BY COALESCE(occurred_at, created_at) DESC LIMIT ?";
+
   try {
     const response = await fetch(API_ROOT + "/accounts/" + account + "/d1/database/" + database + "/query", {
       method: "POST",
