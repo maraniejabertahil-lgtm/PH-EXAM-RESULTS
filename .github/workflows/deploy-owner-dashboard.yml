@@ -1,0 +1,92 @@
+name: Deploy Private Owner Dashboard
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "owner-dashboard/**"
+      - "python-engine/database/**"
+      - "python-engine/main.py"
+      - "python-engine/prc_orchestrator.py"
+      - "watcher-bot/**"
+      - "tools/check_all_branch_compatibility.py"
+      - ".github/workflows/deploy-owner-dashboard.yml"
+      - ".github/workflows/record-workflow-activity.yml"
+      - ".github/workflows/migrate-d1-monitoring.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "owner-dashboard/**"
+      - ".github/workflows/deploy-owner-dashboard.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: private-owner-dashboard-deploy
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    name: Validate private dashboard and D1 integration
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Check private dashboard JavaScript syntax
+        run: |
+          node --check owner-dashboard/public/activity.js
+          node --check owner-dashboard/functions/api/activity.js
+          node --check owner-dashboard/functions/lib/access.js
+      - name: Test exact owner Access verification and private D1 API
+        run: node --test owner-dashboard/functions/tests/*.test.mjs
+      - name: Test Python D1 REST client and additive migration
+        working-directory: python-engine
+        run: python -m unittest discover -s tests -p "test_d1_client.py" -v
+      - name: Compile Python metadata modules
+        run: python -m py_compile python-engine/database/*.py
+      - name: Audit merge compatibility against every repository branch
+        env:
+          FEATURE_BRANCH: ${{ github.head_ref || 'main' }}
+          BRANCH_COMPATIBILITY_STRICT: "1"
+        run: python tools/check_all_branch_compatibility.py
+
+  deploy:
+    name: Deploy isolated private Pages project
+    needs: validate
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && vars.CF_OWNER_DASHBOARD_ENABLED == 'true'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: main
+      - name: Verify private Pages deployment settings
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CF_PAGES_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
+          PROJECT_NAME: ${{ secrets.CF_OWNER_PAGES_PROJECT_NAME }}
+        run: |
+          set -euo pipefail
+          test -n "$CLOUDFLARE_API_TOKEN" || { echo "::error::Missing CF_PAGES_API_TOKEN."; exit 1; }
+          test -n "$CLOUDFLARE_ACCOUNT_ID" || { echo "::error::Missing CF_ACCOUNT_ID."; exit 1; }
+          test -n "$PROJECT_NAME" || { echo "::error::Missing CF_OWNER_PAGES_PROJECT_NAME."; exit 1; }
+          echo "Private Pages deployment settings are present."
+      - name: Deploy isolated private dashboard
+        working-directory: owner-dashboard
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CF_PAGES_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
+          PROJECT_NAME: ${{ secrets.CF_OWNER_PAGES_PROJECT_NAME }}
+        run: npx --yes wrangler@4.156.2 pages deploy public --project-name "$PROJECT_NAME" --branch main
