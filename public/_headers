@@ -10,3 +10,7 @@
   Cache-Control: public, max-age=300, stale-while-revalidate=86400
 /status.json
   Cache-Control: no-cache
+
+/owner/*
+  Cache-Control: private, no-store, max-age=0
+  X-Robots-Tag: noindex, nofollow, noarchive
