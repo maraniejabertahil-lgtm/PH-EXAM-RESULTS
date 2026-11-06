@@ -6,8 +6,10 @@ on:
       - source-detected
       - prc-release-detected
   push:
+    branches:
+      - main
     paths:
-      - "manual-drop/**"
+      - "manual-drop/normalized-batch.json"
   workflow_dispatch:
     inputs:
       batch_file:
@@ -157,19 +159,8 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
-  acknowledge-manual-drop-folder:
-    if: github.event_name == 'push'
-    runs-on: ubuntu-latest
-    steps:
-      - name: Acknowledge that folder pushes are not imports
-        run: |
-          echo "A change was received in manual-drop/."
-          echo "Folder pushes do not import or process result data."
-          echo "For an owner-approved disabled source, use the Actions workflow named Manual Source Validation."
-          echo "That workflow only validates an exact allowlisted Drive ID and does not download, extract, or publish a PDF."
-
   process-reviewed-batch:
-    if: github.event_name == 'workflow_dispatch' && inputs.review_run_id == ''
+    if: (github.event_name == 'workflow_dispatch' && inputs.review_run_id == '') || github.event_name == 'push'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
@@ -199,7 +190,7 @@ jobs:
 
       - name: Run Greenlight-to-GitOps processing pipeline
         env:
-          BATCH_FILE: ${{ inputs.batch_file }}
+          BATCH_FILE: ${{ github.event_name == 'push' && 'manual-drop/normalized-batch.json' || inputs.batch_file }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_REPOSITORY: ${{ github.repository }}
         run: |
