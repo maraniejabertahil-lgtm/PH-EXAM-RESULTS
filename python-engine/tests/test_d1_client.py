@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 import unittest
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 from database.d1_client import D1Client, D1Error
 
@@ -33,7 +33,7 @@ class D1ClientTests(unittest.TestCase):
         self.assertNotIn("secret-token", str(caught.exception))
 
     def test_partial_environment_configuration_is_rejected(self):
-        with unittest.mock.patch.dict("os.environ", {"CF_ACCOUNT_ID": "account"}, clear=True):
+        with patch.dict("os.environ", {"CF_ACCOUNT_ID": "account"}, clear=True):
             with self.assertRaises(D1Error):
                 D1Client.from_env()
 
