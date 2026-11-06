@@ -1,12 +1,8 @@
 const API_ROOT = "https://api.cloudflare.com/client/v4";
 const ALLOWED = new Set(["running", "success", "failed", "blocked", "warning"]);
 
-export async function recordActivity(env, event, fetchImpl = fetch) {
-  const token = env.CF_D1_API_TOKEN;
-  const account = env.CF_ACCOUNT_ID;
-  const database = env.CF_D1_DATABASE_ID;
-  if (!token || !account || !database) return false;
-  if (!event || !event.event_id || !event.execution_id || !ALLOWED.has(event.status)) return false;
+function toStatement(event) {
+  if (!event || !event.event_id || !event.execution_id || !ALLOWED.has(event.status)) return null;
   const metadata = {};
   for (const key of ["source_id", "authority", "exam", "checked_targets", "skipped_targets", "mode"]) {
     const value = event.metadata?.[key];
@@ -26,19 +22,33 @@ export async function recordActivity(env, event, fetchImpl = fetch) {
     event.error_message ? String(event.error_message).slice(0, 1000) : "",
     "cloudflare_worker", JSON.stringify(metadata)
   ];
+  return { sql, params };
+}
+
+export async function recordActivities(env, events, fetchImpl = fetch) {
+  const token = env.CF_D1_API_TOKEN;
+  const account = env.CF_ACCOUNT_ID;
+  const database = env.CF_D1_DATABASE_ID;
+  if (!token || !account || !database || !Array.isArray(events)) return false;
+  const batch = events.map(toStatement).filter(Boolean);
+  if (!batch.length) return false;
   try {
     const response = await fetchImpl(API_ROOT + "/accounts/" + account + "/d1/database/" + database + "/query", {
       method: "POST",
       headers: { Authorization: "Bearer " + token, "Content-Type": "application/json", Accept: "application/json" },
-      body: JSON.stringify({ sql, params }),
+      body: JSON.stringify({ batch }),
     });
     const payload = await response.json().catch(() => null);
     if (!response.ok || payload?.success !== true || payload.result?.some((item) => item?.success === false)) {
-      throw new Error("D1 activity write failed (HTTP " + response.status + ").");
+      throw new Error("D1 activity batch write failed (HTTP " + response.status + ").");
     }
     return true;
   } catch (error) {
     console.warn("ACTIVITY_LOG_WARNING", String(error?.message || error).slice(0, 240));
     return false;
   }
+}
+
+export async function recordActivity(env, event, fetchImpl = fetch) {
+  return recordActivities(env, [event], fetchImpl);
 }
