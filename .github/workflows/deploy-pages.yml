@@ -82,6 +82,7 @@ jobs:
       - name: Audit merge compatibility against every repository branch
         env:
           FEATURE_BRANCH: feature/private-activity-monitor-rebased-20261107
+          BRANCH_COMPATIBILITY_STRICT: "1"
         run: python tools/check_all_branch_compatibility.py
       - name: Validate committed public datasets
         run: python tools/validate_public_datasets.py
