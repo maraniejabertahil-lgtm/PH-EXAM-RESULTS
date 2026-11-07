@@ -320,11 +320,7 @@ ownerLogin.form?.addEventListener("submit", async (event) => {
       "Firebase Owner verified. Continue with GitHub verification… / تم التحقق من مالك Firebase. أكمل التحقق عبر GitHub…"
     );
 
-    location.assign(
-      OWNER_DASHBOARD_URL +
-      "/continue.html#proof=" +
-      encodeURIComponent(result.proof)
-    );
+    location.assign(OWNER_DASHBOARD_URL + "/continue.html#proof=" + encodeURIComponent(result.proof));
   } catch (error) {
     ownerLogin.password.value = "";
     setOwnerMessage(
