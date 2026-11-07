@@ -27,7 +27,10 @@ MIN_TOKEN_CONFIDENCE = 95.0
 def _safe_file(root: Path, value: Any, label: str) -> Path:
     if not isinstance(value, str) or not value.strip():
         raise StaticPngOcrError(f"{label} is required.")
-    path = (root / value).resolve()
+    unresolved = root / value
+    if unresolved.is_symlink():
+        raise StaticPngOcrError(f"{label} must not be a symbolic link.")
+    path = unresolved.resolve()
     try:
         path.relative_to(root.resolve())
     except ValueError as exc:
@@ -62,8 +65,8 @@ def _read_object(path: Path, label: str) -> dict[str, Any]:
 def _review_is_current(review: Any, label: str) -> None:
     if not isinstance(review, dict):
         raise StaticPngOcrError(f"{label} is required.")
-    if review.get("approved") is not True:
-        raise StaticPngOcrError(f"{label} must be explicitly approved.")
+    if review.get("approved") is not True or review.get("reviewer_role") != "owner":
+        raise StaticPngOcrError(f"{label} must be explicitly approved by the Owner.")
     if not isinstance(review.get("reviewer"), str) or not review["reviewer"].strip():
         raise StaticPngOcrError(f"{label} must identify its reviewer.")
     if not isinstance(review.get("evidence_ref"), str) or not review["evidence_ref"].strip():
