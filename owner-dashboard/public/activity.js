@@ -107,9 +107,14 @@ function renderEvents(events) {
         error.textContent = event.error_message;
         details.append(error);
       }
-      if (metadata.run_id) {
+      const runUrl = typeof metadata.run_url === "string" &&
+        /^https:\/\/github\.com\/maraniejabertahil-lgtm\/PH-EXAM-RESULTS\/actions\/runs\/\d+$/.test(metadata.run_url)
+        ? metadata.run_url
+        : (metadata.run_id ? "https://github.com/maraniejabertahil-lgtm/PH-EXAM-RESULTS/actions/runs/" +
+          encodeURIComponent(String(metadata.run_id)) : "");
+      if (runUrl) {
         const link = document.createElement("a");
-        link.href = "https://github.com/maraniejabertahil-lgtm/PH-EXAM-RESULTS/actions/runs/" + encodeURIComponent(String(metadata.run_id));
+        link.href = runUrl;
         link.target = "_blank";
         link.rel = "noopener noreferrer";
         link.textContent = "Open GitHub workflow run";
