@@ -311,15 +311,22 @@ export async function refreshOfficialReleaseSchedule({ sources, kv, fetchImpl = 
     return { status: "not_configured", snapshot: null };
   }
 
-  let cached = null;
+  let raw;
   try {
-    const raw = await kv.get(RELEASE_SCHEDULE_CACHE_KEY);
-    if (raw) cached = JSON.parse(raw);
+    raw = await kv.get(RELEASE_SCHEDULE_CACHE_KEY);
   } catch {
     return { status: "cache_error", snapshot: null, error: "Could not read the official schedule cache." };
   }
+  let cached = null;
+  if (raw) {
+    try { cached = JSON.parse(raw); } catch { cached = null; }
+  }
   const fetchedAt = cached?.fetched_at ? Date.parse(cached.fetched_at) : NaN;
-  if (cached && Number.isFinite(fetchedAt) && now.getTime() - fetchedAt < REFRESH_INTERVAL_MS) {
+  const configuredHours = Number(source.refresh_interval_hours);
+  const refreshInterval = Number.isInteger(configuredHours) && configuredHours >= 1 && configuredHours <= 24
+    ? configuredHours * 60 * 60 * 1000
+    : REFRESH_INTERVAL_MS;
+  if (cached && Number.isFinite(fetchedAt) && now.getTime() - fetchedAt < refreshInterval) {
     return { status: "cached", snapshot: cached };
   }
 
