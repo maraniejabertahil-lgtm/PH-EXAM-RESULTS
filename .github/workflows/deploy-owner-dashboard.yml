@@ -165,7 +165,7 @@ jobs:
           set -euo pipefail
           url="https://${PROJECT_NAME}.pages.dev/auth/health"
           for attempt in $(seq 1 12); do
-            status=$(curl -sS -o /tmp/owner-health.json -w "%{http_code}" "$url" || true)
+            status=$(curl --connect-timeout 5 --max-time 10 -sS -o /tmp/owner-health.json -w "%{http_code}" "$url" || true)
             if [ "$status" = "200" ] && python -c 'import json; assert json.load(open("/tmp/owner-health.json"))["ready"] is True'; then
               echo "Private Owner dashboard configuration is ready."
               exit 0
@@ -185,14 +185,14 @@ jobs:
           check_redirect() {
             path="$1"
             expected="$2"
-            code=$(curl -sS -D /tmp/owner-headers -o /dev/null -w "%{http_code}" "$base$path")
+            code=$(curl --connect-timeout 5 --max-time 10 -sS -D /tmp/owner-headers -o /dev/null -w "%{http_code}" "$base$path")
             test "$code" = "302" || { echo "::error::Expected signed-out redirect for $path; received HTTP $code."; exit 1; }
             grep -Fqi "location: $expected" /tmp/owner-headers || { echo "::error::Unexpected redirect target for $path."; cat /tmp/owner-headers; exit 1; }
           }
           check_public_asset() {
             path="$1"
-            code=$(curl -sS -L --max-redirs 3 -o /tmp/owner-asset-body -w "%{http_code}" "$base$path")
-            final_url=$(curl -sS -L --max-redirs 3 -o /dev/null -w "%{url_effective}" "$base$path")
+            code=$(curl --connect-timeout 5 --max-time 15 -sS -L --max-redirs 3 -o /tmp/owner-asset-body -w "%{http_code}" "$base$path")
+            final_url=$(curl --connect-timeout 5 --max-time 15 -sS -L --max-redirs 3 -o /dev/null -w "%{url_effective}" "$base$path")
             case "$final_url" in
               "$base"/*) ;;
               *) echo "::error::Public handoff asset $path redirected outside the private Pages origin."; exit 1 ;;
@@ -211,20 +211,20 @@ jobs:
           check_public_asset "/continue"
           check_public_asset "/continue.js"
           check_public_asset "/continue.css"
-          curl -fsS "$base/auth/session" -o /tmp/owner-session.json
+          curl --connect-timeout 5 --max-time 10 -fsS "$base/auth/session" -o /tmp/owner-session.json
           python -c 'import json; assert json.load(open("/tmp/owner-session.json")) == {"authenticated": False}'
           check_redirect "/auth/login" "https://ph-exam-results.pages.dev/?owner=login&owner_reason=firebase_required"
 
           # Cross-origin proof completion and Firebase CORS preflight must fail closed.
-          status=$(curl -sS -o /dev/null -w "%{http_code}" -X POST "$base/auth/firebase/complete" \
+          status=$(curl --connect-timeout 5 --max-time 10 -sS -o /dev/null -w "%{http_code}" -X POST "$base/auth/firebase/complete" \
             -H "Origin: https://attacker.example" -H "Content-Type: application/json" --data '{}')
           test "$status" = "403" || { echo "::error::Cross-origin Firebase proof completion was not rejected."; exit 1; }
-          status=$(curl -sS -o /dev/null -w "%{http_code}" -X OPTIONS "$base/auth/firebase" \
+          status=$(curl --connect-timeout 5 --max-time 10 -sS -o /dev/null -w "%{http_code}" -X OPTIONS "$base/auth/firebase" \
             -H "Origin: https://attacker.example" -H "Access-Control-Request-Method: POST")
           test "$status" = "403" || { echo "::error::Untrusted Firebase CORS preflight was not rejected."; exit 1; }
 
           # The configured public origin must be allowed to start the Firebase sign-in request.
-          status=$(curl -sS -D /tmp/owner-trusted-cors-headers -o /dev/null -w "%{http_code}" -X OPTIONS "$base/auth/firebase" \
+          status=$(curl --connect-timeout 5 --max-time 10 -sS -D /tmp/owner-trusted-cors-headers -o /dev/null -w "%{http_code}" -X OPTIONS "$base/auth/firebase" \
             -H "Origin: https://ph-exam-results.pages.dev" -H "Access-Control-Request-Method: POST" \
             -H "Access-Control-Request-Headers: content-type")
           if test "$status" != "204"; then
