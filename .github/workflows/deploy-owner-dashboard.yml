@@ -139,6 +139,14 @@ jobs:
               return payload.get("result", {})
 
           project_data = api("GET")
+          production_branch = project_data.get("production_branch")
+          if production_branch != "main":
+              api("PATCH", {"production_branch": "main"})
+              project_data = api("GET")
+              production_branch = project_data.get("production_branch")
+          if production_branch != "main":
+              raise SystemExit("Cloudflare Pages production branch could not be set to the repository main branch.")
+          print("Cloudflare Pages production branch verified as main.")
           production = project_data.get("deployment_configs", {}).get("production", {})
           configured = production.get("env_vars") or {}
           required = {
