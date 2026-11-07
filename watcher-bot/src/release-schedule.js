@@ -76,6 +76,16 @@ function headerColumn(cells, predicate) {
   return -1;
 }
 
+function deduplicateScheduleRows(rows) {
+  const uniqueRows = new Map();
+  for (const item of rows) {
+    const examKey = String(item.exam || "").normalize("NFKC").replace(/\s+/g, " ").trim().toLowerCase();
+    const key = examKey + "\u0000" + item.target_release_date;
+    if (!uniqueRows.has(key)) uniqueRows.set(key, item);
+  }
+  return [...uniqueRows.values()];
+}
+
 export function parsePrcScheduleHtml(html, sourceUrl, now = new Date()) {
   if (typeof html !== "string" || html.length === 0 || html.length > MAX_HTML_BYTES) {
     throw new Error("PRC schedule HTML is empty or exceeds the configured size limit.");
@@ -138,13 +148,7 @@ export function parsePrcScheduleHtml(html, sourceUrl, now = new Date()) {
 
   // Collapse only exact logical duplicates: same normalized exam name AND target date.
   // Different exams on one date, and the same exam with different dates, remain separate.
-  const uniqueRows = new Map();
-  for (const item of parsedRows) {
-    const examKey = item.exam.normalize("NFKC").replace(/\s+/g, " ").trim().toLowerCase();
-    const key = examKey + "\u0000" + item.target_release_date;
-    if (!uniqueRows.has(key)) uniqueRows.set(key, item);
-  }
-  parsedRows = [...uniqueRows.values()];
+  parsedRows = deduplicateScheduleRows(parsedRows);
   parsedRows.sort((a, b) => a.target_release_date.localeCompare(b.target_release_date) || a.exam.localeCompare(b.exam));
   const upcoming = parsedRows.filter((item) => item.days_until >= 0);
   return {
@@ -350,7 +354,7 @@ export async function refreshOfficialReleaseSchedule({ sources, kv, fetchImpl = 
       const pageResult = await fetchText(page.url, fetchImpl, "text/html", MAX_HTML_BYTES, robotsPolicy.text);
       schedules.push(parsePrcScheduleHtml(pageResult.text, pageResult.finalUrl, now));
     }
-    const upcoming = schedules.flatMap((item) => item.upcoming)
+    const upcoming = deduplicateScheduleRows(schedules.flatMap((item) => item.upcoming))
       .sort((a, b) => a.target_release_date.localeCompare(b.target_release_date) || a.exam.localeCompare(b.exam));
     const unparsed = schedules.flatMap((item) => item.unparsed_target_dates);
     const snapshot = {
