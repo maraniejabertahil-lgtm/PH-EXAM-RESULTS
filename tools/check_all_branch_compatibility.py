@@ -44,7 +44,7 @@ def main() -> int:
         if git("merge-base", "--is-ancestor", feature_ref, ref).returncode == 0:
             included.append(ref)
             continue
-        base = git("merge-base", feature_ref, ref)
+        base = git("merge-base", "origin/main", ref)
         if base.returncode or not base.stdout.strip():
             unrelated.append(ref)
             continue
