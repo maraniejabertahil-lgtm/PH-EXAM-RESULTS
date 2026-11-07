@@ -1,28 +1,22 @@
-# Private Owner Dashboard
+# Private Owner Activity Dashboard
 
 This is a separate Cloudflare Pages project. Never deploy this folder to the public search site's Pages project.
 
-## Two-step Owner authentication
+## Owner login: public page → Firebase → GitHub OAuth
 
-The dashboard requires **both** identity systems before granting access. Firebase is the first authorization gate; GitHub OAuth remains the second independent identity check. Neither provider alone can create a dashboard session.
+The Owner starts on the public website. The Owner Login icon at the top-left opens a bilingual email/password dialog. The login is a two-proof authorization gate: Firebase Owner-role verification **AND** the existing GitHub OAuth identity check must both succeed. Neither provider alone can open the dashboard.
 
-### 1. Firebase email/password + Firestore Owner role
+### 1. Firebase email/password and Firestore role
 
 The dedicated Firebase project is `ph-exam-results-dd94a`.
 
-Configure these production Pages variables:
-
-- `FIREBASE_PROJECT_ID` — `ph-exam-results-dd94a`
-- `FIREBASE_API_KEY` — Firebase Web App API key (public Firebase client configuration value; not an Admin SDK credential)
-- `FIREBASE_OWNER_UID` — optional additional exact UID pin; if set, it must match the Owner Auth UID
-- `OWNER_EMAIL` — the same exact verified email used by GitHub OAuth
-
-Enable Email/Password in Firebase Authentication. The Owner must have a Firebase Authentication user and a Firestore document at `users/{Firebase Auth UID}` with:
-- `role`: string `owner`
-- `active`: boolean `true`
-- `email`: the exact Owner email (recommended; when omitted, the verified Firebase Auth email is used)
-
-The Firebase Auth email must be verified and must exactly match `OWNER_EMAIL`. The server verifies the ID token with Firebase Identity Toolkit, then reads the Owner's own Firestore profile using that ID token. The Firestore rules must allow an authenticated user to read only their own `users/{uid}` document and must not allow that user to write or promote their own role. Merge the following behavior into the existing rules; do not replace unrelated application rules:
+- Enable Authentication → Sign-in method → Email/Password.
+- The Owner Auth user must exist and have a verified email.
+- Firestore must contain `users/{Firebase Auth UID}` with:
+  - `role`: string `owner`
+  - `active`: boolean `true`
+  - `email`: the exact Owner email (recommended; if omitted, the verified Firebase Auth email is used)
+- Configure the Firestore rules so an authenticated user can read only their own profile and cannot write/promote their own role. Merge the following behavior into existing rules; do not replace unrelated application rules:
 
 ```javascript
 match /users/{userId} {
@@ -31,9 +25,22 @@ match /users/{userId} {
 }
 ```
 
-If existing rules intentionally allow trusted administrative writes, preserve those trusted server-side paths while keeping client self-promotion impossible.
+Trusted Firebase Admin operations bypass Firestore rules. Never place an Admin SDK credential in the browser or repository.
 
-### 2. Existing GitHub OAuth identity check
+The public page uses the Firebase Web App configuration (a public client configuration, not an Admin credential). The dashboard server verifies the Firebase ID-token RS256 signature and claims against Google's Secure Token public keys, then reads the Owner's own Firestore document using the ID token.
+
+### 2. Safe handoff between the two Pages sites
+
+Because the public search site and private dashboard use separate `pages.dev` hostnames, the flow does not depend on third-party cookies:
+
+1. The public login dialog signs in with Firebase using in-memory persistence only.
+2. The public page sends the Firebase ID token to the private dashboard's CORS-restricted `/auth/firebase` endpoint.
+3. The dashboard verifies the token, exact Owner email, optional exact UID, Firestore `role=owner`, and `active=true`.
+4. The server returns a short-lived HMAC-signed proof. The browser carries it in a URL fragment to the dashboard's `/continue.html` page; fragments are not sent in HTTP requests.
+5. The handoff page immediately removes the fragment from browser history and posts the proof to the dashboard's same-origin `/auth/firebase/complete` endpoint. That endpoint sets a Secure, HttpOnly, SameSite=Lax Firebase proof cookie.
+6. The browser proceeds to GitHub OAuth. The proof is short-lived and no Firebase password or ID token is stored in the dashboard session.
+
+### 3. Existing GitHub OAuth second check
 
 Register or retain the GitHub OAuth App at https://github.com/settings/developers. Callback URL:
 
@@ -47,47 +54,53 @@ The configured GitHub account ID is `338246827`. Configure:
 - `OWNER_EMAIL` — exact verified Owner email, identical to Firebase
 - `SESSION_SIGNING_KEY` — secret, at least 32 characters of random material
 
-The GitHub access token is used only server-side for identity lookup and is never stored in the browser or session. OAuth uses authorization-code flow with PKCE S256 and a one-time state cookie.
+GitHub OAuth uses authorization-code flow with PKCE S256 and a one-time state cookie. The server verifies both the numeric GitHub account ID and the exact verified Owner email. Only after both Firebase and GitHub checks pass is an eight-hour signed HttpOnly session issued.
 
-### 3. Session and route protection
+### 4. Production Pages settings
 
-1. Firebase email/password login obtains an ID token directly from Firebase over HTTPS.
-2. The dashboard server validates the token, exact Owner email, email verification, Firestore `role=owner`, `active=true`, and optional exact UID pin.
-3. A 10-minute HttpOnly Firebase proof cookie permits the second step only.
-4. GitHub OAuth verifies the configured numeric GitHub account ID and the exact verified Owner email.
-5. Only then does the server issue an eight-hour signed HttpOnly session.
-6. A Pages Functions middleware protects the dashboard root, scripts, styles other than the public login assets, and every private route. Direct URL entry without a valid dual-proof session redirects to `/login.html`.
-7. The activity API independently verifies the signed session and uses a D1 Read-only token. Logout requires same-origin plus a CSRF token and clears both session cookies.
+Create the separate Pages project `ph-exam-results-owner`, production branch `main`. Never reuse the public search Pages project.
 
-The public login page is `/login.html`. The public examination search remains independent and read-only.
+Configure these production environment variables:
 
-## Cloudflare resources and GitHub Actions
+- `FIREBASE_PROJECT_ID` — `ph-exam-results-dd94a`
+- `FIREBASE_OWNER_UID` — exact Firebase Owner UID (optional additional pin; recommended)
+- `PUBLIC_SITE_ORIGIN` — `https://ph-exam-results.pages.dev`
+- `OWNER_GITHUB_ID` — `338246827`
+- `OWNER_EMAIL` — exact verified Owner email
+- `GITHUB_OAUTH_CLIENT_ID` — OAuth App client ID
+- `GITHUB_OAUTH_CLIENT_SECRET` — secret
+- `SESSION_SIGNING_KEY` — secret, at least 32 characters
+- `CF_ACCOUNT_ID` — Cloudflare account ID
+- `CF_D1_DATABASE_ID` — D1 database UUID
+- `CF_D1_READ_API_TOKEN` — D1 Read-only API token
 
-1. Create the separate Pages project `ph-exam-results-owner`, production branch `main`. Never reuse the public search Pages project.
-2. Create D1 database `ph-exam-results-operations` and retain its database ID.
-3. Create narrowly scoped Cloudflare tokens: D1 Edit for trusted migration/writers, D1 Read for dashboard reads, Pages Edit for deployment.
-4. Add repository Actions secrets: `CF_ACCOUNT_ID`, `CF_D1_DATABASE_ID`, `CF_D1_API_TOKEN` (D1 Edit), `CF_PAGES_API_TOKEN` (Pages Edit), and `CF_OWNER_PAGES_PROJECT_NAME` (`ph-exam-results-owner`).
-5. Set repository variable `CF_OWNER_DASHBOARD_ENABLED=true` only after OAuth, Pages configuration, and D1 migration are ready.
-6. Configure the production Watcher Worker with `CF_D1_API_TOKEN`, `CF_ACCOUNT_ID`, and `CF_D1_DATABASE_ID`.
-7. Add the Pages production variables/secrets from sections 1–2 plus `CF_D1_READ_API_TOKEN` (secret), `CF_ACCOUNT_ID`, and `CF_D1_DATABASE_ID`.
-8. Run **Actions → Migrate Private Activity Monitor D1 → Run workflow** on `main`.
-9. After migration and auth configuration, run **Deploy Private Owner Dashboard** on `main`.
+Do not configure Cloudflare Access for this project.
 
-Generate a session signing key locally in Codespaces with:
+### 5. D1 and GitHub Actions
+
+1. Create D1 database `ph-exam-results-operations` and retain its UUID.
+2. Create narrowly scoped Cloudflare tokens: D1 Edit for trusted migration/writers, D1 Read for dashboard reads, Pages Edit for deployment.
+3. Add repository Actions secrets: `CF_ACCOUNT_ID`, `CF_D1_DATABASE_ID`, `CF_D1_API_TOKEN` (D1 Edit), `CF_PAGES_API_TOKEN` (Pages Edit), and `CF_OWNER_PAGES_PROJECT_NAME` (`ph-exam-results-owner`).
+4. Set repository variable `CF_OWNER_DASHBOARD_ENABLED=true` only after the separate Pages project, OAuth, D1, and production variables are ready.
+5. Configure the production Watcher Worker with `CF_D1_API_TOKEN`, `CF_ACCOUNT_ID`, and `CF_D1_DATABASE_ID`.
+6. Run **Actions → Migrate Private Activity Monitor D1 → Run workflow** on `main`.
+7. Run **Actions → Deploy Private Owner Dashboard → Run workflow** on `main`.
+
+Generate the session signing key locally in Codespaces with:
 
 `python -c "import secrets; print(secrets.token_urlsafe(48))"`
 
-Do not paste the generated value into chat or commit it. Do not configure Cloudflare Access for this project.
+Do not paste the generated secret into chat or commit it.
 
-## Routes
+## Route protection
 
-- `/login.html` — Firebase email/password sign-in
-- `/auth/firebase/config` — public Firebase client configuration only
-- `/auth/firebase` — server-side Firebase ID-token and Firestore Owner-role verification
-- `/auth/login` — begin GitHub OAuth only after Firebase proof
-- `/auth/callback` — validate state, PKCE, Firebase proof, GitHub Owner ID and verified email
+- `/continue.html` and `/continue.js` — public, short-lived proof handoff only
+- `/auth/firebase` — CORS-restricted Firebase ID-token + Firestore Owner verification
+- `/auth/firebase/complete` — same-origin proof validation and HttpOnly Firebase cookie
+- `/auth/login` and `/auth/callback` — existing GitHub OAuth PKCE flow, gated by Firebase proof
 - `/auth/session` — return dual-proof session status and CSRF token (no OAuth token)
-- `/auth/logout` — CSRF-protected logout; clears both session cookies
+- `/auth/logout` — same-origin CSRF-protected logout; clears both proof/session cookies
 - `/api/activity` — signed dual-proof session-protected D1 activity API
+- All dashboard HTML, scripts, styles, and private APIs require the combined session.
 
-No OAuth token, Cloudflare token, D1 credential, Firebase Admin credential, or session signing key is exposed in frontend code.
+No OAuth token, Cloudflare token, D1 credential, Firebase Admin credential, or session signing key is exposed in frontend assets. The public search remains static-first and read-only.
