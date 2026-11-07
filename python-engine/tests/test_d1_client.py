@@ -108,6 +108,24 @@ class D1ClientTests(unittest.TestCase):
             client.query("SELECT 1")
         self.assertNotIn("secret-token", str(caught.exception))
 
+    def test_import_batch_upsert_stores_provenance_and_timing(self):
+        captured = {}
+        def fake_opener(request, timeout):
+            captured["body"] = json.loads(request.data.decode("utf-8"))
+            return FakeResponse({"success": True, "result": [{"results": []}]})
+        client = D1Client("account", "database", "token", opener=fake_opener)
+        client.upsert_import_batch(
+            batch_id="b" * 64, authority="PRC", exam="LET", exam_year=2026,
+            status="greenlight_passed", announced_count=2, extracted_count=2,
+            record_count=2, provenance="official_direct",
+        )
+        params = captured["body"]["params"]
+        self.assertEqual(len(params), 16)
+        self.assertTrue(all(isinstance(value, str) for value in params))
+        self.assertEqual(params[5], "greenlight_passed")
+        self.assertEqual(params[10], "official_direct")
+        self.assertIn("ON CONFLICT(batch_id)", captured["body"]["sql"])
+
     def test_import_batch_status_is_allowlisted(self):
         client = D1Client("account", "database", "token", opener=lambda *args, **kwargs: FakeResponse({
             "success": True, "result": [{"results": []}],
