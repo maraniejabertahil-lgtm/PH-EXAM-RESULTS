@@ -108,6 +108,17 @@ jobs:
           test -n "$CF_D1_API_TOKEN" || { echo "::error::Missing CF_D1_API_TOKEN."; exit 1; }
           test -n "$CF_D1_DATABASE_ID" || { echo "::error::Missing CF_D1_DATABASE_ID."; exit 1; }
           echo "Private Pages and D1 deployment settings are present."
+      - name: Set up Python for additive D1 migration
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Apply additive private activity D1 migration
+        working-directory: python-engine/database
+        env:
+          CF_D1_API_TOKEN: ${{ secrets.CF_D1_API_TOKEN }}
+          CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
+          CF_D1_DATABASE_ID: ${{ secrets.CF_D1_DATABASE_ID }}
+        run: python d1_client.py migrate
       - name: Verify D1 migration is complete before deployment
         env:
           CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
