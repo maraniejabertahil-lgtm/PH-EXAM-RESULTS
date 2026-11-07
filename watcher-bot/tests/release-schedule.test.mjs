@@ -73,6 +73,7 @@ test("robots rules block disallowed schedule pages and honor a more-specific All
   assert.equal(robotsAllowsPath("User-agent: *\nDisallow: /2026-schedule-examination", "/2026-schedule-examination"), false);
   assert.equal(robotsAllowsPath("User-agent: *\nDisallow: /\nAllow: /2026-schedule-examination$", "/2026-schedule-examination"), true);
   assert.equal(robotsAllowsPath("User-agent: *\nDisallow: /private/", "/2026-schedule-examination"), true);
+  assert.equal(robotsAllowsPath("User-agent: PH-EXAM-RESULTS-Watcher\nDisallow: /exam-schedules-menu\nUser-agent: *\nAllow: /", "/exam-schedules-menu", "PH-EXAM-RESULTS-Watcher"), false);
 });
 
 test("refresh fetches official pages, checks robots, and stores the schedule snapshot", async () => {
