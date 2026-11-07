@@ -86,7 +86,7 @@ jobs:
   deploy:
     name: Deploy isolated private Pages project
     needs: validate
-    if: github.ref == 'refs/heads/main' && vars.CF_OWNER_DASHBOARD_ENABLED == 'true'
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
