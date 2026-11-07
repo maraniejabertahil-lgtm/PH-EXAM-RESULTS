@@ -105,8 +105,10 @@ The Watcher also discovers the nearest upcoming PRC target release date from the
 - Discovers only same-origin yearly schedule pages matching the official `/{year}-schedule-examination` path, limited to the current and following Manila calendar year.
 - Fetches the same-origin `robots.txt` on each refresh and stops without fetching schedule pages if the index or any discovered schedule path is disallowed or the robots policy cannot be verified.
 - Uses disclosed HTTPS GET requests, same-origin redirects only, a 10-second request timeout, a 32 KiB robots limit, and a 1 MiB per-page HTML limit.
-- Extracts the official table columns by their header labels (examination name and **Target Date of Release of Examination Results**), accounts for the application-period colspan, and refuses to publish a nearest date if the expected table structure cannot be identified.
-- Calculates date-only countdowns using the Philippines (Asia/Manila, UTC+8) calendar. These are PRC **target** dates, not confirmation that results have actually been published.
+- Extracts only the official examination-name and **Target Date of Release of Examination Results** fields needed to identify upcoming dates; it does not collect applicant or passer personal information.
+- Deduplicates only rows with the same normalized examination name and the same target release date. Different examinations on the same date, and the same examination with different dates, remain separate.
+- Accepts harmless spacing around date punctuation (for example, `October 23 , 2026`) and refuses to publish a nearest date if the expected table structure cannot be identified.
+- Calculates date-only countdowns using the Philippines (Asia/Manila, UTC+8) calendar. The public snapshot also records the robots.txt URL, check time, user-agent token, and allowed outcome for transparency. These are PRC **target** dates, not confirmation that results have actually been published.
 - Refreshes at most once every six hours and caches the public schedule snapshot in the existing `PEAK_WEEK` KV namespace. A failed refresh preserves the last known-good snapshot.
 - Exposes the cached public schedule at `GET /api/releases/upcoming`. The endpoint contains only public schedule data; it does not expose D1 records or secrets. The endpoint returns 503 until the first compliant schedule snapshot has been stored.
 - Existing official result-announcement detection and the Python Greenlight/GitOps publication pipeline remain separate and unchanged.
