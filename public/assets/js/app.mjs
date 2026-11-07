@@ -271,11 +271,9 @@ if (ownerReason && ownerReasons[ownerReason]) {
 }
 
 function applyOwnerLoginState() {
-  const enabled = siteStatus?.owner_login_enabled !== false;
-
-  if (ownerLogin.open) ownerLogin.open.hidden = !enabled;
-
-  if (enabled && (ownerQuery.get("owner") === "login" || ownerReason)) {
+  // The public header's Log in icon is permanent. Do not let a status flag
+  // hide the only Owner login entry point.
+  if (ownerQuery.get("owner") === "login" || ownerReason) {
     showOwnerLogin();
   }
 }
