@@ -1,10 +1,6 @@
 import { readSession } from "./lib/access.js";
 
 const PUBLIC_PATHS = new Set([
-  "/login.html",
-  "/login.js",
-  "/owner.css",
-  "/auth/firebase/config",
   "/auth/firebase",
   "/auth/login",
   "/auth/callback",
@@ -16,9 +12,11 @@ export async function onRequest({ request, env, next }) {
   if (PUBLIC_PATHS.has(url.pathname)) return next();
   const session = await readSession(request, env);
   if (!session) {
+    const login = new URL("/", env.PUBLIC_SITE_ORIGIN || "https://ph-exam-results.pages.dev");
+    login.searchParams.set("owner", "login");
     return new Response(null, {
       status: 302,
-      headers: { Location: "/login.html", "Cache-Control": "no-store", "Referrer-Policy": "no-referrer" },
+      headers: { Location: login.toString(), "Cache-Control": "no-store", "Referrer-Policy": "no-referrer" },
     });
   }
   return next();
