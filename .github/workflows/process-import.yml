@@ -302,28 +302,29 @@ jobs:
           PY
           python3 python-engine/prc_orchestrator.py --event event.json --out prc-release-output
 
-      - name: Install Tesseract only when the PRC orchestrator explicitly selects approved Tier 3 OCR
+      - name: Detect explicit Tier 3 OCR selection from the generated PRC batch
         id: tier3-ocr
         run: |
-          set -euo pipefail
           python3 - <<'PY'
           import json
+          import os
           from pathlib import Path
           batch_path = Path("prc-release-output/release-batch.json")
           if not batch_path.is_file():
-              raise SystemExit("PRC orchestrator produced no release batch; Tier 3 OCR is not available.")
+              raise SystemExit("PRC orchestrator produced no release batch.")
           batch = json.loads(batch_path.read_text(encoding="utf-8"))
           selected = batch.get("official_content_mode") == "static_png_ocr"
-          with open(__import__("os").environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
               output.write(f"required={'true' if selected else 'false'}\\n")
           PY
-          if [[ "${{ steps.tier3-ocr.outputs.required }}" == "true" ]]; then
-            sudo apt-get update
-            sudo apt-get install -y tesseract-ocr tesseract-ocr-eng
-            tesseract --version
-          else
-            echo "No approved Tier 3 OCR batch selected; Tesseract installation skipped."
-          fi
+
+      - name: Install Tesseract only for an explicitly selected Tier 3 OCR batch
+        if: steps.tier3-ocr.outputs.required == 'true'
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y tesseract-ocr tesseract-ocr-eng
+          tesseract --version
 
       - name: Check whether this candidate requires owner visual review
         id: candidate
