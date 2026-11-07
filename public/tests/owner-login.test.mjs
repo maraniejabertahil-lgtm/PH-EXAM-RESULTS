@@ -7,18 +7,24 @@ const html = await readFile(new URL("../index.html", import.meta.url), "utf8");
 const css = await readFile(new URL("../assets/css/owner-login.css", import.meta.url), "utf8");
 const app = await readFile(new URL("../assets/js/app.mjs", import.meta.url), "utf8");
 
-test("public Owner Login entry is enabled and placed as an accessible top-right icon", () => {
+test("public header contains only the accessible Log in icon", () => {
   assert.equal(status.owner_login_enabled, true);
-  assert.match(html, /<div class="header-actions">\s*<button id="owner-login-open"/);
-  assert.match(html, /class="owner-login-icon"/);
-  assert.match(html, /aria-label="Owner Login · دخول المالك"/);
+  const header = html.match(/<header class="site-header">([\s\S]*?)<\/header>/)?.[1];
+  assert.ok(header, "site header must exist");
+  assert.match(header, /<div class="header-actions">\s*<button id="owner-login-open"/);
+  assert.equal((header.match(/<button\b/g) || []).length, 1, "the Log in icon must be the only header button");
+  assert.match(header, /class="owner-login-icon"/);
+  assert.match(header, /aria-label="Log in · تسجيل الدخول"/);
+  assert.match(header, /title="Log in · تسجيل الدخول"/);
+  assert.doesNotMatch(header, /search|menu|ellipsis/i, "search and overflow controls must not appear in the header");
   assert.match(html, /id="owner-login-dialog"/);
-  assert.doesNotMatch(html, /class="header-note"/);
+  assert.doesNotMatch(header, /class="header-note"/);
   assert.match(css, /\.header-actions\{[^}]*margin-left:auto/);
   assert.match(css, /\.owner-login-button\{[^}]*border-radius:50%/);
 });
 
-test("Owner Login stays available while status is loading, and obeys an explicit disable flag", () => {
+test("Log in icon opens the Firebase Owner login flow", () => {
+  assert.match(app, /ownerLogin\.open\?\.addEventListener\("click", showOwnerLogin\)/);
   assert.match(app, /siteStatus\?\.owner_login_enabled !== false/);
   assert.match(app, /fetch\(OWNER_DASHBOARD_URL \+ "\/auth\/firebase"/);
   assert.match(app, /result\.authenticated !== true/);
