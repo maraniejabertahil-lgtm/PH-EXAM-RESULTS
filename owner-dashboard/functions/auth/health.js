@@ -3,25 +3,25 @@ const ACTIVITY_PREFLIGHT_SQL = "SELECT id, event_id, execution_id, correlation_i
   "component, event_type, operation, status, severity, duration_ms, message, summary, " +
   "error_code, error_message, source, metadata_json FROM monitoring_logs LIMIT 0";
 
-function configured(env) {
-  return Boolean(
-    env.FIREBASE_PROJECT_ID &&
-    env.FIREBASE_API_KEY &&
-    /^https:\/\/[a-z0-9.-]+$/.test(String(env.PUBLIC_SITE_ORIGIN || "")) &&
-    /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(env.OWNER_EMAIL || "")) &&
-    /^\d+$/.test(String(env.OWNER_GITHUB_ID || "")) &&
-    env.GITHUB_OAUTH_CLIENT_ID &&
-    env.GITHUB_OAUTH_CLIENT_SECRET &&
-    typeof env.SESSION_SIGNING_KEY === "string" &&
-    env.SESSION_SIGNING_KEY.length >= 32 &&
-    env.CF_ACCOUNT_ID &&
-    env.CF_D1_DATABASE_ID &&
-    env.CF_D1_READ_API_TOKEN
-  );
+function configurationIssues(env) {
+  const issues = [];
+  if (!String(env.FIREBASE_PROJECT_ID || "").trim()) issues.push("FIREBASE_PROJECT_ID");
+  if (!String(env.FIREBASE_API_KEY || "").trim()) issues.push("FIREBASE_API_KEY");
+  if (!/^https:\/\/[a-z0-9.-]+$/.test(String(env.PUBLIC_SITE_ORIGIN || ""))) issues.push("PUBLIC_SITE_ORIGIN");
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(env.OWNER_EMAIL || ""))) issues.push("OWNER_EMAIL");
+  if (!/^\d+$/.test(String(env.OWNER_GITHUB_ID || ""))) issues.push("OWNER_GITHUB_ID");
+  if (!String(env.GITHUB_OAUTH_CLIENT_ID || "").trim()) issues.push("GITHUB_OAUTH_CLIENT_ID");
+  if (!String(env.GITHUB_OAUTH_CLIENT_SECRET || "").trim()) issues.push("GITHUB_OAUTH_CLIENT_SECRET");
+  if (typeof env.SESSION_SIGNING_KEY !== "string" || env.SESSION_SIGNING_KEY.length < 32) issues.push("SESSION_SIGNING_KEY");
+  if (!String(env.CF_ACCOUNT_ID || "").trim()) issues.push("CF_ACCOUNT_ID");
+  if (!String(env.CF_D1_DATABASE_ID || "").trim()) issues.push("CF_D1_DATABASE_ID");
+  if (!String(env.CF_D1_READ_API_TOKEN || "").trim()) issues.push("CF_D1_READ_API_TOKEN");
+  return issues;
 }
 
 export async function onRequestGet({ env }) {
-  let ready = configured(env);
+  const invalidSettings = configurationIssues(env);
+  let ready = invalidSettings.length === 0;
   let reason = ready ? "" : "configuration";
   let upstreamStatus = null;
   if (ready) {
@@ -56,6 +56,7 @@ export async function onRequestGet({ env }) {
   const result = ready ? { ready: true } : {
     ready: false,
     reason,
+    ...(invalidSettings.length ? { invalid_settings: invalidSettings } : {}),
     ...(upstreamStatus === null ? {} : { upstream_status: upstreamStatus }),
   };
   return new Response(JSON.stringify(result), {
