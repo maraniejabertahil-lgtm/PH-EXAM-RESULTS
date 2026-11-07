@@ -88,7 +88,7 @@ def main():
                 "error_message": (f"Step concluded with {step.get('conclusion')}. Open the linked workflow run for full logs." if status == "failed" else None),
                 "source": "github_actions",
                 "metadata": {"run_id": run_id, "run_number": run_number, "workflow": workflow,
-                             "job": job_name, "branch": branch, "commit": sha},
+                             "job": job_name, "branch": branch, "commit": sha, "run_url": run_url},
             })
     if not jobs:
         status = normalize_status("", os.getenv("JOB_STATUS", ""))
