@@ -1,37 +1,49 @@
 # Private Owner Dashboard
 
-This folder is deployed as a **separate Cloudflare Pages project**. Never add it to the public search site's Pages project.
+This is a separate Cloudflare Pages project. Never deploy this folder to the public search site's Pages project.
 
-## One-time Cloudflare setup
+## GitHub OAuth authentication
 
-1. From the Codespaces terminal, run:
-   ```bash
-   npx wrangler@4.156.2 login
-   npx wrangler@4.156.2 pages project create ph-exam-results-owner --production-branch main
-   ```
-2. In the new Pages project, open **Settings → General → Enable access policy**. Open the generated application under Zero Trust → Access → Applications → Configure. Remove the wildcard subdomain and select the exact `ph-exam-results-owner.pages.dev` production hostname. Its Allow policy must contain only the Owner's exact email. Re-enable the Pages access policy if preview deployments are also used.
-3. In the new Pages project's production Variables and Secrets, configure:
-   - `CF_ACCESS_TEAM_DOMAIN`
-   - `CF_ACCESS_AUD`
-   - `OWNER_EMAIL` (exact Owner email)
-   - `CF_ACCOUNT_ID`
-   - `CF_D1_DATABASE_ID`
-   - `CF_D1_READ_API_TOKEN` (separate D1 Read token)
-4. Create the D1 database and configure the D1 Write token for trusted writers. Do not store examinee names, result rows, or raw search queries in operational logs.
-5. Add GitHub Actions secrets:
-   - `CF_ACCOUNT_ID`
-   - `CF_D1_DATABASE_ID`
-   - `CF_D1_API_TOKEN` (D1 Edit token)
-   - `CF_PAGES_API_TOKEN` (Cloudflare Pages Edit token)
-   - `CF_OWNER_PAGES_PROJECT_NAME` = `ph-exam-results-owner`
-6. Set the repository variable `CF_OWNER_DASHBOARD_ENABLED=true` only after the Access application and private Pages project are ready.
-7. Configure the production Watcher Worker with `CF_ACCOUNT_ID`, `CF_D1_DATABASE_ID`, and secret `CF_D1_API_TOKEN`.
+The dashboard uses GitHub OAuth authorization-code flow with PKCE (S256). The callback checks the configured numeric GitHub account ID and confirms that the exact configured Owner email appears in GitHub's verified email list. The GitHub access token is used only server-side for identity lookup and is never stored in the browser or session. The app issues an eight-hour signed, HttpOnly, Secure, SameSite=Lax session cookie. OAuth state and PKCE verifier are short-lived HttpOnly cookies. Logout requires same-origin plus a session CSRF token.
 
-Then run **Actions → Migrate Private Activity Monitor D1 → Run workflow** on `main`, followed by **Actions → Deploy Private Owner Dashboard → Run workflow**.
+Register an OAuth App at https://github.com/settings/developers. Set the callback URL to:
+
+`https://ph-exam-results-owner.pages.dev/auth/callback`
+
+Configure these production Pages settings:
+
+- `GITHUB_OAUTH_CLIENT_ID` — variable
+- `GITHUB_OAUTH_CLIENT_SECRET` — secret
+- `OWNER_GITHUB_ID` — numeric GitHub account ID variable
+- `OWNER_EMAIL` — exact verified email variable
+- `SESSION_SIGNING_KEY` — secret, at least 32 characters of random material
+- `CF_ACCOUNT_ID` — variable
+- `CF_D1_DATABASE_ID` — variable
+- `CF_D1_READ_API_TOKEN` — secret (D1 Read only)
+
+Generate a session signing key locally in Codespaces with:
+
+`python -c "import secrets; print(secrets.token_urlsafe(48))"`
+
+Do not paste the generated value into chat or commit it. Do not configure Cloudflare Access for this project.
+
+## Cloudflare resources and GitHub Actions
+
+1. Create the separate Pages project `ph-exam-results-owner`, production branch `main`.
+2. Create D1 database `ph-exam-results-operations` and retain its database ID.
+3. Create narrowly scoped Cloudflare tokens: D1 Edit for trusted migration/writers, D1 Read for dashboard reads, Pages Edit for deployment.
+4. Add repository Actions secrets: `CF_ACCOUNT_ID`, `CF_D1_DATABASE_ID`, `CF_D1_API_TOKEN` (D1 Edit), `CF_PAGES_API_TOKEN` (Pages Edit), and `CF_OWNER_PAGES_PROJECT_NAME` (`ph-exam-results-owner`).
+5. Set repository variable `CF_OWNER_DASHBOARD_ENABLED=true` only after OAuth, Pages configuration, and D1 migration are ready.
+6. Configure the production Watcher Worker with `CF_ACCOUNT_ID`, `CF_D1_DATABASE_ID`, and `CF_D1_API_TOKEN`.
+7. Run **Actions → Migrate Private Activity Monitor D1 → Run workflow** on `main`, then deploy only after auth validation passes.
 
 ## Routes
 
 - `/` — private Owner activity timeline
-- `/api/activity` — Access-JWT-verified D1 activity API
+- `/auth/login` — begin GitHub OAuth
+- `/auth/callback` — validate state, PKCE, Owner GitHub ID and verified email
+- `/auth/session` — return session status and CSRF token (no OAuth token)
+- `/auth/logout` — CSRF-protected logout
+- `/api/activity` — signed-session-protected D1 activity API
 
-The entire Pages project is protected by Cloudflare Access. The public PH Exam Results Pages project remains public and unchanged.
+No OAuth token, Cloudflare token, D1 credential, or session signing key is exposed in frontend code. Public examination search remains independent and unchanged.
