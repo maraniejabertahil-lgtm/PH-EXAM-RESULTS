@@ -2,6 +2,7 @@ import { readSession } from "./lib/access.js";
 
 const PUBLIC_PATHS = new Set([
   "/continue.html",
+  "/continue",
   "/continue.js",
   "/continue.css",
   "/auth/firebase/complete",
