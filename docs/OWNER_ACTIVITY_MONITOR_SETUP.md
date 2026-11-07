@@ -1,103 +1,80 @@
-# Private Owner Activity Dashboard — Setup
+# Private Owner Activity Dashboard — Production Setup
 
-## What this adds
+The private Owner dashboard is an isolated Cloudflare Pages project named `ph-exam-results-owner`. It must never be deployed to the public examination search Pages project.
 
-A separate Cloudflare Pages project hosts the owner-only activity timeline. It is not part of the public results website and does not change the public site's routes, headers, search code, or deployment.
+The login requires two independent proofs:
+1. Firebase email/password authentication plus an active Firestore `users/{uid}` profile with `role: "owner"` and `active: true`.
+2. The existing GitHub OAuth account with numeric ID `338246827` and the same exact verified Owner email.
 
-The dashboard shows individual operational events with timestamps, component, operation, status, duration, execution ID, and available failure details. Related events share an execution ID.
+No Cloudflare Zero Trust / Access dependency is used. The dashboard hostname and every private route are protected by Pages Functions middleware and a signed dual-proof session.
 
-## Privacy and security
+## A. Firebase prerequisites
 
-- Deploy the dashboard to a **separate Pages project and hostname** (for example, a project named `ph-exam-owner-dashboard`).
-- Protect the entire dashboard hostname with Cloudflare Access. The Allow policy must contain only the Owner's exact email address.
-- The dashboard API independently verifies the Access JWT signature, issuer, audience, expiry, and exact `OWNER_EMAIL`.
-- The API uses a separate D1 Read token. D1 Write credentials are used only by trusted server-side writers.
-- Public search remains static-first and browser-local. No examinee names, result rows, or raw visitor search queries are written to D1.
-- The public website's browser-side error messages were fixed separately and remain local to the visitor's browser. Anonymous browser error ingestion is not added because it would create a public write path.
+Firebase project: `ph-exam-results-dd94a`.
 
-## 1. Create the private Pages project
+- Enable Authentication → Sign-in method → Email/Password.
+- Ensure the Owner Auth user exists and its email is verified.
+- Ensure Firestore has `users/{Firebase Auth UID}` with `role: "owner"`, `active: true`, and preferably `email: "<exact Owner email>"`.
+- Firestore rules must permit an authenticated user to read only their own profile document, but must not permit that user to create, update, or delete their role. Merge the rule into existing rules; do not replace unrelated rules:
 
-In Cloudflare, create a new Pages project dedicated to the owner dashboard. Do not reuse the public results Pages project or its hostname.
+```javascript
+match /users/{userId} {
+  allow read: if request.auth != null && request.auth.uid == userId;
+  allow create, update, delete: if false;
+}
+```
 
-Use the dedicated project name `ph-exam-results-owner`. From the Codespaces terminal, run `npx wrangler@4.156.2 login`, complete Cloudflare authorization, then run `npx wrangler@4.156.2 pages project create ph-exam-results-owner --production-branch main`. Record the resulting `ph-exam-results-owner.pages.dev` hostname.
+Trusted server-side Firebase Admin operations bypass Firestore rules. Do not place an Admin SDK key in the browser or repository.
 
-## 2. Protect the entire dashboard hostname
+## B. Create the isolated Cloudflare resources
 
-In the new Pages project, open **Settings → General → Enable access policy**. Then open the generated application under **Zero Trust → Access → Applications → Configure**. For the production Pages hostname, remove the wildcard subdomain and select the exact `ph-exam-results-owner.pages.dev` hostname. Create an Allow policy containing only the Owner's exact sign-in email. Do not use Everyone or a whole email-domain rule. Return to the Pages project and enable the access policy again if you also want preview deployments protected. Cloudflare documents that preview deployments and the production `pages.dev` hostname require separate policy handling.
+1. Create Pages project `ph-exam-results-owner` with production branch `main`.
+2. Create D1 database `ph-exam-results-operations`; retain its UUID.
+3. Configure the dashboard Pages production environment variables:
+   - `FIREBASE_PROJECT_ID` = `ph-exam-results-dd94a`
+   - `FIREBASE_API_KEY` = Firebase Web App API key (public client configuration value)
+   - `FIREBASE_OWNER_UID` = exact Firebase Owner UID (optional additional pin; recommended)
+   - `OWNER_GITHUB_ID` = `338246827`
+   - `OWNER_EMAIL` = exact verified Owner email shared by Firebase and GitHub
+   - `GITHUB_OAUTH_CLIENT_ID` = OAuth App client ID
+   - `GITHUB_OAUTH_CLIENT_SECRET` = OAuth App secret
+   - `SESSION_SIGNING_KEY` = random secret of at least 32 characters
+   - `CF_ACCOUNT_ID` = Cloudflare account ID
+   - `CF_D1_DATABASE_ID` = D1 database UUID
+   - `CF_D1_READ_API_TOKEN` = D1 Read-only API token
+4. Register/retain the GitHub OAuth App callback exactly as:
+   `https://ph-exam-results-owner.pages.dev/auth/callback`
+5. Do not configure Cloudflare Access for this project.
 
-The dashboard API also verifies the exact owner email. If Access settings or identity configuration are missing, the API fails closed and returns no activity data.
+## C. GitHub Actions settings
 
-## 3. Create D1 and API tokens
+Repository secrets:
+- `CF_ACCOUNT_ID`
+- `CF_D1_DATABASE_ID`
+- `CF_D1_API_TOKEN` (D1 Edit for trusted writers/migration)
+- `CF_PAGES_API_TOKEN` (Pages Edit)
+- `CF_OWNER_PAGES_PROJECT_NAME` = `ph-exam-results-owner`
 
-1. In **Workers & Pages → D1 SQL Database**, create a database, for example `ph-exam-results-operations`. Record its database UUID.
-2. Create a Cloudflare API token with **Account / D1 / Edit** permission for trusted writers.
-3. Create a separate Cloudflare API token with **Account / D1 / Read** permission for the private dashboard.
-4. Create a Cloudflare API token with **Account / Cloudflare Pages / Edit** permission to deploy Pages projects.
+Repository variable:
+- `CF_OWNER_DASHBOARD_ENABLED` = `true`, only after the isolated Pages project, OAuth, D1 and production variables are ready.
 
-The schema and client use the Cloudflare D1 REST API. No direct SQL driver or public browser database query is introduced.
+The production Watcher Worker also needs `CF_D1_API_TOKEN`, `CF_ACCOUNT_ID`, and `CF_D1_DATABASE_ID` for trusted activity writes.
 
-## 4. Configure GitHub Actions secrets
+## D. Migration, deployment and live acceptance
 
-Add these repository secrets:
+1. Run **Actions → Migrate Private Activity Monitor D1 → Run workflow** on `main`.
+2. Run **Actions → Deploy Private Owner Dashboard → Run workflow** on `main`.
+3. Open `https://ph-exam-results.pages.dev/` and use the Owner Login icon in the header.
+4. Sign in with the verified Firebase Owner email/password. The server must verify the ID token, exact email, Firestore role and active flag.
+5. Complete the GitHub OAuth step. The server must verify account ID `338246827` and the same exact verified email.
+6. Verify the private activity timeline loads and shows recorded events.
+7. Sign out. Verify the dashboard root redirects to `/login.html` and `/api/activity` returns 401.
+8. Attempt Firebase sign-in using a non-owner or inactive account; it must be denied before GitHub OAuth.
+9. Attempt GitHub OAuth using another GitHub account; it must be denied and no dashboard session may be issued.
+10. Confirm logout clears both cookies and the public search page remains available without authentication.
 
-- `CF_D1_API_TOKEN` — D1 Write token
-- `CF_ACCOUNT_ID` — Cloudflare account ID
-- `CF_D1_DATABASE_ID` — D1 database UUID
-- `CF_PAGES_API_TOKEN` — Cloudflare Pages deployment token
-- `CF_OWNER_PAGES_PROJECT_NAME` — `ph-exam-results-owner`
+Generate a session signing key locally in Codespaces with:
 
-Add this repository variable only after the private Pages project and Access policy are ready:
+`python -c "import secrets; print(secrets.token_urlsafe(48))"`
 
-- `CF_OWNER_DASHBOARD_ENABLED` = `true`
-
-The dashboard deployment job remains disabled until that variable is enabled. You can also run **Deploy Private Owner Dashboard** manually from Actions on `main`.
-
-## 5. Configure the production Watcher
-
-Set these in the Cloudflare Watcher Worker:
-
-- `CF_D1_API_TOKEN` — secret, D1 Write token
-- `CF_ACCOUNT_ID` — variable
-- `CF_D1_DATABASE_ID` — variable
-
-The Watcher batches its activity records into one D1 REST request per scheduled invocation so monitoring does not consume one Worker subrequest per event.
-
-## 6. Configure the private Pages project
-
-In the separate owner dashboard Pages project, add these production environment variables/secrets:
-
-- `CF_D1_READ_API_TOKEN` — secret, separate D1 Read token
-- `CF_ACCOUNT_ID` — variable
-- `CF_D1_DATABASE_ID` — variable
-- `CF_ACCESS_TEAM_DOMAIN` — Zero Trust team domain, without `https://`
-- `CF_ACCESS_AUD` — audience tag of the Access application
-- `OWNER_EMAIL` — exact Owner email allowed by the Access policy
-
-Do not add the D1 Read token until the Access application and its owner-only policy are active.
-
-## 7. Run the D1 migration
-
-After adding the GitHub D1 Write secrets, open **Actions → Migrate Private Activity Monitor D1 → Run workflow** on `main`.
-
-The migration creates or upgrades these tables:
-
-- `monitoring_logs` — per-operation activity timeline and diagnostics
-- `import_batches` — acquisition and Greenlight batch history
-- `release_predictions` — release prediction metadata
-
-The migration is additive and checks existing table columns before adding missing fields. It is compatible with the earlier private-activity metadata schema and preserves existing records.
-
-## 8. Deploy and verify
-
-1. Confirm the private Pages project and its Access policy are configured.
-2. Set `CF_OWNER_DASHBOARD_ENABLED=true`.
-3. Run **Deploy Private Owner Dashboard** from Actions on `main`.
-4. Open the separate `*.pages.dev` dashboard hostname while signed in as the Owner.
-5. Run a Watcher scheduled check and a Python processing workflow.
-6. Confirm each operation appears as an individual activity and related events share an execution ID.
-7. Open the dashboard signed out or with another email; it must be blocked.
-8. Confirm the public results website still opens without login and its search remains unchanged.
-
-## Browser-side errors: current boundary
-
-The public website now displays safe user-facing error messages and diagnostic references. Those browser errors are not centrally collected. Sending errors from anonymous visitors to D1 would require a separate, explicitly approved, rate-limited ingestion design. The current implementation does not create that public write endpoint.
+Never paste the generated secret into chat or commit it. The Firebase Web API key is public client configuration, not an Admin SDK credential. No OAuth token, Cloudflare token, D1 credential, Firebase Admin credential, or session signing key may be shipped to frontend assets.
