@@ -1,4 +1,4 @@
-import { COOKIE_NAMES, crossSiteCookieHeader, randomToken, signSession } from "./access.js";
+import { randomToken, signSession } from "./access.js";
 
 const JWKS_URL = "https://www.googleapis.com/service_accounts/v1/jwk/securetoken@system.gserviceaccount.com";
 const PROOF_SECONDS = 10 * 60;
@@ -96,6 +96,7 @@ export async function establishFirebaseProof({ request, env }) {
 
     const now = Math.floor(Date.now() / 1000);
     const proof = await signSession({
+      purpose: "firebase-owner-proof",
       firebase_uid: claims.sub,
       firebase_email: ownerEmail,
       firebase_role: "owner",
@@ -103,18 +104,7 @@ export async function establishFirebaseProof({ request, env }) {
       exp: now + PROOF_SECONDS,
       nonce: randomToken(24),
     }, env.SESSION_SIGNING_KEY);
-    return new Response(JSON.stringify({ authenticated: true }), {
-      status: 200,
-      headers: {
-        "Content-Type": "application/json; charset=utf-8",
-        "Cache-Control": "no-store",
-        "X-Content-Type-Options": "nosniff",
-        "Access-Control-Allow-Origin": origin,
-        "Access-Control-Allow-Credentials": "true",
-        "Vary": "Origin",
-        "Set-Cookie": crossSiteCookieHeader(COOKIE_NAMES.firebase, proof, PROOF_SECONDS),
-      },
-    });
+    return json({ authenticated: true, proof }, 200, origin);
   } catch {
     return json({ error: "Firebase Owner sign-in could not be verified." }, 401, origin);
   }
