@@ -345,7 +345,8 @@ For each affected test or test execution:
 
 - **Pass condition:** Only after Tier 1 text extraction and Tier 2 rendered-DOM extraction fail, an authorized source with reviewed terms and an approved exam/source mapping may use stable viewport PNG captures and OCR. Evidence must bind screenshots and OCR output by SHA-256, retain per-token confidence, hold any record with a token below 95% for human review, and pass announced count, exact sequence coverage, duplicate checks, and Greenlight. No access-control, robots, rate-limit, or human-verification barrier may be bypassed.
 - **Evidence to retain:** Source terms/access review, reviewed mapping, screenshot/OCR hashes, per-token confidence report, Greenlight report, and review disposition for low-confidence records.
-- **Status:** `NOT RUN` — architecture approved by D-007; no source-specific OCR mapping or cleared terms are configured.
+- **Implementation evidence (2026-11-07):** Tier 3 engine merged in PRs #108 and #109. Eight isolated synthetic tests passed for high-confidence extraction, sub-95% human-review hold, Tier 1/Tier 2 fallback gating, access-challenge rejection, screenshot hash verification, exact Drive preview/file binding, and sequence coverage. The full in-scope Python regression suite and all-branch compatibility audit also passed. These tests mock Tesseract TSV output; no actual official-source OCR run was performed.
+- **Status:** `NOT RUN` — no source-specific OCR mapping exists, the mapping registry is intentionally empty, and no source's access directives and reuse terms have been reviewed/recorded. Production Tier 3 OCR remains disabled.
 
 #### P2-30 — Detection-to-publication timing
 
