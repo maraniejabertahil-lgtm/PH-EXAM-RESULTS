@@ -151,6 +151,17 @@ jobs:
           if missing:
               raise SystemExit("Missing required production Pages variable names: " + ", ".join(missing))
 
+          expected_public_origin = "https://ph-exam-results.pages.dev"
+          origin_setting = configured["PUBLIC_SITE_ORIGIN"]
+          if origin_setting.get("type") != "plain_text" or origin_setting.get("value") != expected_public_origin:
+              api("PATCH", {"deployment_configs": {"production": {"env_vars": {
+                  "PUBLIC_SITE_ORIGIN": {"type": "plain_text", "value": expected_public_origin}
+              }}}})
+              project_data = api("GET")
+              configured = project_data.get("deployment_configs", {}).get("production", {}).get("env_vars") or {}
+          if configured.get("PUBLIC_SITE_ORIGIN", {}).get("value") != expected_public_origin:
+              raise SystemExit("Production PUBLIC_SITE_ORIGIN could not be set to the approved public Pages origin.")
+
           secret_names = {
               "FIREBASE_API_KEY", "GITHUB_OAUTH_CLIENT_SECRET",
               "SESSION_SIGNING_KEY", "CF_D1_READ_API_TOKEN",
