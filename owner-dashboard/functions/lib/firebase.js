@@ -1,6 +1,7 @@
 import { randomToken, signSession } from "./access.js";
 
 const JWKS_URL = "https://www.googleapis.com/service_accounts/v1/jwk/securetoken@system.gserviceaccount.com";
+const SIGN_IN_URL = "https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword";
 const PROOF_SECONDS = 10 * 60;
 
 function json(value, status = 200, origin = "") {
@@ -64,7 +65,7 @@ async function verifyFirebaseToken(token, projectId) {
 export async function establishFirebaseProof({ request, env }) {
   const origin = allowedOrigin(request, env);
   if (!origin) return json({ error: "Origin not allowed." }, 403);
-  if (!env.FIREBASE_PROJECT_ID || !env.OWNER_EMAIL ||
+  if (!env.FIREBASE_PROJECT_ID || !env.FIREBASE_API_KEY || !env.OWNER_EMAIL ||
       !env.SESSION_SIGNING_KEY || env.SESSION_SIGNING_KEY.length < 32) {
     return json({ error: "Firebase Owner authentication is not configured." }, 503, origin);
   }
@@ -73,7 +74,22 @@ export async function establishFirebaseProof({ request, env }) {
   }
   try {
     const body = await request.json();
-    const claims = await verifyFirebaseToken(body?.idToken, env.FIREBASE_PROJECT_ID);
+    const email = typeof body?.email === "string" ? body.email.trim() : "";
+    const password = typeof body?.password === "string" ? body.password : "";
+    if (!email || !password || email.length > 320 || password.length > 1024) {
+      return json({ error: "Enter a valid Owner email and password." }, 400, origin);
+    }
+    const signInResponse = await fetch(SIGN_IN_URL + "?key=" + encodeURIComponent(env.FIREBASE_API_KEY), {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({ email, password, returnSecureToken: true }),
+    });
+    const signIn = await signInResponse.json().catch(() => null);
+    if (!signInResponse.ok || typeof signIn?.idToken !== "string") {
+      return json({ error: "Firebase email/password could not be verified." }, 401, origin);
+    }
+    const idToken = signIn.idToken;
+    const claims = await verifyFirebaseToken(idToken, env.FIREBASE_PROJECT_ID);
     const ownerEmail = String(env.OWNER_EMAIL).trim().toLowerCase();
     if (claims.email.trim().toLowerCase() !== ownerEmail ||
         (env.FIREBASE_OWNER_UID && claims.sub !== String(env.FIREBASE_OWNER_UID))) {
@@ -83,7 +99,7 @@ export async function establishFirebaseProof({ request, env }) {
       encodeURIComponent(env.FIREBASE_PROJECT_ID) + "/databases/(default)/documents/users/" +
       encodeURIComponent(claims.sub);
     const profileResponse = await fetch(documentUrl, {
-      headers: { Authorization: "Bearer " + body.idToken, Accept: "application/json" },
+      headers: { Authorization: "Bearer " + idToken, Accept: "application/json" },
     });
     const profile = await profileResponse.json().catch(() => null);
     const fields = profile?.fields || {};
