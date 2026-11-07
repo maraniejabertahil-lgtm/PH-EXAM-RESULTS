@@ -6,6 +6,7 @@ import { readFirebaseProof } from "../lib/access.js";
 
 const env={
   FIREBASE_PROJECT_ID:"ph-exam-results-dd94a",
+  FIREBASE_API_KEY:"server-only-test-api-key",
   FIREBASE_OWNER_UID:"firebase-uid",
   PUBLIC_SITE_ORIGIN:"https://ph-exam-results.pages.dev",
   OWNER_EMAIL:"owner@example.com",
@@ -30,39 +31,50 @@ async function createToken(overrides={}) {
   const signature=await crypto.subtle.sign("RSASSA-PKCS1-v1_5",keyPair.privateKey,encoder.encode(signed));
   return signed+"."+Buffer.from(new Uint8Array(signature)).toString("base64url");
 }
-function request(idToken,origin=env.PUBLIC_SITE_ORIGIN) {
+function request(body,origin=env.PUBLIC_SITE_ORIGIN) {
   return new Request("https://ph-exam-results-owner.pages.dev/auth/firebase",{
-    method:"POST",headers:{Origin:origin,"Content-Type":"application/json"},body:JSON.stringify({idToken}),
+    method:"POST",headers:{Origin:origin,"Content-Type":"application/json"},body:JSON.stringify(body),
   });
 }
 async function withFetch(handler,callback) {
   const original=globalThis.fetch;globalThis.fetch=handler;
   try{return await callback();}finally{globalThis.fetch=original;}
 }
-function mockFetch({role="owner",active=true,email="owner@example.com"}={}) {
-  return async url=>{
+function mockFetch(token,{role="owner",active=true,email="owner@example.com",identityStatus=200}={}) {
+  return async (url,init)=>{
+    if(String(url).startsWith("https://identitytoolkit.googleapis.com/")){
+      assert.match(String(url),/key=server-only-test-api-key/);
+      const authRequest=JSON.parse(init.body);
+      assert.equal(authRequest.email,"owner@example.com");
+      assert.equal(authRequest.returnSecureToken,true);
+      return new Response(JSON.stringify({idToken:token}),{status:identityStatus});
+    }
     if(String(url).startsWith("https://www.googleapis.com/service_accounts/"))return new Response(JSON.stringify({keys:[jwk]}));
     return new Response(JSON.stringify({fields:{role:{stringValue:role},active:{booleanValue:active},email:{stringValue:email}}}));
   };
 }
-test("accepts valid Firebase token and active Firestore Owner profile, returning a short-lived signed proof",async()=>{
+const ownerCredentials={email:"owner@example.com",password:"correct-test-password"};
+test("accepts Firebase password sign-in and active Firestore Owner profile, returning a short-lived signed proof only",async()=>{
   const token=await createToken();
-  await withFetch(mockFetch(),async()=>{
-    const response=await establishFirebaseProof({request:request(token),env});
+  await withFetch(mockFetch(token),async()=>{
+    const response=await establishFirebaseProof({request:request(ownerCredentials),env});
     assert.equal(response.status,200);
     assert.equal(response.headers.get("Access-Control-Allow-Origin"),env.PUBLIC_SITE_ORIGIN);
     assert.equal(response.headers.get("Access-Control-Allow-Credentials"),null);
     const payload=await response.json();
     assert.equal(payload.authenticated,true);
     assert.equal(typeof payload.proof,"string");
+    assert.equal(payload.idToken,undefined);
     assert.equal(response.headers.get("Set-Cookie"),null);
+    const proofPayload=JSON.parse(Buffer.from(payload.proof.split(".")[0],"base64url").toString("utf8"));
+    assert.equal(proofPayload.firebase_uid,"firebase-uid");
+    assert.equal(proofPayload.password,undefined);
   });
 });
 test("completes the proof on the dashboard origin and sets a first-party HttpOnly cookie",async()=>{
-  const token=await createToken();
-  let proof="";
-  await withFetch(mockFetch(),async()=>{
-    const exchange=await establishFirebaseProof({request:request(token),env});
+  const token=await createToken();let proof="";
+  await withFetch(mockFetch(token),async()=>{
+    const exchange=await establishFirebaseProof({request:request(ownerCredentials),env});
     proof=(await exchange.json()).proof;
   });
   const requestToComplete=new Request("https://ph-exam-results-owner.pages.dev/auth/firebase/complete",{
@@ -79,10 +91,17 @@ test("completes the proof on the dashboard origin and sets a first-party HttpOnl
   assert.equal(firebaseProof.firebase_role,"owner");
 });
 test("rejects requests from origins other than the configured public website",async()=>{
-  const token=await createToken();let calls=0;
+  let calls=0;
   await withFetch(async()=>{calls++;throw new Error("must not fetch");},async()=>{
-    const response=await establishFirebaseProof({request:request(token,"https://attacker.example"),env});
+    const response=await establishFirebaseProof({request:request(ownerCredentials,"https://attacker.example"),env});
     assert.equal(response.status,403);assert.equal(calls,0);
+  });
+});
+test("rejects missing email/password before contacting Firebase",async()=>{
+  let calls=0;
+  await withFetch(async()=>{calls++;throw new Error("must not fetch");},async()=>{
+    const response=await establishFirebaseProof({request:request({email:"",password:""}),env});
+    assert.equal(response.status,400);assert.equal(calls,0);
   });
 });
 test("rejects non-owner, inactive, mismatched-email, unverified, wrong-UID and stale-auth identities",async()=>{
@@ -96,20 +115,27 @@ test("rejects non-owner, inactive, mismatched-email, unverified, wrong-UID and s
   ];
   for(const item of cases){
     const token=await createToken(item.claims);
-    await withFetch(mockFetch(item.profile),async()=>{
-      const response=await establishFirebaseProof({request:request(token),env});
+    await withFetch(mockFetch(token,item.profile),async()=>{
+      const response=await establishFirebaseProof({request:request(ownerCredentials),env});
       assert.equal(response.status,item.status);
     });
   }
 });
+test("rejects incorrect Firebase password response",async()=>{
+  const token=await createToken();
+  await withFetch(mockFetch(token,{identityStatus:400}),async()=>{
+    const response=await establishFirebaseProof({request:request(ownerCredentials),env});
+    assert.equal(response.status,401);
+  });
+});
 test("rejects tampered Firebase token signature before reading Firestore",async()=>{
   const token=await createToken();let firestoreCalls=0;
-  await withFetch(async url=>{
+  await withFetch(async(url,init)=>{
+    if(String(url).startsWith("https://identitytoolkit.googleapis.com/"))return new Response(JSON.stringify({idToken:token.split(".").slice(0,2).join(".")+".a"+token.split(".")[2].slice(1)}));
     if(String(url).startsWith("https://www.googleapis.com/service_accounts/"))return new Response(JSON.stringify({keys:[jwk]}));
     firestoreCalls++;return new Response(JSON.stringify({fields:{role:{stringValue:"owner"},active:{booleanValue:true}}}));
   },async()=>{
-    const parts=token.split(".");parts[2]=(parts[2][0]==="a"?"b":"a")+parts[2].slice(1);
-    const response=await establishFirebaseProof({request:request(parts.join(".")),env});
+    const response=await establishFirebaseProof({request:request(ownerCredentials),env});
     assert.equal(response.status,401);assert.equal(firestoreCalls,0);
   });
 });
