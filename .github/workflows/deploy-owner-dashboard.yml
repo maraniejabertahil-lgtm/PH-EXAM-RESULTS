@@ -63,7 +63,7 @@ jobs:
           node --check owner-dashboard/functions/auth/callback.js
           node --check owner-dashboard/functions/auth/session.js
           node --check owner-dashboard/functions/auth/logout.js
-      - name: Test exact owner Access verification and private D1 API
+      - name: Test Firebase/GitHub dual Owner verification and private D1 API
         run: node --test owner-dashboard/functions/tests/*.test.mjs
       - name: Test Python D1 REST client and additive migration
         working-directory: python-engine
