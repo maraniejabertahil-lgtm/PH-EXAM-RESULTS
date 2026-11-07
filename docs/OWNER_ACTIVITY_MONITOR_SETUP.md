@@ -2,11 +2,11 @@
 
 The private Owner dashboard is an isolated Cloudflare Pages project named `ph-exam-results-owner`. It must never be deployed to the public examination search Pages project.
 
-The login requires two independent proofs:
-1. Firebase email/password authentication plus an active Firestore `users/{uid}` profile with `role: "owner"` and `active: true`.
-2. The existing GitHub OAuth account with numeric ID `338246827` and the same exact verified Owner email.
+The Owner starts from the public search page's bilingual Owner Login icon. Access requires both:
+1. Firebase email/password authentication plus a verified email and Firestore `users/{uid}` profile with `role: "owner"` and `active: true`.
+2. The existing GitHub OAuth account ID `338246827` and the same exact verified Owner email.
 
-No Cloudflare Zero Trust / Access dependency is used. The dashboard hostname and every private route are protected by Pages Functions middleware and a signed dual-proof session.
+The public and private Pages hostnames are separate sites. The Firebase proof handoff uses a short-lived signed token in a URL fragment, immediately removed by the private handoff page, then exchanged for a first-party HttpOnly cookie. This avoids reliance on third-party cookies on iOS/Safari. No Cloudflare Access / Zero Trust dependency is used.
 
 ## A. Firebase prerequisites
 
@@ -15,7 +15,7 @@ Firebase project: `ph-exam-results-dd94a`.
 - Enable Authentication → Sign-in method → Email/Password.
 - Ensure the Owner Auth user exists and its email is verified.
 - Ensure Firestore has `users/{Firebase Auth UID}` with `role: "owner"`, `active: true`, and preferably `email: "<exact Owner email>"`.
-- Firestore rules must permit an authenticated user to read only their own profile document, but must not permit that user to create, update, or delete their role. Merge the rule into existing rules; do not replace unrelated rules:
+- Firestore rules must permit an authenticated user to read only their own profile document, but must not permit that user to create, update, or delete their role. Merge this behavior into existing rules; do not replace unrelated application rules:
 
 ```javascript
 match /users/{userId} {
@@ -24,16 +24,16 @@ match /users/{userId} {
 }
 ```
 
-Trusted server-side Firebase Admin operations bypass Firestore rules. Do not place an Admin SDK key in the browser or repository.
+The public page uses the Firebase Web App client configuration; this is not a Firebase Admin credential. The dashboard verifies Firebase ID-token RS256 signatures and claims against Google's Secure Token public keys and reads the Owner's own Firestore profile using that ID token.
 
 ## B. Create the isolated Cloudflare resources
 
 1. Create Pages project `ph-exam-results-owner` with production branch `main`.
 2. Create D1 database `ph-exam-results-operations`; retain its UUID.
-3. Configure the dashboard Pages production environment variables:
+3. Configure dashboard Pages production variables/secrets:
    - `FIREBASE_PROJECT_ID` = `ph-exam-results-dd94a`
-   - `FIREBASE_API_KEY` = Firebase Web App API key (public client configuration value)
    - `FIREBASE_OWNER_UID` = exact Firebase Owner UID (optional additional pin; recommended)
+   - `PUBLIC_SITE_ORIGIN` = `https://ph-exam-results.pages.dev`
    - `OWNER_GITHUB_ID` = `338246827`
    - `OWNER_EMAIL` = exact verified Owner email shared by Firebase and GitHub
    - `GITHUB_OAUTH_CLIENT_ID` = OAuth App client ID
@@ -56,7 +56,7 @@ Repository secrets:
 - `CF_OWNER_PAGES_PROJECT_NAME` = `ph-exam-results-owner`
 
 Repository variable:
-- `CF_OWNER_DASHBOARD_ENABLED` = `true`, only after the isolated Pages project, OAuth, D1 and production variables are ready.
+- `CF_OWNER_DASHBOARD_ENABLED=true`, only after the isolated Pages project, OAuth, D1 and production variables are ready.
 
 The production Watcher Worker also needs `CF_D1_API_TOKEN`, `CF_ACCOUNT_ID`, and `CF_D1_DATABASE_ID` for trusted activity writes.
 
@@ -64,12 +64,12 @@ The production Watcher Worker also needs `CF_D1_API_TOKEN`, `CF_ACCOUNT_ID`, and
 
 1. Run **Actions → Migrate Private Activity Monitor D1 → Run workflow** on `main`.
 2. Run **Actions → Deploy Private Owner Dashboard → Run workflow** on `main`.
-3. Open `https://ph-exam-results.pages.dev/` and use the Owner Login icon in the header.
-4. Sign in with the verified Firebase Owner email/password. The server must verify the ID token, exact email, Firestore role and active flag.
-5. Complete the GitHub OAuth step. The server must verify account ID `338246827` and the same exact verified email.
+3. Open `https://ph-exam-results.pages.dev/` and select the Owner Login icon at the top-left.
+4. Sign in with the verified Firebase Owner email/password. The dashboard server must validate the token signature/claims, exact Owner email, Firestore role and active flag.
+5. Verify the browser is redirected to the isolated dashboard and completes the GitHub OAuth check for ID `338246827` and the same exact verified email.
 6. Verify the private activity timeline loads and shows recorded events.
-7. Sign out. Verify the dashboard root redirects to `/login.html` and `/api/activity` returns 401.
-8. Attempt Firebase sign-in using a non-owner or inactive account; it must be denied before GitHub OAuth.
+7. Sign out. Verify the dashboard root redirects to the public login dialog and `/api/activity` returns 401.
+8. Attempt Firebase sign-in with a non-owner, inactive, unverified, mismatched-email or wrong-UID account; it must be denied before GitHub OAuth.
 9. Attempt GitHub OAuth using another GitHub account; it must be denied and no dashboard session may be issued.
 10. Confirm logout clears both cookies and the public search page remains available without authentication.
 
@@ -77,4 +77,4 @@ Generate a session signing key locally in Codespaces with:
 
 `python -c "import secrets; print(secrets.token_urlsafe(48))"`
 
-Never paste the generated secret into chat or commit it. The Firebase Web API key is public client configuration, not an Admin SDK credential. No OAuth token, Cloudflare token, D1 credential, Firebase Admin credential, or session signing key may be shipped to frontend assets.
+Never paste the generated secret into chat or commit it. No OAuth token, Cloudflare token, D1 credential, Firebase Admin credential, or session signing key may be shipped to frontend assets.
