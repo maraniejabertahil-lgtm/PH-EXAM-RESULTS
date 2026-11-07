@@ -24,7 +24,7 @@ LEGACY_EVENT_TYPES = {
 }
 LEGACY_STATUSES = {"started", "passed", "failed", "completed"}
 ALLOWED_METADATA_KEYS = {
-    "run_id", "run_number", "workflow", "job", "branch", "commit",
+    "run_id", "run_number", "run_url", "workflow", "job", "branch", "commit",
     "source_id", "authority", "exam", "exam_year", "duration_ms",
     "checked_targets", "skipped_targets", "records", "announced_count", "extracted_count", "greenlight_score",
 }
