@@ -208,6 +208,7 @@ jobs:
 
           # Only the short-lived Firebase handoff and narrowly scoped auth endpoints are public.
           check_public_asset "/continue.html"
+          check_public_asset "/continue"
           check_public_asset "/continue.js"
           check_public_asset "/continue.css"
           curl -fsS "$base/auth/session" -o /tmp/owner-session.json
