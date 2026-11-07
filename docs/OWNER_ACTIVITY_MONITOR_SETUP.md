@@ -23,20 +23,16 @@ Use the dedicated project name `ph-exam-results-owner`. From the Codespaces term
 
 ## 2. Protect the entire dashboard hostname
 
-In **Zero Trust → Access → Applications**, create a Self-hosted application for the entire new dashboard hostname, for example:
-
-`https://ph-exam-results-owner.pages.dev/*`
-
-Create an Allow policy containing only the Owner's exact sign-in email. Do not use Everyone or a whole email-domain rule. Protect the production hostname and any preview hostname that is enabled for this project.
+In the new Pages project, open **Settings → General → Enable access policy**. Then open the generated application under **Zero Trust → Access → Applications → Configure**. For the production Pages hostname, remove the wildcard subdomain and select the exact `ph-exam-results-owner.pages.dev` hostname. Create an Allow policy containing only the Owner's exact sign-in email. Do not use Everyone or a whole email-domain rule. Return to the Pages project and enable the access policy again if you also want preview deployments protected. Cloudflare documents that preview deployments and the production `pages.dev` hostname require separate policy handling.
 
 The dashboard API also verifies the exact owner email. If Access settings or identity configuration are missing, the API fails closed and returns no activity data.
 
 ## 3. Create D1 and API tokens
 
 1. In **Workers & Pages → D1 SQL Database**, create a database, for example `ph-exam-results-operations`. Record its database UUID.
-2. Create a Cloudflare API token with **Account / D1 / Edit** (or **D1 Write**, depending on the token UI) permission for trusted writers.
+2. Create a Cloudflare API token with **Account / D1 / Edit** permission for trusted writers.
 3. Create a separate Cloudflare API token with **Account / D1 / Read** permission for the private dashboard.
-4. Create a Cloudflare API token with **Account / Cloudflare Pages / Edit** (or **Pages Write**) permission to deploy Pages projects.
+4. Create a Cloudflare API token with **Account / Cloudflare Pages / Edit** permission to deploy Pages projects.
 
 The schema and client use the Cloudflare D1 REST API. No direct SQL driver or public browser database query is introduced.
 
