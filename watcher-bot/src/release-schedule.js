@@ -1,4 +1,4 @@
-const USER_AGENT = "PH-EXAM-RESULTS-Watcher/1.0";
+const USER_AGENT = "PH-EXAM-RESULTS-Watcher";
 export const RELEASE_SCHEDULE_CACHE_KEY = "official-release-schedule:v1";
 const REFRESH_INTERVAL_MS = 6 * 60 * 60 * 1000;
 const SNAPSHOT_TTL_SECONDS = 14 * 24 * 60 * 60;
@@ -48,7 +48,7 @@ function daysUntil(dateIso, now) {
 
 function parseTargetDate(value) {
   const text = cleanText(value);
-  const match = /\b(January|February|March|April|May|June|July|August|September|October|November|December|Jan|Feb|Mar|Apr|Jun|Jul|Aug|Sep|Sept|Oct|Nov|Dec)\.?\s+(\d{1,2})(?:st|nd|rd|th)?[,]?\s+(\d{4})\b/i.exec(text);
+  const match = /\b(January|February|March|April|May|June|July|August|September|October|November|December|Jan|Feb|Mar|Apr|Jun|Jul|Aug|Sep|Sept|Oct|Nov|Dec)\.?\s+(\d{1,2})(?:st|nd|rd|th)?\s*,?\s+(\d{4})\b/i.exec(text);
   if (!match) return null;
   const date = new Date(Date.UTC(Number(match[3]), new Date(Date.parse(match[1] + " 1, 2000")).getUTCMonth(), Number(match[2])));
   if (Number.isNaN(date.getTime()) || date.getUTCFullYear() !== Number(match[3]) || date.getUTCDate() !== Number(match[2])) return null;
@@ -74,6 +74,16 @@ function headerColumn(cells, predicate) {
     logicalIndex += cell.colspan;
   }
   return -1;
+}
+
+function deduplicateScheduleRows(rows) {
+  const uniqueRows = new Map();
+  for (const item of rows) {
+    const examKey = String(item.exam || "").normalize("NFKC").replace(/\s+/g, " ").trim().toLowerCase();
+    const key = examKey + "\u0000" + item.target_release_date;
+    if (!uniqueRows.has(key)) uniqueRows.set(key, item);
+  }
+  return [...uniqueRows.values()];
 }
 
 export function parsePrcScheduleHtml(html, sourceUrl, now = new Date()) {
@@ -136,6 +146,9 @@ export function parsePrcScheduleHtml(html, sourceUrl, now = new Date()) {
     throw new Error("The PRC schedule table or its target-release columns could not be identified; manual review is required.");
   }
 
+  // Collapse only exact logical duplicates: same normalized exam name AND target date.
+  // Different exams on one date, and the same exam with different dates, remain separate.
+  parsedRows = deduplicateScheduleRows(parsedRows);
   parsedRows.sort((a, b) => a.target_release_date.localeCompare(b.target_release_date) || a.exam.localeCompare(b.exam));
   const upcoming = parsedRows.filter((item) => item.days_until >= 0);
   return {
@@ -291,16 +304,16 @@ async function fetchText(url, fetchImpl, expectedType, maxBytes, robotsText = nu
   return { text: await readBoundedText(result.response, maxBytes), finalUrl: result.finalUrl };
 }
 
-async function fetchRobotsPolicy(indexSource, fetchImpl) {
+async function fetchRobotsPolicy(indexSource, fetchImpl, now) {
   const index = new URL(indexSource.url);
   const robotsUrl = new URL("/robots.txt", index.origin).href;
   const result = await fetchText(robotsUrl, fetchImpl, "text", MAX_ROBOTS_BYTES);
-  if (!robotsAllowsPath(result.text, index.pathname)) {
+  if (!robotsAllowsPath(result.text, index.pathname, USER_AGENT)) {
     const error = new Error("PRC robots.txt disallows automated access to " + index.pathname + ".");
     error.code = "ROBOTS_DISALLOWED";
     throw error;
   }
-  return result.text;
+  return { text: result.text, url: result.finalUrl, checked_at: now.toISOString(), user_agent: USER_AGENT, outcome: "allowed" };
 }
 
 export async function refreshOfficialReleaseSchedule({ sources, kv, fetchImpl = fetch, now = new Date() }) {
@@ -331,17 +344,17 @@ export async function refreshOfficialReleaseSchedule({ sources, kv, fetchImpl = 
   }
 
   try {
-    const robotsText = await fetchRobotsPolicy(source, fetchImpl);
-    const indexResult = await fetchText(source.url, fetchImpl, "text/html", MAX_HTML_BYTES, robotsText);
+    const robotsPolicy = await fetchRobotsPolicy(source, fetchImpl, now);
+    const indexResult = await fetchText(source.url, fetchImpl, "text/html", MAX_HTML_BYTES, robotsPolicy.text);
     const pages = discoverSchedulePageUrls(indexResult.text, indexResult.finalUrl, now, source.max_schedule_pages || 2);
     if (!pages.length) throw new Error("The official PRC schedule index did not link to a current or next-year schedule page.");
 
     const schedules = [];
     for (const page of pages) {
-      const pageResult = await fetchText(page.url, fetchImpl, "text/html", MAX_HTML_BYTES, robotsText);
+      const pageResult = await fetchText(page.url, fetchImpl, "text/html", MAX_HTML_BYTES, robotsPolicy.text);
       schedules.push(parsePrcScheduleHtml(pageResult.text, pageResult.finalUrl, now));
     }
-    const upcoming = schedules.flatMap((item) => item.upcoming)
+    const upcoming = deduplicateScheduleRows(schedules.flatMap((item) => item.upcoming))
       .sort((a, b) => a.target_release_date.localeCompare(b.target_release_date) || a.exam.localeCompare(b.exam));
     const unparsed = schedules.flatMap((item) => item.unparsed_target_dates);
     const snapshot = {
@@ -352,6 +365,7 @@ export async function refreshOfficialReleaseSchedule({ sources, kv, fetchImpl = 
       as_of_date_manila: localManilaDate(now).iso,
       source_index_url: indexResult.finalUrl,
       source_pages: schedules.map((item) => item.source_url),
+      access_policy: { robots_txt_url: robotsPolicy.url, robots_checked_at: robotsPolicy.checked_at, user_agent: robotsPolicy.user_agent, outcome: robotsPolicy.outcome },
       upcoming_count: upcoming.length,
       unparsed_count: unparsed.length,
       unparsed_target_dates: unparsed.slice(0, 50),
