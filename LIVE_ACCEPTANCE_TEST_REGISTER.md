@@ -150,10 +150,10 @@ For each affected test or test execution:
 #### P1-11 — Official future PRC release schedule discovery (D-011)
 
 - **Pass condition:** The production Watcher discovers current/next-year schedule pages only from the official PRC schedule index; verifies the relevant paths against the live PRC robots.txt; performs bounded same-origin retrieval; extracts the official examination name and target-release-date columns; calculates the nearest upcoming date using the Manila calendar; stores a six-hour KV-cached snapshot; and serves it from `GET /api/releases/upcoming`. A target date must never be represented as proof that results have actually been published.
-- **Evidence to retain:** Automated parser, same-origin link, robots-policy, cache, and endpoint tests; production Worker deployment identifier; live schedule fetch timestamp and official source URLs; endpoint response showing the same nearest release as the official schedule; proof that a robots-disallowed path is not fetched.
+- **Evidence to retain:** PR #146 merged as commit `a94b2755548c0cccb1a82b1bc23b1b58a5c03cba`. Watcher Quality Checks passed: 43 Node tests (40 passed, 3 existing skips, 0 failed), JavaScript syntax check, in-scope Python tests (151 passed), and public dataset/hash validation. Production Worker deployment succeeded in workflow run [#42420775560](https://github.com/maraniejabertahil-lgtm/PH-EXAM-RESULTS/actions/runs/42420775560); deployed Worker version `fe1377cb-3e21-4fa2-b6cd-c4670b79a7f2`, URL `https://ph-exam-results-watcher.bf2hbvt5mn.workers.dev`. The production API route is `/api/releases/upcoming`. Live response retrieval, runtime robots.txt decision, and the first stored schedule snapshot have not yet been independently verified.
 - **Related implementation task:** `PROGRESS_TRACKER.md` — “Implement official PRC future-release schedule discovery in the Watcher...”
 - **Owner decision:** D-011 (2026-11-08).
-- **Status:** `NOT RUN`
+- **Status:** `PARTIAL`
 
 
 **Phase 1 acceptance note:** The Part 16 roadmap calls for the 30-second loop, Peak Week KV check, preemptive HEAD requests, and webhook dispatch. Part 17 separately requires proof that the preemptive HEAD detection happens before the HTML page updates.
