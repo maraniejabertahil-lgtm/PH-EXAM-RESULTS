@@ -166,8 +166,15 @@ jobs:
                   raise SystemExit("Cannot safely convert Pages secret variable: " + name)
               updates[name] = {"type": "secret_text", "value": item["value"]}
 
+          # This is a public, non-secret value. Normalize it to the exact production
+          # origin required by the browser CORS gate and the runtime health check.
+          expected_origin = "https://ph-exam-results.pages.dev"
+          origin_item = configured["PUBLIC_SITE_ORIGIN"]
+          if origin_item.get("type") != "plain_text" or origin_item.get("value") != expected_origin:
+              updates["PUBLIC_SITE_ORIGIN"] = {"type": "plain_text", "value": expected_origin}
+
           if updates:
-              # PATCH only the selected keys. Do not replace the complete env_vars map.
+              # PATCH only selected keys. Do not replace the complete env_vars map.
               api("PATCH", {"deployment_configs": {"production": {"env_vars": updates}}})
               project_data = api("GET")
               configured = project_data.get("deployment_configs", {}).get("production", {}).get("env_vars") or {}
@@ -178,7 +185,10 @@ jobs:
               raise SystemExit("Production Pages variables disappeared during secret hardening: " + ", ".join(missing))
           if still_plain:
               raise SystemExit("Production Pages variables could not be secured as secret text: " + ", ".join(still_plain))
-          print("Required production Pages variables are present; sensitive values are stored as secret text. Values were not printed.")
+          verified_origin = configured.get("PUBLIC_SITE_ORIGIN", {})
+          if verified_origin.get("type") != "plain_text" or verified_origin.get("value") != expected_origin:
+              raise SystemExit("PUBLIC_SITE_ORIGIN was not normalized to the exact production public origin.")
+          print("Required production Pages variables are present; sensitive values are encrypted and PUBLIC_SITE_ORIGIN is normalized. Values were not printed.")
           PY
       - name: Set up Python for additive D1 migration
         uses: actions/setup-python@v6
