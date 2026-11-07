@@ -142,6 +142,10 @@ async function loadEvents() {
     if (response.status === 404 || response.status === 401) {
       throw new Error("Owner access was not verified. Sign in with the authorized owner account.");
     }
+    const contentType = response.headers.get("content-type") || "";
+    if (!contentType.includes("application/json")) {
+      throw new Error("Your private access session may have expired. Sign in again, then refresh this dashboard.");
+    }
     const payload = await response.json();
     if (!response.ok) throw new Error(payload.error || "Activity history could not be loaded.");
     if (!Array.isArray(payload.events)) throw new Error("Activity history response is invalid.");
