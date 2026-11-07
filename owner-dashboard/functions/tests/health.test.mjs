@@ -22,7 +22,7 @@ async function withFetch(handler, callback) {
   try { return await callback(); } finally { globalThis.fetch = original; }
 }
 
-test("readiness requires a successful live D1 query against the activity schema", async () => {
+test("readiness reports safe configuration and successful live D1 schema checks", async () => {
   await withFetch(async (url, init) => {
     assert.match(String(url), /\/accounts\/account\/d1\/database\/database\/query$/);
     assert.equal(init.method, "POST");
@@ -33,32 +33,56 @@ test("readiness requires a successful live D1 query against the activity schema"
   }, async () => {
     const response = await onRequestGet({ env: readyEnv });
     assert.equal(response.status, 200);
-    assert.deepEqual(await response.json(), { ready: true });
+    const body = await response.json();
+    assert.equal(body.ready, true);
+    assert.ok(Object.values(body.checks).every(Boolean));
+    assert.deepEqual(body.d1, {
+      attempted: true, http_status: 200, api_success: true,
+      statement_success: true, results_array: true, error_codes: [],
+      transport_error: false, ready: true,
+    });
   });
 });
 
-test("readiness fails closed when a required configuration value is missing", async () => {
+test("readiness identifies a missing configuration item without exposing values", async () => {
   let calls = 0;
   await withFetch(async () => { calls++; throw new Error("must not query"); }, async () => {
     const response = await onRequestGet({ env: { ...readyEnv, SESSION_SIGNING_KEY: "short" } });
     assert.equal(response.status, 503);
-    assert.deepEqual(await response.json(), { ready: false });
+    const body = await response.json();
+    assert.equal(body.ready, false);
+    assert.equal(body.checks.session_signing_key, false);
+    assert.equal(body.d1.attempted, false);
     assert.equal(calls, 0);
   });
 });
 
-test("readiness fails closed when D1 is unreachable, unauthorized, or missing its activity schema", async () => {
+test("readiness identifies D1 authorization, schema, and transport failures safely", async () => {
   const failures = [
-    async () => { throw new Error("network unavailable"); },
-    async () => new Response(JSON.stringify({ success: false }), { status: 403 }),
-    async () => new Response(JSON.stringify({ success: true, result: [{ success: false, results: [] }] })),
-    async () => new Response(JSON.stringify({ success: true, result: [] })),
+    {
+      handler: async () => { throw new Error("network unavailable"); },
+      check: (d1) => { assert.equal(d1.transport_error, true); },
+    },
+    {
+      handler: async () => new Response(JSON.stringify({ success: false, errors: [{ code: 10000 }] }), { status: 403 }),
+      check: (d1) => { assert.equal(d1.http_status, 403); assert.deepEqual(d1.error_codes, ["10000"]); },
+    },
+    {
+      handler: async () => new Response(JSON.stringify({ success: true, result: [{ success: false, errors: [{ code: 7500 }] }] })),
+      check: (d1) => { assert.equal(d1.statement_success, false); assert.deepEqual(d1.error_codes, ["7500"]); },
+    },
+    {
+      handler: async () => new Response(JSON.stringify({ success: true, result: [] })),
+      check: (d1) => { assert.equal(d1.results_array, false); },
+    },
   ];
-  for (const handler of failures) {
-    await withFetch(handler, async () => {
+  for (const item of failures) {
+    await withFetch(item.handler, async () => {
       const response = await onRequestGet({ env: readyEnv });
       assert.equal(response.status, 503);
-      assert.deepEqual(await response.json(), { ready: false });
+      const body = await response.json();
+      assert.equal(body.ready, false);
+      item.check(body.d1);
     });
   }
 });
