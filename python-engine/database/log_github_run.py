@@ -5,7 +5,10 @@ import os
 from datetime import datetime, timezone
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
-from d1_client import record_activity
+try:
+    from .d1_client import record_activity
+except ImportError:  # Direct script execution from this directory in GitHub Actions.
+    from d1_client import record_activity
 
 def normalize_status(status, conclusion):
     if status == "in_progress":
