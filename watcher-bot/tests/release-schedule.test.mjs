@@ -15,14 +15,15 @@ class MemoryKV {
   async put(key, value, options) { this.values.set(key, value); this.lastOptions = options; }
 }
 
-const scheduleHtml = String.raw\`<html><table>
-<tr><th>SEQ</th><th>NAME OF EXAMINATION</th><th>DATE/S OF EXAMINATION</th><th>DAY/S</th><th>TESTING CENTER/S</th><th colspan="2">APPLICATION PERIOD</th><th>TARGET DATE OF RELEASE OF EXAMINATION RESULTS</th><th>REQUIREMENTS</th></tr>
-<tr><th></th><th></th><th></th><th></th><th></th><th>OPENING</th><th>DEADLINE</th><th></th><th></th></tr>
-<tr><td>71</td><td>Veterinarians (CBLE)</td><td>November 04, 05, and 06, 2026</td><td>Wed, Thu, Fri</td><td>NCR</td><td>August 06, 2026</td><td>October 05, 2026</td><td>November 10, 2026</td><td>Click Here</td></tr>
-<tr><td>72</td><td>Midwives</td><td>November 07 and 08, 2026</td><td>Sat, Sun</td><td>NCR</td><td>August 07, 2026</td><td>October 08, 2026</td><td>November 11, 2026</td><td>Click Here</td></tr>
-<tr><td>73</td><td>Aeronautical Engineers (CBLE)</td><td>November 09, 10, and 11, 2026</td><td>Mon, Tue, Wed</td><td>NCR</td><td>August 11, 2026</td><td>October 12, 2026</td><td>November 13, 2026</td><td>Click Here</td></tr>
-<tr><td>74</td><td>Old Examination</td><td>October 01, 2026</td><td>Thu</td><td>NCR</td><td>July 01, 2026</td><td>September 01, 2026</td><td>October 06, 2026</td><td>Click Here</td></tr>
-</table></html>\`;
+const scheduleHtml =
+  '<html><table>' +
+  '<tr><th>SEQ</th><th>NAME OF EXAMINATION</th><th>DATE/S OF EXAMINATION</th><th>DAY/S</th><th>TESTING CENTER/S</th><th colspan="2">APPLICATION PERIOD</th><th>TARGET DATE OF RELEASE OF EXAMINATION RESULTS</th><th>REQUIREMENTS</th></tr>' +
+  '<tr><th></th><th></th><th></th><th></th><th></th><th>OPENING</th><th>DEADLINE</th><th></th><th></th></tr>' +
+  '<tr><td>71</td><td>Veterinarians (CBLE)</td><td>November 04, 05, and 06, 2026</td><td>Wed, Thu, Fri</td><td>NCR</td><td>August 06, 2026</td><td>October 05, 2026</td><td>November 10, 2026</td><td>Click Here</td></tr>' +
+  '<tr><td>72</td><td>Midwives</td><td>November 07 and 08, 2026</td><td>Sat, Sun</td><td>NCR</td><td>August 07, 2026</td><td>October 08, 2026</td><td>November 11, 2026</td><td>Click Here</td></tr>' +
+  '<tr><td>73</td><td>Aeronautical Engineers (CBLE)</td><td>November 09, 10, and 11, 2026</td><td>Mon, Tue, Wed</td><td>NCR</td><td>August 11, 2026</td><td>October 12, 2026</td><td>November 13, 2026</td><td>Click Here</td></tr>' +
+  '<tr><td>74</td><td>Old Examination</td><td>October 01, 2026</td><td>Thu</td><td>NCR</td><td>July 01, 2026</td><td>September 01, 2026</td><td>October 06, 2026</td><td>Click Here</td></tr>' +
+  '</table></html>';
 
 test("parses official PRC target-release column and chooses the nearest future date", () => {
   const now = new Date("2026-11-08T04:00:00.000Z");
@@ -36,11 +37,11 @@ test("parses official PRC target-release column and chooses the nearest future d
 });
 
 test("schedule index discovery accepts only same-origin current and next-year official paths", () => {
-  const html = \`<a href="/2025-schedule-examination">2025</a>
-    <a href="/2026-schedule-examination">2026</a>
-    <a href="https://www.prc.gov.ph/2027-schedule-examination">2027</a>
-    <a href="https://evil.example/2026-schedule-examination">bad</a>
-    <a href="/article/123">article</a>\`;
+  const html = '<a href="/2025-schedule-examination">2025</a>' +
+    '<a href="/2026-schedule-examination">2026</a>' +
+    '<a href="https://www.prc.gov.ph/2027-schedule-examination">2027</a>' +
+    '<a href="https://evil.example/2026-schedule-examination">bad</a>' +
+    '<a href="/article/123">article</a>';
   const pages = discoverSchedulePageUrls(html, "https://www.prc.gov.ph/exam-schedules-menu", new Date("2026-11-08T00:00:00Z"));
   assert.deepEqual(pages, [
     { year: 2026, url: "https://www.prc.gov.ph/2026-schedule-examination" },
