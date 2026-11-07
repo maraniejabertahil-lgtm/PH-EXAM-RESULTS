@@ -12,6 +12,7 @@ on:
       - "python-engine/acquisition/static_png_ocr.py"
       - "python-engine/config/static_png_ocr_mappings.json"
       - "python-engine/tests/test_static_png_ocr.py"
+      # Core Python processing changes also require the all-branch merge audit.
       - "watcher-bot/**"
       - "tools/check_all_branch_compatibility.py"
       - ".github/workflows/deploy-owner-dashboard.yml"
