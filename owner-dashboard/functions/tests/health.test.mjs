@@ -76,6 +76,10 @@ test("readiness distinguishes D1 transport, HTTP authorization, and response fai
       expected: { ready: false, reason: "d1_http", upstream_status: 403 },
     },
     {
+      handler: async () => new Response(JSON.stringify({ success: false }), { status: 502 }),
+      expected: { ready: false, reason: "d1_http", upstream_status: 502 },
+    },
+    {
       handler: async () => new Response(JSON.stringify({ success: true, result: [{ success: false, results: [] }] })),
       expected: { ready: false, reason: "d1_response", upstream_status: 200 },
     },
