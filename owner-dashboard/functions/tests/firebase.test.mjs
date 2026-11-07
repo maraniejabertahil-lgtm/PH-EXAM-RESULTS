@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { establishFirebaseProof, firebasePreflight } from "../lib/firebase.js";
 import { onRequestPost as completeFirebaseProof } from "../auth/firebase/complete.js";
-import { readFirebaseProof } from "../lib/access.js";
+import { readSession } from "../lib/access.js";
 
 const env={
   FIREBASE_PROJECT_ID:"ph-exam-results-dd94a",
@@ -10,7 +10,6 @@ const env={
   FIREBASE_OWNER_UID:"firebase-uid",
   PUBLIC_SITE_ORIGIN:"https://ph-exam-results.pages.dev",
   OWNER_EMAIL:"owner@example.com",
-  OWNER_GITHUB_ID:"338246827",
   SESSION_SIGNING_KEY:"test-only-session-signing-key-which-is-long-enough",
 };
 const encoder=new TextEncoder();
@@ -71,7 +70,7 @@ test("accepts Firebase password sign-in and active Firestore Owner profile, retu
     assert.equal(proofPayload.password,undefined);
   });
 });
-test("completes the proof on the dashboard origin and sets a first-party HttpOnly cookie",async()=>{
+test("completes Firebase Owner proof directly into an eight-hour first-party session",async()=>{
   const token=await createToken();let proof="";
   await withFetch(mockFetch(token),async()=>{
     const exchange=await establishFirebaseProof({request:request(ownerCredentials),env});
@@ -83,12 +82,14 @@ test("completes the proof on the dashboard origin and sets a first-party HttpOnl
   });
   const response=await completeFirebaseProof({request:requestToComplete,env});
   assert.equal(response.status,200);
-  assert.match(response.headers.get("Set-Cookie"),/__Host-ph_owner_firebase=.*HttpOnly; Secure; SameSite=Lax/);
+  assert.match(response.headers.get("Set-Cookie"),/__Host-ph_owner_session=.*HttpOnly; Secure; SameSite=Lax/);
   const cookie=response.headers.get("Set-Cookie").split(";")[0];
   const sessionRequest=new Request("https://ph-exam-results-owner.pages.dev/",{headers:{Cookie:cookie}});
-  const firebaseProof=await readFirebaseProof(sessionRequest,env);
-  assert.equal(firebaseProof.firebase_uid,"firebase-uid");
-  assert.equal(firebaseProof.firebase_role,"owner");
+  const session=await readSession(sessionRequest,env);
+  assert.equal(session.firebase_uid,"firebase-uid");
+  assert.equal(session.firebase_role,"owner");
+  assert.equal(typeof session.csrf,"string");
+  assert.equal(session.csrf.length,43);
 });
 test("rejects requests from origins other than the configured public website",async()=>{
   let calls=0;
@@ -104,11 +105,12 @@ test("rejects missing email/password before contacting Firebase",async()=>{
     assert.equal(response.status,400);assert.equal(calls,0);
   });
 });
-test("rejects non-owner, inactive, mismatched-email, unverified, wrong-UID and stale-auth identities",async()=>{
+test("rejects non-owner, inactive, missing or mismatched Firestore email, unverified, wrong-UID and stale-auth identities",async()=>{
   const cases=[
     {claims:{},profile:{role:"student"},status:403},
     {claims:{},profile:{active:false},status:403},
     {claims:{email:"other@example.com"},profile:{},status:403},
+    {claims:{},profile:{email:""},status:403},
     {claims:{email_verified:false},profile:{},status:401},
     {claims:{sub:"other-uid"},profile:{},status:403},
     {claims:{auth_time:Math.floor(Date.now()/1000)-700},profile:{},status:401},
