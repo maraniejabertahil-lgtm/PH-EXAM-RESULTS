@@ -38,6 +38,15 @@ def main() -> int:
     introduced = []
     unrelated = []
     for ref in refs:
+        # Squash-merged branches are not necessarily ancestors of main. If their
+        # complete tree is identical to main or the feature tree, their content
+        # is already represented and should not be reported as a merge conflict.
+        if git("diff", "--quiet", "origin/main", ref).returncode == 0:
+            included.append(ref)
+            continue
+        if git("diff", "--quiet", feature_ref, ref).returncode == 0:
+            included.append(ref)
+            continue
         if git("merge-base", "--is-ancestor", ref, feature_ref).returncode == 0:
             included.append(ref)
             continue
