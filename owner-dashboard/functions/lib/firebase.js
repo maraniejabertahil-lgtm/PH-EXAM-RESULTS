@@ -12,7 +12,6 @@ function json(value, status = 200, origin = "") {
   };
   if (origin) {
     headers["Access-Control-Allow-Origin"] = origin;
-    headers["Access-Control-Allow-Credentials"] = "true";
   }
   return new Response(JSON.stringify(value), { status, headers });
 }
@@ -116,7 +115,6 @@ export function firebasePreflight({ request, env }) {
     status: 204,
     headers: {
       "Access-Control-Allow-Origin": origin,
-      "Access-Control-Allow-Credentials": "true",
       "Access-Control-Allow-Methods": "POST, OPTIONS",
       "Access-Control-Allow-Headers": "Content-Type",
       "Access-Control-Max-Age": "600",
