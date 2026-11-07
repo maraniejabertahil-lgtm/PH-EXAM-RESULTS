@@ -183,5 +183,5 @@ elements.status.addEventListener("change", loadEvents);
 elements.component.addEventListener("change", loadEvents);
 initializeAuth().then(authenticated => {
   if (authenticated) loadEvents();
-  else { elements.message.textContent = "Sign in with the authorized Owner GitHub account to view private activity."; elements.list.replaceChildren(); }
+  else { elements.message.textContent = "Sign in with your verified Firebase Owner account and the authorized GitHub account to view private activity."; elements.list.replaceChildren(); }
 });
