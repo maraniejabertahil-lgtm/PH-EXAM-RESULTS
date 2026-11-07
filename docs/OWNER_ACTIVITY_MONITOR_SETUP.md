@@ -62,8 +62,7 @@ The production Watcher Worker also needs `CF_D1_API_TOKEN`, `CF_ACCOUNT_ID`, and
 
 ## D. Migration, deployment and live acceptance
 
-1. Run **Actions → Migrate Private Activity Monitor D1 → Run workflow** on `main`.
-2. Run **Actions → Deploy Private Owner Dashboard → Run workflow** on `main`.
+1. Run **Actions → Deploy Private Owner Dashboard → Run workflow** on `main`. Its deployment job applies the idempotent additive D1 migration, verifies all required tables, deploys the isolated Pages project, and checks the production configuration health endpoint. The separate **Migrate Private Activity Monitor D1** workflow remains available for manual schema maintenance.
 3. Only after the private dashboard deploys and signed-out route checks succeed, set `owner_login_enabled: true` in `public/status.json` and deploy the public Pages site. The Owner Login icon is intentionally hidden until this flag is enabled.
 3. Open `https://ph-exam-results.pages.dev/` and select the Owner Login icon at the top-left.
 4. Sign in with the verified Firebase Owner email/password. The dashboard server must validate the token signature/claims, exact Owner email, Firestore role and active flag.

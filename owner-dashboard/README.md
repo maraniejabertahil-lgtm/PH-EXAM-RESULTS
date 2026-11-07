@@ -84,8 +84,7 @@ Do not configure Cloudflare Access for this project.
 3. Add repository Actions secrets: `CF_ACCOUNT_ID`, `CF_D1_DATABASE_ID`, `CF_D1_API_TOKEN` (D1 Edit), `CF_PAGES_API_TOKEN` (Pages Edit), and `CF_OWNER_PAGES_PROJECT_NAME` (`ph-exam-results-owner`).
 4. Set repository variable `CF_OWNER_DASHBOARD_ENABLED=true` only after the separate Pages project, OAuth, D1, and production variables are ready.
 5. Configure the production Watcher Worker with `CF_D1_API_TOKEN`, `CF_ACCOUNT_ID`, and `CF_D1_DATABASE_ID`.
-6. Run **Actions → Migrate Private Activity Monitor D1 → Run workflow** on `main`.
-7. Run **Actions → Deploy Private Owner Dashboard → Run workflow** on `main`.
+6. Run **Actions → Deploy Private Owner Dashboard → Run workflow** on `main`. Its deployment job applies the idempotent additive D1 migration, verifies all required tables, deploys the isolated Pages project, and checks the production configuration health endpoint. The separate **Migrate Private Activity Monitor D1** workflow remains available for manual schema maintenance.
 
 Generate the session signing key locally in Codespaces with:
 
