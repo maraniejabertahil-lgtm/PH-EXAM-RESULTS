@@ -533,15 +533,15 @@ For each affected test or test execution:
 
 - **Pass condition:** An unauthenticated or non-owner direct visit to the dashboard root redirects to the public website's bilingual Owner Login entry (`/?owner=login`); private scripts/routes and `/api/activity` remain unavailable without the combined session; logout requires same-origin CSRF validation and clears both authentication cookies. Authorized Owner can read D1 activity history using a D1 Read-only token.
 - **Evidence to retain:** Automated middleware/API tests, signed-out and non-owner browser tests, authorized activity timeline, logout/replay test, and D1 query evidence.
-- **Status:** `NOT RUN`
-- **Candidate evidence:** Implementation merged in PRs #114 and #115. Automated middleware, session, D1 API, and CSRF/logout tests passed. The production dashboard deployment is still disabled; D1 Actions credentials are missing, so migration and live activity reads have not run.
+- **Status:** `PARTIAL`
+- **Candidate evidence:** Implementation merged in PRs #114 and #115. Automated middleware, session, D1 API, and CSRF/logout tests passed. Deployment workflow #106 (2026-11-07; commit `82cf32d3b01046ebe93768659775cbfc09f55333`) successfully applied and verified the D1 migration, deployed the isolated Pages project, and confirmed `/auth/health` returned HTTP 200 with `ready: true`. Signed-out/non-owner route denial, authenticated D1 activity reads, and live CSRF/logout behavior have not yet been demonstrated.
 
 #### P4-18 — Public-page Owner Login entry and isolated production deployment
 
 - **Pass condition:** The public search page displays a bilingual Owner Login icon and Firebase email/password modal at the top-left. After Firebase Owner verification, the browser completes the GitHub OAuth check on the separate `ph-exam-results-owner.pages.dev` project. The public login control is enabled only after the private dashboard is deployed and production smoke tests pass. Public search remains available without login and has no private data or write credentials.
 - **Evidence to retain:** Successful dashboard Pages workflow/deployment, public Pages workflow/deployment, both live URLs, desktop/mobile header walkthrough, and a public-site read-only/security check.
-- **Status:** `NOT RUN`
-- **Candidate evidence:** The bilingual public login modal and isolated dashboard handoff are merged in PR #114. Public Cloudflare Pages deployment succeeded, but `owner_login_enabled` remains `false`. The private dashboard deployment job was skipped because `CF_OWNER_DASHBOARD_ENABLED` is not true. No private dashboard production deployment or end-to-end live acceptance has been demonstrated.
+- **Status:** `PARTIAL`
+- **Candidate evidence:** The bilingual public login modal and isolated dashboard handoff are merged in PR #114. Public Pages deployment #135 succeeded, and separate private dashboard deployment workflow #106 succeeded with deployed auth health `ready: true`. The public `status.json` still sets `owner_login_enabled` to `false`, so the Owner Login control and `/?owner=login` modal remain intentionally hidden pending live security smoke tests. Public/private URL walkthrough, responsive header check, public read-only check, and end-to-end Firebase-to-GitHub OAuth acceptance remain outstanding.
 
 ---
 
