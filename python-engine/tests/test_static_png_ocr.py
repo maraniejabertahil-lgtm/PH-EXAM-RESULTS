@@ -120,7 +120,8 @@ class StaticPngOcrTests(unittest.TestCase):
             {"sequence_number": "2", "name": "ROE, JOHN B"},
         ])
         report = json.loads((self.root / evidence["report_path"]).read_text(encoding="utf-8"))
-        self.assertTrue(report["publication_allowed"])
+        self.assertTrue(report["ocr_gate_passed"])
+        self.assertFalse(report["publication_allowed"])
         self.assertEqual(report["screenshot_count"], 2)
         self.assertEqual(len(report["ocr_tokens"]), 8)
         self.assertEqual(len(report["screenshots"][0]["ocr_tsv_sha256"]), 64)
@@ -134,6 +135,7 @@ class StaticPngOcrTests(unittest.TestCase):
             with self.assertRaisesRegex(StaticPngOcrError, "below 95%"):
                 load_static_png_ocr_capture(batch=self.batch, root=self.root)
         report = json.loads((self.root / "python-engine" / "artifacts" / "static-png-ocr-report.json").read_text())
+        self.assertFalse(report["ocr_gate_passed"])
         self.assertFalse(report["publication_allowed"])
         self.assertTrue(report["low_confidence_tokens"])
 
