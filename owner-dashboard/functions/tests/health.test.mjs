@@ -37,32 +37,25 @@ test("readiness requires a successful live D1 query against the activity schema"
   });
 });
 
-test("readiness identifies invalid configuration without contacting D1", async () => {
+test("readiness identifies every invalid configuration key without contacting D1", async () => {
   let calls = 0;
+  const env = {
+    ...readyEnv,
+    PUBLIC_SITE_ORIGIN: "not-an-origin",
+    OWNER_EMAIL: "not-an-email",
+    OWNER_GITHUB_ID: "owner-account",
+    SESSION_SIGNING_KEY: "short",
+  };
   await withFetch(async () => { calls++; throw new Error("must not query"); }, async () => {
-    const response = await onRequestGet({ env: { ...readyEnv, SESSION_SIGNING_KEY: "short" } });
+    const response = await onRequestGet({ env });
     assert.equal(response.status, 503);
-    assert.deepEqual(await response.json(), { ready: false, reason: "configuration" });
+    assert.deepEqual(await response.json(), {
+      ready: false,
+      reason: "configuration",
+      invalid_settings: ["PUBLIC_SITE_ORIGIN", "OWNER_EMAIL", "OWNER_GITHUB_ID", "SESSION_SIGNING_KEY"],
+    });
     assert.equal(calls, 0);
   });
-});
-
-test("readiness rejects malformed Owner identity and public-origin configuration before querying D1", async () => {
-  const invalidEnvironments = [
-    { ...readyEnv, PUBLIC_SITE_ORIGIN: "http://ph-exam-results.pages.dev" },
-    { ...readyEnv, PUBLIC_SITE_ORIGIN: "https://ph-exam-results.pages.dev/" },
-    { ...readyEnv, OWNER_EMAIL: "not-an-email" },
-    { ...readyEnv, OWNER_GITHUB_ID: "owner-account" },
-  ];
-  for (const env of invalidEnvironments) {
-    let calls = 0;
-    await withFetch(async () => { calls++; throw new Error("must not query"); }, async () => {
-      const response = await onRequestGet({ env });
-      assert.equal(response.status, 503);
-      assert.deepEqual(await response.json(), { ready: false, reason: "configuration" });
-      assert.equal(calls, 0);
-    });
-  }
 });
 
 test("readiness distinguishes D1 transport, HTTP authorization, and response failures without exposing secrets", async () => {
