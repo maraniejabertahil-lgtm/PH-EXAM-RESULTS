@@ -17,9 +17,17 @@ function json(value, status = 200, origin = "") {
   return new Response(JSON.stringify(value), { status, headers });
 }
 function allowedOrigin(request, env) {
-  const configured = String(env.PUBLIC_SITE_ORIGIN || "").replace(/\/$/, "");
   const incoming = request.headers.get("Origin") || "";
-  return configured && incoming === configured ? configured : "";
+  let configured;
+  try {
+    configured = new URL(String(env.PUBLIC_SITE_ORIGIN || "")).origin;
+  } catch {
+    return "";
+  }
+  // Only the production public site may initiate Firebase sign-in. Normalize
+  // URL casing and trailing paths before exact origin comparison.
+  const allowed = "https://ph-exam-results.pages.dev";
+  return configured === allowed && incoming === allowed ? allowed : "";
 }
 function decodePart(value) {
   const normalized = value.replace(/-/g, "+").replace(/_/g, "/");
