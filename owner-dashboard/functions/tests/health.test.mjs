@@ -37,28 +37,62 @@ test("readiness requires a successful live D1 query against the activity schema"
   });
 });
 
-test("readiness fails closed when a required configuration value is missing", async () => {
+test("readiness identifies invalid configuration without contacting D1", async () => {
   let calls = 0;
   await withFetch(async () => { calls++; throw new Error("must not query"); }, async () => {
     const response = await onRequestGet({ env: { ...readyEnv, SESSION_SIGNING_KEY: "short" } });
     assert.equal(response.status, 503);
-    assert.deepEqual(await response.json(), { ready: false });
+    assert.deepEqual(await response.json(), { ready: false, reason: "configuration" });
     assert.equal(calls, 0);
   });
 });
 
-test("readiness fails closed when D1 is unreachable, unauthorized, or missing its activity schema", async () => {
-  const failures = [
-    async () => { throw new Error("network unavailable"); },
-    async () => new Response(JSON.stringify({ success: false }), { status: 403 }),
-    async () => new Response(JSON.stringify({ success: true, result: [{ success: false, results: [] }] })),
-    async () => new Response(JSON.stringify({ success: true, result: [] })),
+test("readiness rejects malformed Owner identity and public-origin configuration before querying D1", async () => {
+  const invalidEnvironments = [
+    { ...readyEnv, PUBLIC_SITE_ORIGIN: "http://ph-exam-results.pages.dev" },
+    { ...readyEnv, PUBLIC_SITE_ORIGIN: "https://ph-exam-results.pages.dev/" },
+    { ...readyEnv, OWNER_EMAIL: "not-an-email" },
+    { ...readyEnv, OWNER_GITHUB_ID: "owner-account" },
   ];
-  for (const handler of failures) {
-    await withFetch(handler, async () => {
+  for (const env of invalidEnvironments) {
+    let calls = 0;
+    await withFetch(async () => { calls++; throw new Error("must not query"); }, async () => {
+      const response = await onRequestGet({ env });
+      assert.equal(response.status, 503);
+      assert.deepEqual(await response.json(), { ready: false, reason: "configuration" });
+      assert.equal(calls, 0);
+    });
+  }
+});
+
+test("readiness distinguishes D1 transport, HTTP authorization, and response failures without exposing secrets", async () => {
+  const failures = [
+    {
+      handler: async () => { throw new Error("network unavailable"); },
+      expected: { ready: false, reason: "d1_network" },
+    },
+    {
+      handler: async () => new Response(JSON.stringify({ success: false }), { status: 403 }),
+      expected: { ready: false, reason: "d1_http", upstream_status: 403 },
+    },
+    {
+      handler: async () => new Response(JSON.stringify({ success: false }), { status: 502 }),
+      expected: { ready: false, reason: "d1_http", upstream_status: 502 },
+    },
+    {
+      handler: async () => new Response(JSON.stringify({ success: true, result: [{ success: false, results: [] }] })),
+      expected: { ready: false, reason: "d1_response", upstream_status: 200 },
+    },
+    {
+      handler: async () => new Response(JSON.stringify({ success: true, result: [] })),
+      expected: { ready: false, reason: "d1_response", upstream_status: 200 },
+    },
+  ];
+  for (const item of failures) {
+    await withFetch(item.handler, async () => {
       const response = await onRequestGet({ env: readyEnv });
       assert.equal(response.status, 503);
-      assert.deepEqual(await response.json(), { ready: false });
+      assert.deepEqual(await response.json(), item.expected);
     });
   }
 });
