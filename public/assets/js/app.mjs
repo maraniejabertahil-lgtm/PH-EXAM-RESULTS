@@ -234,17 +234,8 @@ window.addEventListener("unhandledrejection", (event) => {
 
 
 // Owner authentication is isolated from the public examination search workflow.
-// Firebase configuration is public web-app configuration; no Admin credential is used here.
+// The Firebase API key and password-to-ID-token exchange stay server-side.
 const OWNER_DASHBOARD_URL = "https://ph-exam-results-owner.pages.dev";
-const OWNER_FIREBASE_CONFIG = {
-  apiKey: "AIzaSyDN3QQyk6ueanwjLVtU4YcEGBxgDaF4U0w",
-  authDomain: "ph-exam-results-dd94a.firebaseapp.com",
-  projectId: "ph-exam-results-dd94a",
-  storageBucket: "ph-exam-results-dd94a.firebasestorage.app",
-  messagingSenderId: "722578122359",
-  appId: "1:722578122359:web:8180388de4bbee11d40872",
-};
-let ownerFirebaseAuthPromise;
 const ownerLogin = {
   dialog: document.querySelector("#owner-login-dialog"),
   open: document.querySelector("#owner-login-open"),
@@ -277,50 +268,27 @@ ownerLogin.form?.addEventListener("submit", async (event) => {
   event.preventDefault();
   ownerLogin.submit.disabled = true;
   ownerLogin.message.textContent = "Verifying Firebase Owner account… / جارٍ التحقق من حساب مالك Firebase…";
-  let authContext = null;
+  const email = ownerLogin.email.value.trim();
+  const password = ownerLogin.password.value;
   try {
-    if (!ownerFirebaseAuthPromise) {
-      ownerFirebaseAuthPromise = Promise.all([
-        import("https://www.gstatic.com/firebasejs/11.10.0/firebase-app.js"),
-        import("https://www.gstatic.com/firebasejs/11.10.0/firebase-auth.js"),
-      ]).then(([firebaseApp, firebaseAuth]) => {
-        const app = firebaseApp.getApps().find(item => item.name === "ph-exam-results-owner-login")
-          || firebaseApp.initializeApp(OWNER_FIREBASE_CONFIG, "ph-exam-results-owner-login");
-        return {
-          auth: firebaseAuth.initializeAuth(app, { persistence: firebaseAuth.inMemoryPersistence }),
-          ...firebaseAuth,
-        };
-      });
-    }
-    authContext = await ownerFirebaseAuthPromise;
-    const credential = await authContext.signInWithEmailAndPassword(
-      authContext.auth, ownerLogin.email.value.trim(), ownerLogin.password.value
-    );
-    const idToken = await authContext.getIdToken(credential.user, true);
     const response = await fetch(OWNER_DASHBOARD_URL + "/auth/firebase", {
       method: "POST",
       mode: "cors",
       credentials: "omit",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ idToken }),
+      body: JSON.stringify({ email, password }),
     });
     const result = await response.json().catch(() => ({}));
+    ownerLogin.password.value = "";
     if (!response.ok || result.authenticated !== true || typeof result.proof !== "string") {
       throw new Error(result.error || "Firebase Owner access was denied. / تم رفض صلاحية مالك Firebase.");
     }
-    await authContext.signOut(authContext.auth);
-    ownerLogin.password.value = "";
     ownerLogin.message.textContent = "Firebase Owner verified. Continue with GitHub verification… / تم التحقق من مالك Firebase. أكمل التحقق عبر GitHub…";
     location.assign(OWNER_DASHBOARD_URL + "/continue.html#proof=" + encodeURIComponent(result.proof));
   } catch (error) {
-    if (authContext?.auth) {
-      try { await authContext.signOut(authContext.auth); } catch { /* clear in-memory auth best-effort */ }
-    }
     ownerLogin.password.value = "";
     const raw = error instanceof Error ? error.message : "";
-    ownerLogin.message.textContent = raw.includes("auth/")
-      ? "Sign-in failed. Check your email and password. / تعذّر تسجيل الدخول. تحقق من البريد الإلكتروني وكلمة المرور."
-      : (raw || "Owner sign-in failed. / فشل تسجيل دخول المالك.");
+    ownerLogin.message.textContent = raw || "Owner sign-in failed. / فشل تسجيل دخول المالك.";
     ownerLogin.submit.disabled = false;
   }
 });
