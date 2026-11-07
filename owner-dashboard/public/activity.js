@@ -183,5 +183,5 @@ elements.status.addEventListener("change", loadEvents);
 elements.component.addEventListener("change", loadEvents);
 initializeAuth().then(authenticated => {
   if (authenticated) loadEvents();
-  else { elements.message.textContent = "Sign in from the public PH Exam Results page using your verified Firebase Owner account and authorized GitHub account."; elements.list.replaceChildren(); }
+  else { elements.message.textContent = "Sign in from the public PH Exam Results page using your verified Firebase Owner email and password."; elements.list.replaceChildren(); }
 });
