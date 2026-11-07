@@ -54,6 +54,7 @@ def main():
     sha = os.getenv("GITHUB_SHA", "")
     repo = os.getenv("GITHUB_REPOSITORY", "")
     execution_id = f"gha:{run_id}"
+    run_url = f"https://github.com/{repo}/actions/runs/{run_id}" if repo else ""
     jobs = github_jobs(repo, run_id, os.getenv("GITHUB_TOKEN", ""))
     now = datetime.now(timezone.utc).isoformat()
     for job in jobs:
@@ -63,24 +64,27 @@ def main():
             status = normalize_status(job.get("status"), job.get("conclusion"))
             record_activity({
                 "event_id": f"gha:{run_id}:job:{job.get('id', job_name)}",
-                "execution_id": execution_id, "occurred_at": now,
+                "execution_id": execution_id,
+                "occurred_at": job.get("completed_at") or job.get("started_at") or now,
                 "component": "GitHub Actions", "operation": job_name,
                 "status": status, "severity": "error" if status == "failed" else "info",
                 "duration_ms": duration_ms(job.get("started_at"), job.get("completed_at")),
                 "message": f"{workflow}: {job_name} {status}.", "source": "github_actions",
                 "metadata": {"run_id": run_id, "run_number": run_number, "workflow": workflow,
-                             "job": job_name, "branch": branch, "commit": sha},
+                             "job": job_name, "branch": branch, "commit": sha, "run_url": run_url},
             })
         for step in steps:
             step_name = str(step.get("name") or "workflow_step")
             status = normalize_status(step.get("status"), step.get("conclusion"))
             record_activity({
                 "event_id": f"gha:{run_id}:job:{job.get('id', job_name)}:step:{step.get('number', step_name)}",
-                "execution_id": execution_id, "occurred_at": now,
+                "execution_id": execution_id,
+                "occurred_at": step.get("completed_at") or step.get("started_at") or now,
                 "component": "GitHub Actions", "operation": job_name + " / " + step_name,
                 "status": status, "severity": "error" if status == "failed" else ("warning" if status == "blocked" else "info"),
                 "duration_ms": duration_ms(step.get("started_at"), step.get("completed_at")),
                 "message": f"{workflow}: {step_name} {status}.",
+                "error_code": str(step.get("conclusion") or "").upper() if status == "failed" else None,
                 "error_message": (f"Step concluded with {step.get('conclusion')}. Open the linked workflow run for full logs." if status == "failed" else None),
                 "source": "github_actions",
                 "metadata": {"run_id": run_id, "run_number": run_number, "workflow": workflow,
@@ -95,7 +99,7 @@ def main():
             "status": status, "severity": "error" if status == "failed" else "info",
             "message": f"{workflow} completed with status {status}.", "source": "github_actions",
             "metadata": {"run_id": run_id, "run_number": run_number, "workflow": workflow,
-                         "job": "workflow_run", "branch": branch, "commit": sha},
+                         "job": "workflow_run", "branch": branch, "commit": sha, "run_url": run_url},
         })
 
 if __name__ == "__main__":
