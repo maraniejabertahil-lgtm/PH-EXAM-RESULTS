@@ -100,7 +100,7 @@ def main():
             })
     if not jobs:
         status = normalize_status("", os.getenv("JOB_STATUS", ""))
-        record_activity({
+        persist({
             "event_id": f"gha:{run_id}:workflow-fallback",
             "execution_id": execution_id, "occurred_at": now,
             "component": "GitHub Actions", "operation": workflow,
