@@ -52,7 +52,7 @@ function mockFetch(token,{role="owner",active=true,email="owner@example.com",ide
     if(String(url).startsWith("https://www.googleapis.com/service_accounts/"))return new Response(JSON.stringify({keys:[jwk]}));
     const profileUrl = new URL(String(url));
     requestedProfilePath = profileUrl.pathname;
-    assert.match(profileUrl.pathname, /\\/documents\\/user\\/[^/]+$/);
+    assert.match(profileUrl.pathname, /\/documents\/user\/[^/]+$/);
     assert.match(init.headers.Authorization, /^Bearer /);
     return new Response(JSON.stringify({fields:{role:{stringValue:role},active:{booleanValue:active},email:{stringValue:email}}}));
   };
