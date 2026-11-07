@@ -22,6 +22,8 @@ function configured(env) {
 
 export async function onRequestGet({ env }) {
   let ready = configured(env);
+  let reason = ready ? "" : "configuration";
+  let upstreamStatus = null;
   if (ready) {
     try {
       const response = await fetch(
@@ -38,17 +40,25 @@ export async function onRequestGet({ env }) {
           signal: AbortSignal.timeout(8000),
         },
       );
+      upstreamStatus = response.status;
       const payload = await response.json().catch(() => null);
       ready = response.ok &&
         payload?.success === true &&
         Array.isArray(payload.result) &&
         payload.result[0]?.success !== false &&
         Array.isArray(payload.result[0]?.results);
+      if (!ready) reason = response.ok ? "d1_response" : "d1_http";
     } catch {
       ready = false;
+      reason = "d1_network";
     }
   }
-  return new Response(JSON.stringify({ ready }), {
+  const result = ready ? { ready: true } : {
+    ready: false,
+    reason,
+    ...(upstreamStatus === null ? {} : { upstream_status: upstreamStatus }),
+  };
+  return new Response(JSON.stringify(result), {
     status: ready ? 200 : 503,
     headers: {
       "Content-Type": "application/json; charset=utf-8",
