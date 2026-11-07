@@ -20,7 +20,7 @@ function allowedOrigin(request, env) {
   const incoming = request.headers.get("Origin") || "";
   let configured;
   try {
-    configured = new URL(String(env.PUBLIC_SITE_ORIGIN || "")).origin;
+    configured = new URL(String(env.PUBLIC_SITE_ORIGIN || "").trim()).origin;
   } catch {
     return "";
   }
