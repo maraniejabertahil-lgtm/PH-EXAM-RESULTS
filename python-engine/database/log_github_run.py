@@ -57,12 +57,20 @@ def main():
     run_url = f"https://github.com/{repo}/actions/runs/{run_id}" if repo else ""
     jobs = github_jobs(repo, run_id, os.getenv("GITHUB_TOKEN", ""))
     now = datetime.now(timezone.utc).isoformat()
+    attempted = 0
+    written = 0
+
+    def persist(event):
+        nonlocal attempted, written
+        attempted += 1
+        if record_activity(event):
+            written += 1
     for job in jobs:
         job_name = str(job.get("name") or "workflow_job")
         steps = job.get("steps") if isinstance(job.get("steps"), list) else []
         if not steps:
             status = normalize_status(job.get("status"), job.get("conclusion"))
-            record_activity({
+            persist({
                 "event_id": f"gha:{run_id}:job:{job.get('id', job_name)}",
                 "execution_id": execution_id,
                 "occurred_at": job.get("completed_at") or job.get("started_at") or now,
@@ -101,6 +109,9 @@ def main():
             "metadata": {"run_id": run_id, "run_number": run_number, "workflow": workflow,
                          "job": "workflow_run", "branch": branch, "commit": sha, "run_url": run_url},
         })
+
+    if attempted == 0 or written != attempted:
+        raise SystemExit(f"Private activity logging incomplete: {written}/{attempted} events persisted.")
 
 if __name__ == "__main__":
     main()
