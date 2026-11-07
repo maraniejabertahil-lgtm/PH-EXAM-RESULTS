@@ -64,6 +64,7 @@ The production Watcher Worker also needs `CF_D1_API_TOKEN`, `CF_ACCOUNT_ID`, and
 
 1. Run **Actions → Migrate Private Activity Monitor D1 → Run workflow** on `main`.
 2. Run **Actions → Deploy Private Owner Dashboard → Run workflow** on `main`.
+3. Only after the private dashboard deploys and signed-out route checks succeed, set `owner_login_enabled: true` in `public/status.json` and deploy the public Pages site. The Owner Login icon is intentionally hidden until this flag is enabled.
 3. Open `https://ph-exam-results.pages.dev/` and select the Owner Login icon at the top-left.
 4. Sign in with the verified Firebase Owner email/password. The dashboard server must validate the token signature/claims, exact Owner email, Firestore role and active flag.
 5. Verify the browser is redirected to the isolated dashboard and completes the GitHub OAuth check for ID `338246827` and the same exact verified email.
