@@ -1,55 +1,33 @@
-let cachedKeys = null;
-let cachedAt = 0;
-
-function base64UrlToBytes(value) {
-  const normalized = value.replace(/-/g, "+").replace(/_/g, "/");
-  const padded = normalized + "=".repeat((4 - normalized.length % 4) % 4);
-  return Uint8Array.from(atob(padded), (character) => character.charCodeAt(0));
+const SESSION_COOKIE = "__Host-ph_owner_session";
+const STATE_COOKIE = "__Host-ph_owner_oauth_state";
+const VERIFIER_COOKIE = "__Host-ph_owner_pkce";
+function b64url(bytes) { return btoa(String.fromCharCode(...bytes)).replace(/=/g, "").replace(/\+/g, "-").replace(/\//g, "_"); }
+function fromB64url(value) { const raw=value.replace(/-/g,"+").replace(/_/g,"/"); return Uint8Array.from(atob(raw+"=".repeat((4-raw.length%4)%4)),c=>c.charCodeAt(0)); }
+function cookie(request,name) { return (request.headers.get("Cookie")||"").split(";").map(v=>v.trim()).find(v=>v.startsWith(name+"="))?.slice(name.length+1)||""; }
+function equal(a,b) { if(typeof a!=="string"||typeof b!=="string"||a.length!==b.length)return false; let out=0; for(let i=0;i<a.length;i++)out|=a.charCodeAt(i)^b.charCodeAt(i); return out===0; }
+async function hmac(secret,value) { const key=await crypto.subtle.importKey("raw",new TextEncoder().encode(secret),{name:"HMAC",hash:"SHA-256"},false,["sign"]); return b64url(new Uint8Array(await crypto.subtle.sign("HMAC",key,new TextEncoder().encode(value)))); }
+export function randomToken(bytes=32) { const value=new Uint8Array(bytes); crypto.getRandomValues(value); return b64url(value); }
+export function cookieHeader(name,value,maxAge) { return name+"="+value+"; Path=/; Max-Age="+maxAge+"; HttpOnly; Secure; SameSite=Lax"; }
+export function clearCookie(name) { return name+"=; Path=/; Max-Age=0; HttpOnly; Secure; SameSite=Lax"; }
+export const COOKIE_NAMES={session:SESSION_COOKIE,state:STATE_COOKIE,verifier:VERIFIER_COOKIE};
+export async function signSession(payload,secret) { const body=b64url(new TextEncoder().encode(JSON.stringify(payload))); return body+"."+await hmac(secret,body); }
+export async function readSession(request,env) {
+ const secret=env.SESSION_SIGNING_KEY;
+ if(!secret||secret.length<32||!env.OWNER_GITHUB_ID||!env.OWNER_EMAIL)return null;
+ try {
+  const parts=cookie(request,SESSION_COOKIE).split(".");
+  if(parts.length!==2||!equal(await hmac(secret,parts[0]),parts[1]))return null;
+  const data=JSON.parse(new TextDecoder().decode(fromB64url(parts[0])));
+  const now=Math.floor(Date.now()/1000);
+  if(!Number.isInteger(data.exp)||data.exp<=now||!Number.isInteger(data.iat)||data.iat>now+60||
+    typeof data.csrf!=="string"||data.csrf.length<32)return null;
+  if(String(data.github_id)!==String(env.OWNER_GITHUB_ID)||data.email!==String(env.OWNER_EMAIL).trim().toLowerCase()||data.email_verified!==true)return null;
+  return data;
+ } catch{return null;}
 }
-
-function normalizeTeamDomain(value) {
-  const raw = String(value || "").trim().replace(/^https?:\/\//, "").replace(/\/$/, "");
-  return raw && /^[a-z0-9.-]+$/i.test(raw) ? raw : null;
-}
-
-async function getKeys(teamDomain) {
-  if (cachedKeys && Date.now() - cachedAt < 5 * 60 * 1000) return cachedKeys;
-  const response = await fetch("https://" + teamDomain + "/cdn-cgi/access/certs", {
-    headers: { Accept: "application/json" },
-  });
-  if (!response.ok) throw new Error("Access signing keys could not be loaded.");
-  const payload = await response.json();
-  const keys = Array.isArray(payload.keys) ? payload.keys : [];
-  if (!keys.length) throw new Error("Access signing-key response was invalid.");
-  cachedKeys = keys;
-  cachedAt = Date.now();
-  return keys;
-}
-
-export async function isOwnerAccessRequest(request, env) {
-  const teamDomain = normalizeTeamDomain(env.CF_ACCESS_TEAM_DOMAIN);
-  const audience = String(env.CF_ACCESS_AUD || "").trim();
-  const ownerEmail = String(env.OWNER_EMAIL || "").trim().toLowerCase();
-  const token = request.headers.get("cf-access-jwt-assertion");
-  if (!teamDomain || !audience || !ownerEmail || !token) return false;
-  try {
-    const parts = token.split(".");
-    if (parts.length !== 3) return false;
-    const header = JSON.parse(new TextDecoder().decode(base64UrlToBytes(parts[0])));
-    const claims = JSON.parse(new TextDecoder().decode(base64UrlToBytes(parts[1])));
-    if (header.alg !== "RS256" || typeof header.kid !== "string") return false;
-    const now = Math.floor(Date.now() / 1000);
-    const aud = Array.isArray(claims.aud) ? claims.aud : [claims.aud];
-    if (claims.iss !== "https://" + teamDomain || !aud.includes(audience)) return false;
-    if (!Number.isFinite(claims.exp) || claims.exp <= now || (Number.isFinite(claims.nbf) && claims.nbf > now)) return false;
-    if (String(claims.email || "").toLowerCase() !== ownerEmail) return false;
-    const jwk = (await getKeys(teamDomain)).find((key) => key.kid === header.kid && key.kty === "RSA");
-    if (!jwk) return false;
-    const key = await crypto.subtle.importKey("jwk", jwk,
-      { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" }, false, ["verify"]);
-    return crypto.subtle.verify("RSASSA-PKCS1-v1_5", key, base64UrlToBytes(parts[2]),
-      new TextEncoder().encode(parts[0] + "." + parts[1]));
-  } catch {
-    return false;
-  }
+export async function isOwnerAccessRequest(request,env){return Boolean(await readSession(request,env));}
+export async function requireCsrf(request,env){
+ const session=await readSession(request,env); if(!session)return false;
+ if(request.headers.get("Origin")!==new URL(request.url).origin)return false;
+ return equal(request.headers.get("X-CSRF-Token")||"",session.csrf);
 }
