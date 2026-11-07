@@ -1,4 +1,6 @@
-import { COOKIE_NAMES, cookieHeader, readSignedValue } from "../../lib/access.js";
+import { COOKIE_NAMES, cookieHeader, readSignedValue, signSession, randomToken } from "../../lib/access.js";
+
+const SESSION_SECONDS = 8 * 60 * 60;
 
 function json(value,status=200,extra={}){return new Response(JSON.stringify(value),{status,headers:{
   "Content-Type":"application/json; charset=utf-8",
@@ -21,8 +23,17 @@ export async function onRequestPost({request,env}){
     proof.exp-now>600||now-proof.iat>600){
     return json({error:"Firebase Owner proof is invalid or expired."},403);
   }
-  const maxAge=Math.max(1,Math.min(600,proof.exp-now));
+  // Firebase password + verified Owner profile is the sole login proof.
+  // The short-lived handoff proof is exchanged for an eight-hour first-party session.
+  const session=await signSession({
+    firebase_uid:proof.firebase_uid,
+    firebase_email:ownerEmail,
+    firebase_role:"owner",
+    iat:now,
+    exp:now+SESSION_SECONDS,
+    csrf:randomToken(32),
+  },env.SESSION_SIGNING_KEY);
   return json({authenticated:true},200,{
-    "Set-Cookie":cookieHeader(COOKIE_NAMES.firebase,body.proof,maxAge),
+    "Set-Cookie":cookieHeader(COOKIE_NAMES.session,session,SESSION_SECONDS),
   });
 }

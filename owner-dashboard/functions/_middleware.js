@@ -7,8 +7,6 @@ const PUBLIC_PATHS = new Set([
   "/continue.css",
   "/auth/firebase/complete",
   "/auth/firebase",
-  "/auth/login",
-  "/auth/callback",
   "/auth/session",
   "/auth/health",
 ]);

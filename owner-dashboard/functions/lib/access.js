@@ -37,12 +37,11 @@ export async function readFirebaseProof(request,env) {
  return data;
 }
 export async function readSession(request,env) {
- if(!env.OWNER_GITHUB_ID||!env.OWNER_EMAIL)return null;
+ const ownerEmail=String(env.OWNER_EMAIL||"").trim().toLowerCase();
+ if(!ownerEmail)return null;
  const data=await readSignedCookie(request,SESSION_COOKIE,env);
- const ownerEmail=String(env.OWNER_EMAIL).trim().toLowerCase();
- if(!data||String(data.github_id)!==String(env.OWNER_GITHUB_ID)||
-   data.email!==ownerEmail||data.email_verified!==true||
-   typeof data.firebase_uid!=="string"||!data.firebase_uid||
+ if(!data||typeof data.firebase_uid!=="string"||!data.firebase_uid||
+   (env.FIREBASE_OWNER_UID&&data.firebase_uid!==String(env.FIREBASE_OWNER_UID))||
    data.firebase_email!==ownerEmail||data.firebase_role!=="owner"||
    typeof data.csrf!=="string"||data.csrf.length<32)return null;
  return data;

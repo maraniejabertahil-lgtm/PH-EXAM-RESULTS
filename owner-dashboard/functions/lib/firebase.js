@@ -111,7 +111,7 @@ export async function establishFirebaseProof({ request, env }) {
     });
     const profile = await profileResponse.json().catch(() => null);
     const fields = profile?.fields || {};
-    const profileEmail = String(fields.email?.stringValue || claims.email).trim().toLowerCase();
+    const profileEmail = String(fields.email?.stringValue || "").trim().toLowerCase();
     if (!profileResponse.ok || fields.role?.stringValue !== "owner" ||
         fields.active?.booleanValue !== true || profileEmail !== ownerEmail) {
       return json({ error: "Firebase Owner role is not active or could not be verified." }, 403, origin);

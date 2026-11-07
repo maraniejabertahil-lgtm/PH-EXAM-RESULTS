@@ -16,7 +16,7 @@ if(!proof||proof.length>5000){
     });
     const result=await response.json().catch(()=>null);
     if(!response.ok||result?.authenticated!==true)throw new Error(result?.error||"Firebase proof could not be completed.");
-    location.replace("/auth/login");
+    location.replace("/");
   }catch(error){
     fail(error instanceof Error?error.message:"Secure sign-in could not be completed. Return to the public page and try again.");
   }

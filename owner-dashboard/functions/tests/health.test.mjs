@@ -7,9 +7,6 @@ const readyEnv = {
   FIREBASE_API_KEY: "public-web-api-key-kept-server-side",
   PUBLIC_SITE_ORIGIN: "https://ph-exam-results.pages.dev",
   OWNER_EMAIL: "owner@example.com",
-  OWNER_GITHUB_ID: "338246827",
-  GITHUB_OAUTH_CLIENT_ID: "client-id",
-  GITHUB_OAUTH_CLIENT_SECRET: "client-secret",
   SESSION_SIGNING_KEY: "test-only-session-signing-key-which-is-long-enough",
   CF_ACCOUNT_ID: "account",
   CF_D1_DATABASE_ID: "database",
@@ -43,7 +40,6 @@ test("readiness identifies every invalid configuration key without contacting D1
     ...readyEnv,
     PUBLIC_SITE_ORIGIN: "not-an-origin",
     OWNER_EMAIL: "not-an-email",
-    OWNER_GITHUB_ID: "owner-account",
     SESSION_SIGNING_KEY: "short",
   };
   await withFetch(async () => { calls++; throw new Error("must not query"); }, async () => {
@@ -52,7 +48,7 @@ test("readiness identifies every invalid configuration key without contacting D1
     assert.deepEqual(await response.json(), {
       ready: false,
       reason: "configuration",
-      invalid_settings: ["PUBLIC_SITE_ORIGIN", "OWNER_EMAIL", "OWNER_GITHUB_ID", "SESSION_SIGNING_KEY"],
+      invalid_settings: ["PUBLIC_SITE_ORIGIN", "OWNER_EMAIL", "SESSION_SIGNING_KEY"],
     });
     assert.equal(calls, 0);
   });
