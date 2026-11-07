@@ -147,6 +147,15 @@ For each affected test or test execution:
 - **Evidence to retain:** PRC `robots.txt` returned HTTP 200 and public result article paths were not disallowed; CSC HTTP 403 security verification caused automated polling to be disabled rather than bypassed. See Phase 1 audit §12.
 - **Status:** `PASS`
 
+#### P1-11 — Official future PRC release schedule discovery (D-011)
+
+- **Pass condition:** The production Watcher discovers current/next-year schedule pages only from the official PRC schedule index; verifies the relevant paths against the live PRC robots.txt; performs bounded same-origin retrieval; extracts the official examination name and target-release-date columns; calculates the nearest upcoming date using the Manila calendar; stores a six-hour KV-cached snapshot; and serves it from `GET /api/releases/upcoming`. A target date must never be represented as proof that results have actually been published.
+- **Evidence to retain:** Automated parser, same-origin link, robots-policy, cache, and endpoint tests; production Worker deployment identifier; live schedule fetch timestamp and official source URLs; endpoint response showing the same nearest release as the official schedule; proof that a robots-disallowed path is not fetched.
+- **Related implementation task:** `PROGRESS_TRACKER.md` — “Implement official PRC future-release schedule discovery in the Watcher...”
+- **Owner decision:** D-011 (2026-11-08).
+- **Status:** `NOT RUN`
+
+
 **Phase 1 acceptance note:** The Part 16 roadmap calls for the 30-second loop, Peak Week KV check, preemptive HEAD requests, and webhook dispatch. Part 17 separately requires proof that the preemptive HEAD detection happens before the HTML page updates.
 
 ---
