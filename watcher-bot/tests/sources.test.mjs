@@ -15,7 +15,19 @@ test("source registry has unique, valid official sources and explicit disable re
     assert.ok(!ids.has(source.id), "duplicate source ID: " + source.id);
     ids.add(source.id);
     assert.ok(["PRC", "CSC"].includes(source.authority));
-    assert.ok(["official", "verified_third_party"].includes(source.source_type));
+    assert.ok(["official", "verified_third_party", "official_schedule_index"].includes(source.source_type));
+    if (source.source_type === "official_schedule_index") {
+      assert.equal(source.authority, "PRC");
+      assert.equal(source.authorized, true);
+      assert.equal(source.enabled, true);
+      assert.equal(source.robots_policy_runtime_check, true);
+      assert.equal(source.schedule_year_scope, "current_and_next");
+      assert.equal(source.max_schedule_pages, 2);
+      const scheduleUrl = new URL(source.url);
+      assert.equal(scheduleUrl.origin, "https://www.prc.gov.ph");
+      assert.equal(scheduleUrl.pathname, "/exam-schedules-menu");
+      continue;
+    }
     assert.equal(source.file_format, "pdf");
     if (source.enabled === true && source.source_type === "official") {
       assert.equal(source.authorized, true);
