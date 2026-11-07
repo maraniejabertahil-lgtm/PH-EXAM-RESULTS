@@ -253,7 +253,7 @@ h2 { margin: 0; color: var(--navy); font-size: 1.3rem; }
 }
 .error-actions .button { margin-top: 12px; }
 
-.header-actions{display:flex;align-items:center;justify-content:flex-end;gap:18px}
+.header-left{display:flex;align-items:center;gap:18px}.header-actions{display:flex;align-items:center;justify-content:flex-end;gap:18px}
 .owner-login-button{display:inline-flex;align-items:center;gap:7px;padding:9px 12px;border:1px solid #6cc4c2;border-radius:8px;color:#fff;background:transparent;font:inherit;font-size:.82rem;font-weight:750;cursor:pointer}
 .owner-login-button:hover{background:#1d405a}
 .owner-login-dialog{width:min(92vw,440px);padding:0;border:1px solid var(--line);border-radius:16px;box-shadow:0 24px 80px rgb(0 0 0 / 30%)}
@@ -265,4 +265,4 @@ h2 { margin: 0; color: var(--navy); font-size: 1.3rem; }
 .owner-login-form .button{width:100%;margin-top:8px}
 .dialog-close{position:absolute;top:12px;right:14px;border:0;background:transparent;color:var(--muted);font-size:1.7rem;cursor:pointer}
 .owner-login-message{min-height:1.3em;margin:0;color:#a32626;font-size:.88rem}
-@media(max-width:700px){.header-actions{gap:0}.owner-login-button{font-size:.72rem;padding:8px}.owner-login-button span[lang=ar]{display:none}}
+@media(max-width:700px){.header-left{gap:10px}.owner-login-button{font-size:.68rem;padding:8px}.owner-login-button span[lang=ar]{display:none}.brand{gap:7px}.brand-mark{width:34px;height:34px}}
