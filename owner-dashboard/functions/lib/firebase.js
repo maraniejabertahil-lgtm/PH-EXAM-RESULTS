@@ -1,85 +1,136 @@
-import { COOKIE_NAMES, cookieHeader, randomToken, signSession } from "./access.js";
+import { COOKIE_NAMES, crossSiteCookieHeader, randomToken, signSession } from "./access.js";
 
-const IDENTITY_API = "https://identitytoolkit.googleapis.com/v1/accounts:lookup";
-const FIREBASE_COOKIE = COOKIE_NAMES.firebase;
+const JWKS_URL = "https://www.googleapis.com/service_accounts/v1/jwk/securetoken@system.gserviceaccount.com";
 const PROOF_SECONDS = 10 * 60;
 
-function json(value, status = 200, headers = {}) {
-  return new Response(JSON.stringify(value), { status, headers: {
+function json(value, status = 200, origin = "") {
+  const headers = {
     "Content-Type": "application/json; charset=utf-8",
     "Cache-Control": "no-store",
     "X-Content-Type-Options": "nosniff",
-    ...headers,
-  }});
+    "Vary": "Origin",
+  };
+  if (origin) {
+    headers["Access-Control-Allow-Origin"] = origin;
+    headers["Access-Control-Allow-Credentials"] = "true";
+  }
+  return new Response(JSON.stringify(value), { status, headers });
 }
-function configured(env) {
-  return Boolean(env.FIREBASE_API_KEY && env.FIREBASE_PROJECT_ID &&
-    env.OWNER_EMAIL && env.SESSION_SIGNING_KEY &&
-    String(env.SESSION_SIGNING_KEY).length >= 32);
+function allowedOrigin(request, env) {
+  const configured = String(env.PUBLIC_SITE_ORIGIN || "").replace(/\/$/, "");
+  const incoming = request.headers.get("Origin") || "";
+  return configured && incoming === configured ? configured : "";
 }
-function sameOrigin(request) {
-  const origin = request.headers.get("Origin");
-  return Boolean(origin && origin === new URL(request.url).origin);
+function decodePart(value) {
+  const normalized = value.replace(/-/g, "+").replace(/_/g, "/");
+  const bytes = Uint8Array.from(atob(normalized + "=".repeat((4 - normalized.length % 4) % 4)), c => c.charCodeAt(0));
+  return JSON.parse(new TextDecoder().decode(bytes));
 }
-export async function getFirebaseConfig({ env }) {
-  if (!configured(env)) return json({ error: "Firebase Owner sign-in is not configured." }, 503);
-  return json({ apiKey: env.FIREBASE_API_KEY, projectId: env.FIREBASE_PROJECT_ID });
+async function verifyFirebaseToken(token, projectId) {
+  if (typeof token !== "string" || token.length > 12000) throw new Error("Invalid token");
+  const parts = token.split(".");
+  if (parts.length !== 3) throw new Error("Invalid token");
+  const header = decodePart(parts[0]);
+  const claims = decodePart(parts[1]);
+  if (header.alg !== "RS256" || typeof header.kid !== "string") throw new Error("Invalid token header");
+
+  const response = await fetch(JWKS_URL, {
+    headers: { Accept: "application/json" },
+    cf: { cacheTtl: 300, cacheEverything: true },
+  });
+  if (!response.ok) throw new Error("Firebase signing keys unavailable");
+  const keys = await response.json();
+  const jwk = Array.isArray(keys.keys) ? keys.keys.find(key => key.kid === header.kid && key.kty === "RSA") : null;
+  if (!jwk) throw new Error("Unknown Firebase signing key");
+  const publicKey = await crypto.subtle.importKey(
+    "jwk", jwk, { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" }, false, ["verify"]
+  );
+  const signature = Uint8Array.from(
+    atob(parts[2].replace(/-/g, "+").replace(/_/g, "/") + "=".repeat((4 - parts[2].length % 4) % 4)),
+    c => c.charCodeAt(0)
+  );
+  const signed = new TextEncoder().encode(parts[0] + "." + parts[1]);
+  if (!await crypto.subtle.verify("RSASSA-PKCS1-v1_5", publicKey, signature, signed)) throw new Error("Invalid Firebase signature");
+
+  const now = Math.floor(Date.now() / 1000);
+  if (claims.iss !== "https://securetoken.google.com/" + projectId ||
+      claims.aud !== projectId || typeof claims.sub !== "string" || !claims.sub ||
+      claims.sub.length > 128 || !Number.isInteger(claims.exp) || claims.exp <= now ||
+      !Number.isInteger(claims.iat) || claims.iat > now + 60 ||
+      !Number.isInteger(claims.auth_time) || claims.auth_time > now + 60 ||
+      now - claims.auth_time > 10 * 60 || claims.email_verified !== true ||
+      typeof claims.email !== "string") throw new Error("Invalid Firebase identity claims");
+  return claims;
 }
 export async function establishFirebaseProof({ request, env }) {
-  if (!configured(env)) return json({ error: "Firebase Owner sign-in is not configured." }, 503);
-  if (!sameOrigin(request)) return json({ error: "Invalid request origin." }, 403);
-  let body;
-  try { body = await request.json(); } catch { return json({ error: "Invalid sign-in request." }, 400); }
-  const idToken = typeof body?.idToken === "string" ? body.idToken : "";
-  if (!idToken || idToken.length > 12000) return json({ error: "Firebase sign-in token is missing or invalid." }, 400);
-
+  const origin = allowedOrigin(request, env);
+  if (!origin) return json({ error: "Origin not allowed." }, 403);
+  if (!env.FIREBASE_PROJECT_ID || !env.OWNER_EMAIL ||
+      !env.SESSION_SIGNING_KEY || env.SESSION_SIGNING_KEY.length < 32) {
+    return json({ error: "Firebase Owner authentication is not configured." }, 503, origin);
+  }
+  if (request.headers.get("Content-Type")?.split(";")[0].trim().toLowerCase() !== "application/json") {
+    return json({ error: "Invalid request." }, 415, origin);
+  }
   try {
-    const identityResponse = await fetch(IDENTITY_API + "?key=" + encodeURIComponent(env.FIREBASE_API_KEY), {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Accept: "application/json" },
-      body: JSON.stringify({ idToken }),
-    });
-    const identity = await identityResponse.json().catch(() => null);
-    const user = Array.isArray(identity?.users) ? identity.users[0] : null;
+    const body = await request.json();
+    const claims = await verifyFirebaseToken(body?.idToken, env.FIREBASE_PROJECT_ID);
     const ownerEmail = String(env.OWNER_EMAIL).trim().toLowerCase();
-    if (!identityResponse.ok || !user || user.disabled === true ||
-        user.emailVerified !== true ||
-        String(user.email || "").trim().toLowerCase() !== ownerEmail ||
-        (env.FIREBASE_OWNER_UID && String(user.localId) !== String(env.FIREBASE_OWNER_UID))) {
-      return json({ error: "This Firebase account is not authorized as the active Owner." }, 403);
+    if (claims.email.trim().toLowerCase() !== ownerEmail ||
+        (env.FIREBASE_OWNER_UID && claims.sub !== String(env.FIREBASE_OWNER_UID))) {
+      return json({ error: "Firebase Owner access denied." }, 403, origin);
     }
-
     const documentUrl = "https://firestore.googleapis.com/v1/projects/" +
-      encodeURIComponent(env.FIREBASE_PROJECT_ID) +
-      "/databases/(default)/documents/users/" + encodeURIComponent(user.localId);
+      encodeURIComponent(env.FIREBASE_PROJECT_ID) + "/databases/(default)/documents/users/" +
+      encodeURIComponent(claims.sub);
     const profileResponse = await fetch(documentUrl, {
-      headers: { Authorization: "Bearer " + idToken, Accept: "application/json" },
+      headers: { Authorization: "Bearer " + body.idToken, Accept: "application/json" },
     });
     const profile = await profileResponse.json().catch(() => null);
-    if (!profileResponse.ok || !profile?.fields) {
-      return json({ error: "The Firebase Owner profile could not be verified." }, 403);
-    }
-    const role = profile.fields.role?.stringValue;
-    const active = profile.fields.active?.booleanValue;
-    const profileEmail = String(profile.fields.email?.stringValue || user.email || "").trim().toLowerCase();
-    if (role !== "owner" || active !== true || profileEmail !== ownerEmail) {
-      return json({ error: "This Firebase account is not authorized as the active Owner." }, 403);
+    const fields = profile?.fields || {};
+    const profileEmail = String(fields.email?.stringValue || claims.email).trim().toLowerCase();
+    if (!profileResponse.ok || fields.role?.stringValue !== "owner" ||
+        fields.active?.booleanValue !== true || profileEmail !== ownerEmail) {
+      return json({ error: "Firebase Owner role is not active or could not be verified." }, 403, origin);
     }
 
     const now = Math.floor(Date.now() / 1000);
     const proof = await signSession({
-      firebase_uid: user.localId,
+      firebase_uid: claims.sub,
       firebase_email: ownerEmail,
       firebase_role: "owner",
       iat: now,
       exp: now + PROOF_SECONDS,
       nonce: randomToken(24),
     }, env.SESSION_SIGNING_KEY);
-    return json({ authenticated: true, next: "/auth/login" }, 200, {
-      "Set-Cookie": cookieHeader(FIREBASE_COOKIE, proof, PROOF_SECONDS),
+    return new Response(JSON.stringify({ authenticated: true }), {
+      status: 200,
+      headers: {
+        "Content-Type": "application/json; charset=utf-8",
+        "Cache-Control": "no-store",
+        "X-Content-Type-Options": "nosniff",
+        "Access-Control-Allow-Origin": origin,
+        "Access-Control-Allow-Credentials": "true",
+        "Vary": "Origin",
+        "Set-Cookie": crossSiteCookieHeader(COOKIE_NAMES.firebase, proof, PROOF_SECONDS),
+      },
     });
   } catch {
-    return json({ error: "Firebase Owner verification is temporarily unavailable." }, 502);
+    return json({ error: "Firebase Owner sign-in could not be verified." }, 401, origin);
   }
 }
-export { FIREBASE_COOKIE };
+export function firebasePreflight({ request, env }) {
+  const origin = allowedOrigin(request, env);
+  if (!origin) return new Response(null, { status: 403 });
+  return new Response(null, {
+    status: 204,
+    headers: {
+      "Access-Control-Allow-Origin": origin,
+      "Access-Control-Allow-Credentials": "true",
+      "Access-Control-Allow-Methods": "POST, OPTIONS",
+      "Access-Control-Allow-Headers": "Content-Type",
+      "Access-Control-Max-Age": "600",
+      "Vary": "Origin",
+    },
+  });
+}
