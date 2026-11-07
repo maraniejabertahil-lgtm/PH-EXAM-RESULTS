@@ -251,6 +251,7 @@ jobs:
           try:
               result = json.load(open("/tmp/owner-health.json", encoding="utf-8"))
               print("Sanitized readiness reason:", result.get("reason", "unspecified"))
+              print("Invalid setting names:", result.get("invalid_settings", []))
               print("D1 upstream HTTP status:", result.get("upstream_status", "not available"))
           except Exception:
               print("Health response was not valid diagnostic JSON.")
