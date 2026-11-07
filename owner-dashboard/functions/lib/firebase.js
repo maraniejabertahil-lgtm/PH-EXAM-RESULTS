@@ -104,7 +104,7 @@ export async function establishFirebaseProof({ request, env }) {
       return json({ error: "Firebase Owner access denied." }, 403, origin);
     }
     const documentUrl = "https://firestore.googleapis.com/v1/projects/" +
-      encodeURIComponent(env.FIREBASE_PROJECT_ID) + "/databases/(default)/documents/users/" +
+      encodeURIComponent(env.FIREBASE_PROJECT_ID) + "/databases/(default)/documents/user/" +
       encodeURIComponent(claims.sub);
     const profileResponse = await fetch(documentUrl, {
       headers: { Authorization: "Bearer " + idToken, Accept: "application/json" },
