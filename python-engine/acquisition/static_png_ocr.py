@@ -292,6 +292,7 @@ def load_static_png_ocr_capture(
         "announced_count": batch.get("announced_count"),
         "access_controls_bypassed": False,
         "video_frame_ocr": False,
+        "ocr_gate_passed": False,
         "publication_allowed": False,
     }
     report_path = repository_root / "python-engine" / "artifacts" / "static-png-ocr-report.json"
@@ -316,7 +317,7 @@ def load_static_png_ocr_capture(
     normalized_names = [record["name"].casefold() for record in records]
     if len(set(normalized_names)) != len(normalized_names):
         raise StaticPngOcrError("OCR output contains duplicate names.")
-    report["publication_allowed"] = True
+    report["ocr_gate_passed"] = True
     report["sequence_coverage"] = {"first": 1, "last": announced, "complete": True}
     report["records_sha256"] = _sha256_bytes(
         json.dumps(records, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
