@@ -13,11 +13,11 @@ export function crossSiteCookieHeader(name,value,maxAge) { return name+"="+value
 export function clearCookie(name) { return name+"=; Path=/; Max-Age=0; HttpOnly; Secure; SameSite=Lax"; }
 export const COOKIE_NAMES={session:SESSION_COOKIE,firebase:FIREBASE_COOKIE,state:STATE_COOKIE,verifier:VERIFIER_COOKIE};
 export async function signSession(payload,secret) { const body=b64url(new TextEncoder().encode(JSON.stringify(payload))); return body+"."+await hmac(secret,body); }
-export async function readSignedCookie(request,name,env) {
+export async function readSignedValue(value,env) {
  const secret=env.SESSION_SIGNING_KEY;
- if(typeof secret!=="string"||secret.length<32)return null;
+ if(typeof secret!=="string"||secret.length<32||typeof value!=="string")return null;
  try {
-  const parts=cookie(request,name).split(".");
+  const parts=value.split(".");
   if(parts.length!==2||!equal(await hmac(secret,parts[0]),parts[1]))return null;
   const data=JSON.parse(new TextDecoder().decode(fromB64url(parts[0])));
   const now=Math.floor(Date.now()/1000);
@@ -25,11 +25,15 @@ export async function readSignedCookie(request,name,env) {
   return data;
  } catch{return null;}
 }
+export async function readSignedCookie(request,name,env) {
+ const value=(request.headers.get("Cookie")||"").split(";").map(v=>v.trim()).find(v=>v.startsWith(name+"="))?.slice(name.length+1)||"";
+ return readSignedValue(value,env);
+}
 export async function readFirebaseProof(request,env) {
  const data=await readSignedCookie(request,FIREBASE_COOKIE,env);
  const ownerEmail=String(env.OWNER_EMAIL||"").trim().toLowerCase();
  if(!data||typeof data.firebase_uid!=="string"||!data.firebase_uid||
-   data.firebase_role!=="owner"||data.firebase_email!==ownerEmail)return null;
+   data.firebase_role!=="owner"||data.purpose!=="firebase-owner-proof"||data.firebase_email!==ownerEmail)return null;
  return data;
 }
 export async function readSession(request,env) {
