@@ -94,7 +94,7 @@ Do not paste the generated secret into chat or commit it.
 
 ## Route protection
 
-- `/continue.html`, `/continue.js`, and `/continue.css` — public, short-lived proof handoff only
+- `/continue.html` (canonical clean URL `/continue`), `/continue.js`, and `/continue.css` — public, short-lived proof handoff only
 - `/owner.css`, dashboard HTML, activity scripts, and private APIs — require the combined session
 - `/auth/firebase` — CORS-restricted Firebase ID-token + Firestore Owner verification
 - `/auth/firebase/complete` — same-origin proof validation and HttpOnly Firebase cookie
