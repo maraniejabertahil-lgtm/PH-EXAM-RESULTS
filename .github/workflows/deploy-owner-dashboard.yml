@@ -55,7 +55,7 @@ jobs:
         working-directory: python-engine
         run: python -m unittest discover -s tests -p "test_d1_client.py" -v
       - name: Compile Python metadata modules
-        run: python -m py_compile python-engine/database/*.py
+        run: python -m py_compile python-engine/main.py python-engine/prc_orchestrator.py python-engine/database/*.py
       - name: Audit merge compatibility against every repository branch
         env:
           FEATURE_BRANCH: ${{ github.head_ref || 'main' }}
