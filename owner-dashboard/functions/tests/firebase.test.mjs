@@ -39,6 +39,7 @@ async function withFetch(handler,callback) {
   const original=globalThis.fetch;globalThis.fetch=handler;
   try{return await callback();}finally{globalThis.fetch=original;}
 }
+let requestedProfilePath = "";
 function mockFetch(token,{role="owner",active=true,email="owner@example.com",identityStatus=200}={}) {
   return async (url,init)=>{
     if(String(url).startsWith("https://identitytoolkit.googleapis.com/")){
@@ -49,6 +50,10 @@ function mockFetch(token,{role="owner",active=true,email="owner@example.com",ide
       return new Response(JSON.stringify({idToken:token}),{status:identityStatus});
     }
     if(String(url).startsWith("https://www.googleapis.com/service_accounts/"))return new Response(JSON.stringify({keys:[jwk]}));
+    const profileUrl = new URL(String(url));
+    requestedProfilePath = profileUrl.pathname;
+    assert.match(profileUrl.pathname, /\\/documents\\/user\\/[^/]+$/);
+    assert.match(init.headers.Authorization, /^Bearer /);
     return new Response(JSON.stringify({fields:{role:{stringValue:role},active:{booleanValue:active},email:{stringValue:email}}}));
   };
 }
@@ -58,6 +63,7 @@ test("accepts Firebase password sign-in and active Firestore Owner profile, retu
   await withFetch(mockFetch(token),async()=>{
     const response=await establishFirebaseProof({request:request(ownerCredentials),env});
     assert.equal(response.status,200);
+    assert.equal(requestedProfilePath, "/v1/projects/" + env.FIREBASE_PROJECT_ID + "/databases/(default)/documents/user/firebase-uid");
     assert.equal(response.headers.get("Access-Control-Allow-Origin"),env.PUBLIC_SITE_ORIGIN);
     assert.equal(response.headers.get("Access-Control-Allow-Credentials"),null);
     const payload=await response.json();
