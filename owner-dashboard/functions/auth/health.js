@@ -1,6 +1,7 @@
 export async function onRequestGet({env}){
   const ready=Boolean(
     env.FIREBASE_PROJECT_ID&&
+    env.FIREBASE_API_KEY&&
     env.PUBLIC_SITE_ORIGIN&&
     env.OWNER_EMAIL&&
     env.OWNER_GITHUB_ID&&
