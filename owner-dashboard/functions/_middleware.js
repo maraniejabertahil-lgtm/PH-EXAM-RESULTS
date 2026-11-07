@@ -9,6 +9,7 @@ const PUBLIC_PATHS = new Set([
   "/auth/login",
   "/auth/callback",
   "/auth/session",
+  "/auth/health",
 ]);
 
 export async function onRequest({ request, env, next }) {
