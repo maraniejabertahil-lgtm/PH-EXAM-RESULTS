@@ -9,9 +9,6 @@ function configurationIssues(env) {
   if (!String(env.FIREBASE_API_KEY || "").trim()) issues.push("FIREBASE_API_KEY");
   if (!/^https:\/\/[a-z0-9.-]+$/.test(String(env.PUBLIC_SITE_ORIGIN || ""))) issues.push("PUBLIC_SITE_ORIGIN");
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(env.OWNER_EMAIL || ""))) issues.push("OWNER_EMAIL");
-  if (!/^\d+$/.test(String(env.OWNER_GITHUB_ID || ""))) issues.push("OWNER_GITHUB_ID");
-  if (!String(env.GITHUB_OAUTH_CLIENT_ID || "").trim()) issues.push("GITHUB_OAUTH_CLIENT_ID");
-  if (!String(env.GITHUB_OAUTH_CLIENT_SECRET || "").trim()) issues.push("GITHUB_OAUTH_CLIENT_SECRET");
   if (typeof env.SESSION_SIGNING_KEY !== "string" || env.SESSION_SIGNING_KEY.length < 32) issues.push("SESSION_SIGNING_KEY");
   if (!String(env.CF_ACCOUNT_ID || "").trim()) issues.push("CF_ACCOUNT_ID");
   if (!String(env.CF_D1_DATABASE_ID || "").trim()) issues.push("CF_D1_DATABASE_ID");
