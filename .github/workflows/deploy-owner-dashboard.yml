@@ -164,15 +164,24 @@ jobs:
         run: |
           set -euo pipefail
           url="https://${PROJECT_NAME}.pages.dev/auth/health"
+          status="000"
           for attempt in $(seq 1 12); do
-            status=$(curl -sS -o /tmp/owner-health.json -w "%{http_code}" "$url" || true)
+            status=$(curl --connect-timeout 5 --max-time 10 -sS -D /tmp/owner-health-headers \
+              -o /tmp/owner-health.json -w "%{http_code}" "$url" 2>/tmp/owner-health-curl-error || true)
             if [ "$status" = "200" ] && python -c 'import json; assert json.load(open("/tmp/owner-health.json"))["ready"] is True'; then
               echo "Private Owner dashboard configuration is ready."
               exit 0
             fi
+            echo "Owner health attempt $attempt returned HTTP $status."
             sleep 5
           done
+          echo "Final Owner health HTTP status: $status"
+          echo "Response headers:"
+          cat /tmp/owner-health-headers || true
+          echo "Response body:"
           cat /tmp/owner-health.json || true
+          echo "Transport error:"
+          cat /tmp/owner-health-curl-error || true
           echo "::error::Private Owner dashboard configuration is incomplete; see production Pages variables."
           exit 1
 
