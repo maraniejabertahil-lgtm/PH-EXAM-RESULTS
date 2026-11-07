@@ -9,6 +9,7 @@ function equal(a,b) { if(typeof a!=="string"||typeof b!=="string"||a.length!==b.
 async function hmac(secret,value) { const key=await crypto.subtle.importKey("raw",new TextEncoder().encode(secret),{name:"HMAC",hash:"SHA-256"},false,["sign"]); return b64url(new Uint8Array(await crypto.subtle.sign("HMAC",key,new TextEncoder().encode(value)))); }
 export function randomToken(bytes=32) { const value=new Uint8Array(bytes); crypto.getRandomValues(value); return b64url(value); }
 export function cookieHeader(name,value,maxAge) { return name+"="+value+"; Path=/; Max-Age="+maxAge+"; HttpOnly; Secure; SameSite=Lax"; }
+export function crossSiteCookieHeader(name,value,maxAge) { return name+"="+value+"; Path=/; Max-Age="+maxAge+"; HttpOnly; Secure; SameSite=None"; }
 export function clearCookie(name) { return name+"=; Path=/; Max-Age=0; HttpOnly; Secure; SameSite=Lax"; }
 export const COOKIE_NAMES={session:SESSION_COOKIE,firebase:FIREBASE_COOKIE,state:STATE_COOKIE,verifier:VERIFIER_COOKIE};
 export async function signSession(payload,secret) { const body=b64url(new TextEncoder().encode(JSON.stringify(payload))); return body+"."+await hmac(secret,body); }
