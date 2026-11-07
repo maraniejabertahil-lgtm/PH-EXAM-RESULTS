@@ -191,8 +191,13 @@ jobs:
           }
           check_public_asset() {
             path="$1"
-            code=$(curl -sS -o /dev/null -w "%{http_code}" "$base$path")
-            test "$code" = "200" || { echo "::error::Public handoff asset $path returned HTTP $code."; exit 1; }
+            code=$(curl -sS -L --max-redirs 3 -o /tmp/owner-asset-body -w "%{http_code}" "$base$path")
+            final_url=$(curl -sS -L --max-redirs 3 -o /dev/null -w "%{url_effective}" "$base$path")
+            case "$final_url" in
+              "$base"/*) ;;
+              *) echo "::error::Public handoff asset $path redirected outside the private Pages origin."; exit 1 ;;
+            esac
+            test "$code" = "200" || { echo "::error::Public handoff asset $path ended with HTTP $code at $final_url."; exit 1; }
           }
 
           # Direct dashboard documents, private scripts/styles, and private APIs must not load signed out.
