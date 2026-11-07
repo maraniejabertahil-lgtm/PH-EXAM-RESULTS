@@ -5,7 +5,7 @@ function json(value,status=200){return new Response(JSON.stringify(value),{statu
 function redirect(path,cookies=[]){const headers=new Headers({Location:path,"Cache-Control":"no-store","Referrer-Policy":"no-referrer"});for(const value of cookies)headers.append("Set-Cookie",value);return new Response(null,{status:302,headers});}
 function configured(env){return Boolean(env.GITHUB_OAUTH_CLIENT_ID&&env.GITHUB_OAUTH_CLIENT_SECRET&&env.OWNER_GITHUB_ID&&/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(env.OWNER_EMAIL||""))&&typeof env.SESSION_SIGNING_KEY==="string"&&env.SESSION_SIGNING_KEY.length>=32);}
 function getCookie(request,name){return(request.headers.get("Cookie")||"").split(";").map(v=>v.trim()).find(v=>v.startsWith(name+"="))?.slice(name.length+1)||"";}
-function publicLogin(env,reason=""){const target=new URL("/",env.PUBLIC_SITE_ORIGIN||"https://ph-exam-results.pages.dev");target.searchParams.set("owner","login");if(reason)target.searchParams.set("owner_reason",reason);return target.toString();}
+function publicLogin(env,reason=""){let origin="https://ph-exam-results.pages.dev";try{const candidate=new URL(String(env.PUBLIC_SITE_ORIGIN||"").trim()).origin;if(candidate===origin)origin=candidate;}catch{}const target=new URL("/",origin);target.searchParams.set("owner","login");if(reason)target.searchParams.set("owner_reason",reason);return target.toString();}
 function b64(bytes){return btoa(String.fromCharCode(...bytes)).replace(/=/g,"").replace(/\+/g,"-").replace(/\//g,"_");}
 async function challenge(verifier){return b64(new Uint8Array(await crypto.subtle.digest("SHA-256",new TextEncoder().encode(verifier))));}
 export async function login({request,env}){
