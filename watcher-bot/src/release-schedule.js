@@ -219,13 +219,18 @@ export function robotsAllowsPath(robotsText, path, userAgent = "PH-EXAM-RESULTS-
   return tied.some((rule) => rule.allow);
 }
 
-async function fetchSameOrigin(urlValue, fetchImpl) {
+async function fetchSameOrigin(urlValue, fetchImpl, robotsText = null) {
   const original = new URL(urlValue);
   if (original.protocol !== "https:" || original.username || original.password) {
     throw new Error("Only approved HTTPS URLs without embedded credentials are allowed.");
   }
   let current = original;
   for (let redirects = 0; redirects <= MAX_REDIRECTS; redirects += 1) {
+    if (robotsText !== null && !robotsAllowsPath(robotsText, current.pathname)) {
+      const error = new Error("PRC robots.txt disallows automated access to " + current.pathname + ".");
+      error.code = "ROBOTS_DISALLOWED";
+      throw error;
+    }
     const response = await fetchImpl(current.href, {
       method: "GET",
       redirect: "manual",
@@ -274,8 +279,8 @@ async function readBoundedText(response, maxBytes) {
   return new TextDecoder("utf-8", { fatal: false }).decode(bytes);
 }
 
-async function fetchText(url, fetchImpl, expectedType, maxBytes) {
-  const result = await fetchSameOrigin(url, fetchImpl);
+async function fetchText(url, fetchImpl, expectedType, maxBytes, robotsText = null) {
+  const result = await fetchSameOrigin(url, fetchImpl, robotsText);
   if (result.response.status !== 200) {
     throw new Error("Official PRC source returned HTTP " + result.response.status + ".");
   }
@@ -286,19 +291,16 @@ async function fetchText(url, fetchImpl, expectedType, maxBytes) {
   return { text: await readBoundedText(result.response, maxBytes), finalUrl: result.finalUrl };
 }
 
-async function verifyRobotsAndFetch(indexSource, scheduleUrls, fetchImpl) {
+async function fetchRobotsPolicy(indexSource, fetchImpl) {
   const index = new URL(indexSource.url);
   const robotsUrl = new URL("/robots.txt", index.origin).href;
-  const robotsResult = await fetchText(robotsUrl, fetchImpl, "text", MAX_ROBOTS_BYTES);
-  const paths = [index.pathname, ...scheduleUrls.map((item) => new URL(item.url).pathname)];
-  for (const path of paths) {
-    if (!robotsAllowsPath(robotsResult.text, path)) {
-      const error = new Error("PRC robots.txt disallows automated access to " + path + ".");
-      error.code = "ROBOTS_DISALLOWED";
-      throw error;
-    }
+  const result = await fetchText(robotsUrl, fetchImpl, "text", MAX_ROBOTS_BYTES);
+  if (!robotsAllowsPath(result.text, index.pathname)) {
+    const error = new Error("PRC robots.txt disallows automated access to " + index.pathname + ".");
+    error.code = "ROBOTS_DISALLOWED";
+    throw error;
   }
-  return robotsResult.text;
+  return result.text;
 }
 
 export async function refreshOfficialReleaseSchedule({ sources, kv, fetchImpl = fetch, now = new Date() }) {
@@ -322,14 +324,14 @@ export async function refreshOfficialReleaseSchedule({ sources, kv, fetchImpl = 
   }
 
   try {
-    const indexResult = await fetchText(source.url, fetchImpl, "text/html", MAX_HTML_BYTES);
+    const robotsText = await fetchRobotsPolicy(source, fetchImpl);
+    const indexResult = await fetchText(source.url, fetchImpl, "text/html", MAX_HTML_BYTES, robotsText);
     const pages = discoverSchedulePageUrls(indexResult.text, indexResult.finalUrl, now, source.max_schedule_pages || 2);
     if (!pages.length) throw new Error("The official PRC schedule index did not link to a current or next-year schedule page.");
-    await verifyRobotsAndFetch(source, pages, fetchImpl);
 
     const schedules = [];
     for (const page of pages) {
-      const pageResult = await fetchText(page.url, fetchImpl, "text/html", MAX_HTML_BYTES);
+      const pageResult = await fetchText(page.url, fetchImpl, "text/html", MAX_HTML_BYTES, robotsText);
       schedules.push(parsePrcScheduleHtml(pageResult.text, pageResult.finalUrl, now));
     }
     const upcoming = schedules.flatMap((item) => item.upcoming)
