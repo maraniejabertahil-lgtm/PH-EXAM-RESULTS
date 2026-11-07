@@ -1,5 +1,6 @@
 import { recordActivities } from "./activity-log.js";
 import { buildReleaseEvent } from "./release-event.js";
+import { refreshOfficialReleaseSchedule, getReleaseScheduleResponse } from "./release-schedule.js";
 const GITHUB_API = "https://api.github.com";
 const GITHUB_API_VERSION = "2022-11-28";
 const USER_AGENT = "PH-EXAM-RESULTS-Watcher/1.0";
@@ -1004,8 +1005,34 @@ export async function runScheduled({
         });
       }
     }
+    const scheduleDiscovery = await refreshOfficialReleaseSchedule({
+      sources, kv: budget.kv, fetchImpl: budget.fetch, now: new Date(scheduledTime)
+    });
+    const scheduleStatus = scheduleDiscovery.status;
+    const scheduleOutcome = ["updated", "updated_with_unparsed_rows", "cached"].includes(scheduleStatus)
+      ? "success"
+      : (scheduleStatus === "robots_disallowed" ? "blocked" : "warning");
+    activityEvents.push({
+      event_id: executionId + ":official-schedule",
+      execution_id: executionId,
+      occurred_at: new Date().toISOString(),
+      operation: "source_check:PRC-OFFICIAL-SCHEDULE-INDEX",
+      status: scheduleOutcome,
+      severity: scheduleOutcome === "blocked" || scheduleOutcome === "warning" ? "warning" : "info",
+      message: "Official PRC future release schedule check: " + scheduleStatus + ".",
+      error_code: scheduleOutcome === "blocked" ? "PRC_SCHEDULE_ROBOTS_DISALLOWED" : null,
+      error_message: scheduleDiscovery.error || null,
+      source: "cloudflare_worker",
+      metadata: { source_id: "PRC-OFFICIAL-SCHEDULE-INDEX", authority: "PRC", exam: "ALL-LICENSURE-EXAMS", exam_year: new Date(scheduledTime).getUTCFullYear(), mode: peakWeek ? "peak_week" : "standard" }
+    });
     const report = {
       checked_at: isoNow(new Date(scheduledTime)),
+      schedule_discovery: {
+        status: scheduleStatus,
+        upcoming_count: scheduleDiscovery.snapshot?.upcoming_count ?? 0,
+        nearest_release: scheduleDiscovery.snapshot?.nearest ?? null,
+        error: scheduleDiscovery.error || null
+      },
       mode: peakWeek ? "peak_week" : "standard",
       configured_sources: sources.length,
       approved_enabled_sources: activeSources.length,
@@ -1047,5 +1074,5 @@ export default {
   async scheduled(controller, env) {
     return runScheduled({ env, scheduledTime: controller.scheduledTime || Date.now() });
   },
-  async fetch() { return new Response("Not found", { status: 404 }); }
+  async fetch(request, env) { return getReleaseScheduleResponse(request, env); }
 };
