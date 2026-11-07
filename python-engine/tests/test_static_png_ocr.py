@@ -171,6 +171,13 @@ class StaticPngOcrTests(unittest.TestCase):
             with self.assertRaisesRegex(StaticPngOcrError, "exact sequence coverage"):
                 load_static_png_ocr_capture(batch=self.batch, root=self.root)
 
+    def test_preview_url_must_reference_the_same_allowlisted_drive_file(self):
+        self.batch["public_preview_url"] = "https://drive.google.com/file/d/another-file/preview"
+        with patch("acquisition.static_png_ocr._tesseract_tsv") as ocr:
+            with self.assertRaisesRegex(StaticPngOcrError, "exact allowlisted official Drive file"):
+                load_static_png_ocr_capture(batch=self.batch, root=self.root)
+        ocr.assert_not_called()
+
     def test_screenshot_hash_mismatch_is_rejected_before_ocr(self):
         manifest_path = self.root / "capture" / "manifest.json"
         manifest = json.loads(manifest_path.read_text())
