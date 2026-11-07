@@ -6,3 +6,5 @@ async function token(){const now=Math.floor(Date.now()/1000);return signSession(
 function request(value,headers={}){return new Request("https://owner.example.pages.dev/logout",{headers:{Cookie:"__Host-ph_owner_session="+value,...headers}});}
 test("requires same-origin and matching CSRF token for logout",async()=>{const value=await token();assert.equal(await requireCsrf(request(value,{Origin:"https://attacker.example","X-CSRF-Token":"c".repeat(48)}),env),false);assert.equal(await requireCsrf(request(value,{Origin:"https://owner.example.pages.dev","X-CSRF-Token":"wrong"}),env),false);assert.equal(await requireCsrf(request(value,{Origin:"https://owner.example.pages.dev","X-CSRF-Token":"c".repeat(48)}),env),true);});
 test("session cannot be validated if signing secret is missing or too short",async()=>{const value=await token();assert.equal(await readSession(request(value),{...env,SESSION_SIGNING_KEY:"short"}),null);assert.equal(await readSession(request(value),{...env,SESSION_SIGNING_KEY:""}),null);});
+
+// Regression coverage for same-origin logout and signing-key fail-closed behavior.
