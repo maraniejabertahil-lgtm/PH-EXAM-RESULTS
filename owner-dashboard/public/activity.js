@@ -9,6 +9,8 @@ const elements = {
   status: document.querySelector("#status-filter"),
   component: document.querySelector("#component-filter"),
   refresh: document.querySelector("#refresh-button"),
+  signIn: document.querySelector("#sign-in-link"),
+  signOut: document.querySelector("#sign-out-button"),
 };
 
 function safeText(value, fallback = "—") {
@@ -128,6 +130,16 @@ function renderEvents(events) {
   elements.updated.textContent = "Loaded " + events.length + " latest events · " + new Date().toLocaleTimeString();
 }
 
+let csrfToken = "";
+async function initializeAuth() {
+  try {
+    const response = await fetch("/auth/session", { credentials: "same-origin", cache: "no-store" });
+    const session = await response.json();
+    if (session.authenticated) { csrfToken = session.csrf; elements.signIn.hidden = true; elements.signOut.hidden = false; return true; }
+  } catch { /* remain signed out */ }
+  elements.signIn.hidden = false; elements.signOut.hidden = true; return false;
+}
+
 async function loadEvents() {
   elements.message.textContent = "Loading private activity history…";
   elements.message.dataset.kind = "info";
@@ -160,7 +172,16 @@ async function loadEvents() {
   }
 }
 
+elements.signOut.addEventListener("click", async () => {
+  elements.signOut.disabled = true;
+  try { const response = await fetch("/auth/logout", { method: "POST", credentials: "same-origin", headers: { "X-CSRF-Token": csrfToken } });
+    if (response.ok) location.assign("/"); else elements.message.textContent = "Sign out failed. Reload and try again.";
+  } finally { elements.signOut.disabled = false; }
+});
 elements.refresh.addEventListener("click", loadEvents);
 elements.status.addEventListener("change", loadEvents);
 elements.component.addEventListener("change", loadEvents);
-loadEvents();
+initializeAuth().then(authenticated => {
+  if (authenticated) loadEvents();
+  else { elements.message.textContent = "Sign in with the authorized Owner GitHub account to view private activity."; elements.list.replaceChildren(); }
+});
