@@ -51,13 +51,11 @@ jobs:
       - name: Check private dashboard JavaScript syntax
         run: |
           node --check owner-dashboard/public/activity.js
-          node --check owner-dashboard/public/login.js
           node --check owner-dashboard/functions/api/activity.js
           node --check owner-dashboard/functions/lib/access.js
           node --check owner-dashboard/functions/lib/firebase.js
           node --check owner-dashboard/functions/_middleware.js
           node --check owner-dashboard/functions/auth/firebase.js
-          node --check owner-dashboard/functions/auth/firebase/config.js
           node --check owner-dashboard/functions/lib/oauth.js
           node --check owner-dashboard/functions/auth/login.js
           node --check owner-dashboard/functions/auth/callback.js
