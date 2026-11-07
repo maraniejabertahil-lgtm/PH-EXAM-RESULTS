@@ -63,7 +63,7 @@ class StaticPngOcrTests(unittest.TestCase):
             "exam": "SYNTHETIC TEST",
             "year": 2026,
             "official_source_url": "https://www.prc.gov.ph/results",
-            "record_pattern": r"^(?P<sequence>\\d+) (?P<name>[A-Z]+, [A-Z]+ [A-Z])$",
+            "record_pattern": r"^(?P<sequence>\d+) (?P<name>[A-Z]+, [A-Z]+ [A-Z])$",
             "language": "eng",
             "page_segmentation_mode": 6,
             "mapping_review": review,
