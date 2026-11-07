@@ -95,7 +95,9 @@ class StaticPngOcrTests(unittest.TestCase):
         manifest = {
             "schema_version": 1,
             "capture_method": "ordinary_public_preview_ui",
-            "source_url": self.batch["official_content_url"],
+            "source_url": self.batch["public_preview_url"],
+            "official_content_url": self.batch["official_content_url"],
+            "public_preview_url": self.batch["public_preview_url"],
             "stable_viewport": True,
             "lossless_png": True,
             "access_challenge_detected": False,
