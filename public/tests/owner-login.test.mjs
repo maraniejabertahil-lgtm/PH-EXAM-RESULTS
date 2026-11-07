@@ -16,7 +16,7 @@ test("public header contains only the accessible Log in icon", () => {
   assert.match(header, /class="owner-login-icon"/);
   assert.match(header, /aria-label="Log in · تسجيل الدخول"/);
   assert.match(header, /title="Log in · تسجيل الدخول"/);
-  assert.doesNotMatch(header, /search|menu|ellipsis/i, "search and overflow controls must not appear in the header");
+  assert.doesNotMatch(header, /search|release\s*status|menu|ellipsis/i, "Search, Release Status, and overflow controls must not appear in the header");
   assert.match(html, /id="owner-login-dialog"/);
   assert.doesNotMatch(header, /class="header-note"/);
   assert.match(css, /\.header-actions\{[^}]*margin-left:auto/);
@@ -25,7 +25,7 @@ test("public header contains only the accessible Log in icon", () => {
 
 test("Log in icon opens the Firebase Owner login flow", () => {
   assert.match(app, /ownerLogin\.open\?\.addEventListener\("click", showOwnerLogin\)/);
-  assert.match(app, /siteStatus\?\.owner_login_enabled !== false/);
+  assert.doesNotMatch(app, /ownerLogin\.open\.hidden\s*=/, "runtime status must never hide the permanent Log in icon");
   assert.match(app, /fetch\(OWNER_DASHBOARD_URL \+ "\/auth\/firebase"/);
   assert.match(app, /result\.authenticated !== true/);
   assert.match(app, /location\.assign\(OWNER_DASHBOARD_URL/);
