@@ -12,16 +12,19 @@
 </head>
 <body>
   <header class="site-header">
-    <div class="header-left">
-      <button id="owner-login-open" class="owner-login-button" type="button" hidden aria-haspopup="dialog" aria-label="Owner Login · دخول المالك">
-        <span aria-hidden="true">♙</span> Owner Login <span lang="ar" dir="rtl">دخول المالك</span>
+    <a class="brand" href="/" aria-label="PH Exam Results home">
+      <span class="brand-mark" aria-hidden="true">PH</span>
+      <span>Exam Results</span>
+    </a>
+    <div class="header-actions">
+      <button id="owner-login-open" class="owner-login-button" type="button" aria-haspopup="dialog" aria-label="Owner Login · دخول المالك" title="Owner Login · دخول المالك">
+        <svg class="owner-login-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+          <path d="M20 21a8 8 0 0 0-16 0"></path>
+          <circle cx="12" cy="8" r="4"></circle>
+        </svg>
+        <span class="visually-hidden">Owner Login · دخول المالك</span>
       </button>
-      <a class="brand" href="/" aria-label="PH Exam Results home">
-        <span class="brand-mark" aria-hidden="true">PH</span>
-        <span>Exam Results</span>
-      </a>
     </div>
-    <span class="header-note">Officially sourced · Verified before publication</span>
   </header>
 
   <dialog id="owner-login-dialog" class="owner-login-dialog" aria-labelledby="owner-login-title">
