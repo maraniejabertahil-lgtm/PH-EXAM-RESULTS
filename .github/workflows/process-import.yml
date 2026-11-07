@@ -305,6 +305,7 @@ jobs:
       - name: Detect explicit Tier 3 OCR selection from the generated PRC batch
         id: tier3-ocr
         run: |
+          set -euo pipefail
           python3 - <<'PY'
           import json
           import os
@@ -315,7 +316,7 @@ jobs:
           batch = json.loads(batch_path.read_text(encoding="utf-8"))
           selected = batch.get("official_content_mode") == "static_png_ocr"
           with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
-              output.write(f"required={'true' if selected else 'false'}\\n")
+              output.write(f"required={'true' if selected else 'false'}\n")
           PY
 
       - name: Install Tesseract only for an explicitly selected Tier 3 OCR batch
