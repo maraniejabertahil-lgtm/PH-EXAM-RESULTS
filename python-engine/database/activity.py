@@ -100,6 +100,8 @@ def record_pipeline_event(
                 greenlight_score=metadata["greenlight_score"],
                 announced_count=metadata["announced_count"],
                 extracted_count=metadata["extracted_count"],
+                record_count=metadata["extracted_count"],
+                provenance=_short(batch.get("provenance")),
                 summary=" ".join(str(summary).split())[:240],
             )
     except (D1Error, ValueError, TypeError):
