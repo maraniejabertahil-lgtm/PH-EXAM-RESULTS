@@ -241,7 +241,7 @@ window.addEventListener("unhandledrejection", (event) => {
 
 
 // Owner sign-in is isolated from the public examination search workflow.
-const ownerLogin = {
+let ownerFirebaseAuthPromise;\nconst ownerLogin = {
   dialog: document.querySelector("#owner-login-dialog"),
   open: document.querySelector("#owner-login-open"),
   close: document.querySelector("#owner-login-close"),
@@ -267,13 +267,20 @@ ownerLogin.form?.addEventListener("submit", async (event) => {
   ownerLogin.submit.disabled = true;
   ownerLogin.message.textContent = "Verifying owner account… / جارٍ التحقق من حساب المالك…";
   try {
-    const [{ initializeApp }, { initializeAuth, inMemoryPersistence, signInWithEmailAndPassword, getIdToken, signOut }] =
-      await Promise.all([
+    if (!ownerFirebaseAuthPromise) {
+      ownerFirebaseAuthPromise = Promise.all([
         import("https://www.gstatic.com/firebasejs/11.10.0/firebase-app.js"),
         import("https://www.gstatic.com/firebasejs/11.10.0/firebase-auth.js"),
-      ]);
-    const app = initializeApp(FIREBASE_CONFIG, "ph-exam-results-owner-login");
-    const auth = initializeAuth(app, { persistence: inMemoryPersistence });
+      ]).then(([firebaseApp, firebaseAuth]) => {
+        const app = firebaseApp.getApps().find(item => item.name === "ph-exam-results-owner-login")
+          || firebaseApp.initializeApp(FIREBASE_CONFIG, "ph-exam-results-owner-login");
+        return {
+          auth: firebaseAuth.initializeAuth(app, { persistence: firebaseAuth.inMemoryPersistence }),
+          ...firebaseAuth,
+        };
+      });
+    }
+    const { auth, signInWithEmailAndPassword, getIdToken, signOut } = await ownerFirebaseAuthPromise;
     const credential = await signInWithEmailAndPassword(auth, ownerLogin.email.value.trim(), ownerLogin.password.value);
     const idToken = await getIdToken(credential.user, true);
     const response = await fetch(OWNER_DASHBOARD_URL + "/auth/firebase/exchange", {
