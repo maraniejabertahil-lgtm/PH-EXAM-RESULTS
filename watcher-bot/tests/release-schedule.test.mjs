@@ -141,8 +141,39 @@ test("refresh fails closed when robots.txt disallows the official schedule path"
   assert.equal(kv.values.has(RELEASE_SCHEDULE_CACHE_KEY), false);
 });
 
+test("legacy cache without current robots evidence is refreshed immediately", async () => {
+  const legacy = { fetched_at: "2026-11-08T04:00:00.000Z", nearest: { exam: "Old snapshot" } };
+  const kv = new MemoryKV({ [RELEASE_SCHEDULE_CACHE_KEY]: JSON.stringify(legacy) });
+  let robotsCalls = 0;
+  const result = await refreshOfficialReleaseSchedule({
+    sources: [{ source_type: "official_schedule_index", enabled: true, authorized: true, url: "https://www.prc.gov.ph/exam-schedules-menu" }],
+    kv,
+    fetchImpl: async (url) => {
+      if (url.endsWith("/robots.txt")) {
+        robotsCalls += 1;
+        return new Response("User-agent: *\\nAllow: /", { status: 200, headers: { "content-type": "text/plain" } });
+      }
+      if (url.endsWith("/exam-schedules-menu")) {
+        return new Response("<a href=\"/2026-schedule-examination\">2026</a>", { status: 200, headers: { "content-type": "text/html" } });
+      }
+      if (url.endsWith("/2026-schedule-examination")) {
+        return new Response(scheduleHtml, { status: 200, headers: { "content-type": "text/html" } });
+      }
+      throw new Error("Unexpected URL " + url);
+    },
+    now: new Date("2026-11-08T05:00:00.000Z")
+  });
+  assert.equal(robotsCalls, 1);
+  assert.equal(result.status, "updated");
+  assert.equal(result.snapshot.access_policy.outcome, "allowed");
+});
+
 test("fresh KV snapshot prevents repeated external schedule requests", async () => {
-  const snapshot = { fetched_at: "2026-11-08T04:00:00.000Z", nearest: { exam: "Veterinarians" } };
+  const snapshot = {
+    fetched_at: "2026-11-08T04:00:00.000Z",
+    access_policy: { outcome: "allowed", user_agent: "PH-EXAM-RESULTS-Watcher" },
+    nearest: { exam: "Veterinarians" }
+  };
   const kv = new MemoryKV({ [RELEASE_SCHEDULE_CACHE_KEY]: JSON.stringify(snapshot) });
   let calls = 0;
   const result = await refreshOfficialReleaseSchedule({
