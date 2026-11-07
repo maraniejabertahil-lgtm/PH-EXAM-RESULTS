@@ -175,3 +175,45 @@ jobs:
           cat /tmp/owner-health.json || true
           echo "::error::Private Owner dashboard configuration is incomplete; see production Pages variables."
           exit 1
+
+      - name: Run live signed-out route and authentication smoke tests
+        env:
+          PROJECT_NAME: ${{ secrets.CF_OWNER_PAGES_PROJECT_NAME }}
+        run: |
+          set -euo pipefail
+          base="https://${PROJECT_NAME}.pages.dev"
+          check_redirect() {
+            path="$1"
+            expected="$2"
+            code=$(curl -sS -D /tmp/owner-headers -o /dev/null -w "%{http_code}" "$base$path")
+            test "$code" = "302" || { echo "::error::Expected signed-out redirect for $path; received HTTP $code."; exit 1; }
+            grep -Fqi "location: $expected" /tmp/owner-headers || { echo "::error::Unexpected redirect target for $path."; cat /tmp/owner-headers; exit 1; }
+          }
+          check_public_asset() {
+            path="$1"
+            code=$(curl -sS -o /dev/null -w "%{http_code}" "$base$path")
+            test "$code" = "200" || { echo "::error::Public handoff asset $path returned HTTP $code."; exit 1; }
+          }
+
+          # Direct dashboard documents, private scripts/styles, and private APIs must not load signed out.
+          check_redirect "/" "https://ph-exam-results.pages.dev/?owner=login"
+          check_redirect "/activity.js" "https://ph-exam-results.pages.dev/?owner=login"
+          check_redirect "/owner.css" "https://ph-exam-results.pages.dev/?owner=login"
+          check_redirect "/api/activity" "https://ph-exam-results.pages.dev/?owner=login"
+
+          # Only the short-lived Firebase handoff and narrowly scoped auth endpoints are public.
+          check_public_asset "/continue.html"
+          check_public_asset "/continue.js"
+          check_public_asset "/continue.css"
+          curl -fsS "$base/auth/session" -o /tmp/owner-session.json
+          python -c 'import json; assert json.load(open("/tmp/owner-session.json")) == {"authenticated": False}'
+          check_redirect "/auth/login" "https://ph-exam-results.pages.dev/?owner=login&owner_reason=firebase_required"
+
+          # Cross-origin proof completion and Firebase CORS preflight must fail closed.
+          status=$(curl -sS -o /dev/null -w "%{http_code}" -X POST "$base/auth/firebase/complete" \
+            -H "Origin: https://attacker.example" -H "Content-Type: application/json" --data '{}')
+          test "$status" = "403" || { echo "::error::Cross-origin Firebase proof completion was not rejected."; exit 1; }
+          status=$(curl -sS -o /dev/null -w "%{http_code}" -X OPTIONS "$base/auth/firebase" \
+            -H "Origin: https://attacker.example" -H "Access-Control-Request-Method: POST")
+          test "$status" = "403" || { echo "::error::Untrusted Firebase CORS preflight was not rejected."; exit 1; }
+          echo "Live signed-out route, private asset, private API, session, and cross-origin rejection checks passed."
