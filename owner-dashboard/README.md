@@ -2,48 +2,37 @@
 
 This is a separate Cloudflare Pages project. Never deploy this folder to the public search site's Pages project.
 
-## GitHub OAuth authentication
+## Firebase Owner-role authentication
 
-The dashboard uses GitHub OAuth authorization-code flow with PKCE (S256). The callback checks the configured numeric GitHub account ID and confirms that the exact configured Owner email appears in GitHub's verified email list. The GitHub access token is used only server-side for identity lookup and is never stored in the browser or session. The app issues an eight-hour signed, HttpOnly, Secure, SameSite=Lax session cookie. OAuth state and PKCE verifier are short-lived HttpOnly cookies. Logout requires same-origin plus a session CSRF token.
+The public website at `https://ph-exam-results.pages.dev` signs the Owner in with Firebase Email/Password Authentication. The public browser obtains a short-lived Firebase ID token in memory and POSTs it to this project's `/auth/firebase/exchange` endpoint. The token is never placed in a URL or manually stored in localStorage.
 
-Register an OAuth App at https://github.com/settings/developers. Set the callback URL to:
+The Pages Function verifies the Google Secure Token RS256 signature and Firebase token claims, then reads `users/{uid}` from Firestore using that ID token. Access is granted only when the Firestore document contains `role: "owner"` and `active: true`, and the verified email matches `OWNER_EMAIL`. The function then issues an eight-hour signed, HttpOnly, Secure, SameSite=Lax session cookie. The private dashboard page redirects unauthenticated visitors to the public login page; the activity API independently checks the signed session.
 
-`https://ph-exam-results-owner.pages.dev/auth/callback`
+The existing GitHub OAuth endpoints are retained temporarily as a fallback during rollout. Do not remove their secrets or code until Firebase login has been tested end-to-end and the Owner approves cleanup.
 
-Configure these production Pages settings:
+## Required production Pages settings
 
-- `GITHUB_OAUTH_CLIENT_ID` — variable
-- `GITHUB_OAUTH_CLIENT_SECRET` — secret
-- `OWNER_GITHUB_ID` — numeric GitHub account ID variable
-- `OWNER_EMAIL` — exact verified email variable
+Set these variables/secrets on the separate `ph-exam-results-owner` Pages project:
+
+- `FIREBASE_PROJECT_ID` — variable: `ph-exam-results-dd94a`
+- `PUBLIC_SITE_ORIGIN` — variable: `https://ph-exam-results.pages.dev` (origin only, no trailing slash)
+- `OWNER_EMAIL` — variable: the exact verified Firebase Owner email
 - `SESSION_SIGNING_KEY` — secret, at least 32 characters of random material
-- `CF_ACCOUNT_ID` — variable
-- `CF_D1_DATABASE_ID` — variable
-- `CF_D1_READ_API_TOKEN` — secret (D1 Read only)
+- Keep existing `CF_ACCOUNT_ID`, `CF_D1_DATABASE_ID`, and `CF_D1_READ_API_TOKEN` settings unchanged.
 
-Generate a session signing key locally in Codespaces with:
+The Firestore `users/{uid}` document must have `role` string `owner`, `active` boolean `true`, and the matching Owner email. Firestore rules must permit an authenticated user to read only their own user document.
 
-`python -c "import secrets; print(secrets.token_urlsafe(48))"`
+## Existing GitHub OAuth fallback
 
-Do not paste the generated value into chat or commit it. Do not configure Cloudflare Access for this project.
-
-## Cloudflare resources and GitHub Actions
-
-1. Create the separate Pages project `ph-exam-results-owner`, production branch `main`.
-2. Create D1 database `ph-exam-results-operations` and retain its database ID.
-3. Create narrowly scoped Cloudflare tokens: D1 Edit for trusted migration/writers, D1 Read for dashboard reads, Pages Edit for deployment.
-4. Add repository Actions secrets: `CF_ACCOUNT_ID`, `CF_D1_DATABASE_ID`, `CF_D1_API_TOKEN` (D1 Edit), `CF_PAGES_API_TOKEN` (Pages Edit), and `CF_OWNER_PAGES_PROJECT_NAME` (`ph-exam-results-owner`).
-5. Set repository variable `CF_OWNER_DASHBOARD_ENABLED=true` only after OAuth, Pages configuration, and D1 migration are ready.
-6. Configure the production Watcher Worker with `CF_ACCOUNT_ID`, `CF_D1_DATABASE_ID`, and `CF_D1_API_TOKEN`.
-7. Run **Actions → Migrate Private Activity Monitor D1 → Run workflow** on `main`, then deploy only after auth validation passes.
+The current GitHub OAuth endpoints remain in place temporarily. Their existing settings may remain configured during validation. Do not delete or rotate existing credentials as part of this change.
 
 ## Routes
 
-- `/` — private Owner activity timeline
-- `/auth/login` — begin GitHub OAuth
-- `/auth/callback` — validate state, PKCE, Owner GitHub ID and verified email
-- `/auth/session` — return session status and CSRF token (no OAuth token)
+- `/` — private Owner activity timeline; unauthenticated requests redirect to the public login page
+- `/auth/firebase/exchange` — validates Firebase ID token and Owner role, then issues the private session cookie
+- `/auth/session` — returns session status and CSRF token (no provider token)
 - `/auth/logout` — CSRF-protected logout
 - `/api/activity` — signed-session-protected D1 activity API
+- `/auth/login` and `/auth/callback` — retained GitHub OAuth fallback
 
-No OAuth token, Cloudflare token, D1 credential, or session signing key is exposed in frontend code. Public examination search remains independent and unchanged.
+No Firebase ID token, OAuth token, Cloudflare token, D1 credential, or session signing key is exposed in frontend code. Public examination search remains independent of the private activity API.
