@@ -1,5 +1,6 @@
 {
   "schema_version": 1,
   "mode": "searching",
-  "message": "Published examination results are available."
+  "message": "Published examination results are available.",
+  "owner_login_enabled": false
 }
