@@ -222,4 +222,13 @@ jobs:
           status=$(curl -sS -o /dev/null -w "%{http_code}" -X OPTIONS "$base/auth/firebase" \
             -H "Origin: https://attacker.example" -H "Access-Control-Request-Method: POST")
           test "$status" = "403" || { echo "::error::Untrusted Firebase CORS preflight was not rejected."; exit 1; }
-          echo "Live signed-out route, private asset, private API, session, and cross-origin rejection checks passed."
+
+          # The configured public origin must be allowed to start the Firebase sign-in request.
+          status=$(curl -sS -D /tmp/owner-trusted-cors-headers -o /dev/null -w "%{http_code}" -X OPTIONS "$base/auth/firebase" \
+            -H "Origin: https://ph-exam-results.pages.dev" -H "Access-Control-Request-Method: POST" \
+            -H "Access-Control-Request-Headers: content-type")
+          test "$status" = "204" || { echo "::error::The public site origin is not allowed by Firebase CORS (expected HTTP 204)."; exit 1; }
+          grep -Fqi "access-control-allow-origin: https://ph-exam-results.pages.dev" /tmp/owner-trusted-cors-headers || {
+            echo "::error::Firebase CORS did not return the exact public site origin."; cat /tmp/owner-trusted-cors-headers; exit 1;
+          }
+          echo "Live signed-out route, private asset/API, Firebase handoff, trusted/untrusted CORS, and session checks passed."
