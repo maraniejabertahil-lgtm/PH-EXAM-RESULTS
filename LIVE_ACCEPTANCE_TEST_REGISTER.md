@@ -518,7 +518,7 @@ For each affected test or test execution:
 
 #### P4-15 — Firebase Owner identity and Firestore role authorization
 
-- **Pass condition:** The dashboard accepts only a Firebase-authenticated, email-verified account whose exact email matches `OWNER_EMAIL` and whose `users/{uid}` Firestore document has `role: "owner"` and `active: true`. A student, inactive, unverified, mismatched-email, missing-profile, or wrong-UID account is denied before GitHub OAuth.
+- **Pass condition:** The dashboard accepts only a Firebase-authenticated, email-verified account whose exact email matches `OWNER_EMAIL` and whose `user/{uid}` Firestore document has `role: "owner"` and `active: true`. A student, inactive, unverified, mismatched-email, missing-profile, or wrong-UID account is denied before GitHub OAuth.
 - **Evidence to retain:** Firebase project/config reference (no secrets), sanitized Owner UID/email, Firestore profile field types, rules review, browser walkthrough, and denied-account results.
 - **Status:** `NOT RUN`
 - **Candidate evidence:** Implementation merged in PR #114. GitHub Actions tests passed for Firebase ID-token RS256 verification, exact email/UID checks, Firestore Owner role and active flag, missing/invalid profile denial, and signed proof handoff. Production Firebase variables, Firestore rules, and real Owner/non-owner browser tests have not been verified.
