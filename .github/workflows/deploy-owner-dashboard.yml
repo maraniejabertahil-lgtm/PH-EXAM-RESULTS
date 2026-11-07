@@ -58,6 +58,9 @@ jobs:
       - name: Test Python D1 REST client and additive migration
         working-directory: python-engine
         run: python -m unittest discover -s tests -p "test_d1_client.py" -v
+      - name: Test GitHub workflow activity logger and D1 persistence failure handling
+        working-directory: python-engine
+        run: python -m unittest discover -s tests -p "test_log_github_run.py" -v
       - name: Compile Python metadata modules
         run: python -m py_compile python-engine/main.py python-engine/prc_orchestrator.py python-engine/database/*.py
       - name: Audit merge compatibility against every repository branch

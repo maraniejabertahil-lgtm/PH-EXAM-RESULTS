@@ -5,7 +5,10 @@ import os
 from datetime import datetime, timezone
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
-from d1_client import record_activity
+try:
+    from .d1_client import record_activity
+except ImportError:  # Direct script execution from this directory in GitHub Actions.
+    from d1_client import record_activity
 
 def normalize_status(status, conclusion):
     if status == "in_progress":
@@ -57,12 +60,20 @@ def main():
     run_url = f"https://github.com/{repo}/actions/runs/{run_id}" if repo else ""
     jobs = github_jobs(repo, run_id, os.getenv("GITHUB_TOKEN", ""))
     now = datetime.now(timezone.utc).isoformat()
+    attempted = 0
+    written = 0
+
+    def persist(event):
+        nonlocal attempted, written
+        attempted += 1
+        if record_activity(event):
+            written += 1
     for job in jobs:
         job_name = str(job.get("name") or "workflow_job")
         steps = job.get("steps") if isinstance(job.get("steps"), list) else []
         if not steps:
             status = normalize_status(job.get("status"), job.get("conclusion"))
-            record_activity({
+            persist({
                 "event_id": f"gha:{run_id}:job:{job.get('id', job_name)}",
                 "execution_id": execution_id,
                 "occurred_at": job.get("completed_at") or job.get("started_at") or now,
@@ -76,7 +87,7 @@ def main():
         for step in steps:
             step_name = str(step.get("name") or "workflow_step")
             status = normalize_status(step.get("status"), step.get("conclusion"))
-            record_activity({
+            persist({
                 "event_id": f"gha:{run_id}:job:{job.get('id', job_name)}:step:{step.get('number', step_name)}",
                 "execution_id": execution_id,
                 "occurred_at": step.get("completed_at") or step.get("started_at") or now,
@@ -92,7 +103,7 @@ def main():
             })
     if not jobs:
         status = normalize_status("", os.getenv("JOB_STATUS", ""))
-        record_activity({
+        persist({
             "event_id": f"gha:{run_id}:workflow-fallback",
             "execution_id": execution_id, "occurred_at": now,
             "component": "GitHub Actions", "operation": workflow,
@@ -101,6 +112,9 @@ def main():
             "metadata": {"run_id": run_id, "run_number": run_number, "workflow": workflow,
                          "job": "workflow_run", "branch": branch, "commit": sha, "run_url": run_url},
         })
+
+    if attempted == 0 or written != attempted:
+        raise SystemExit(f"Private activity logging incomplete: {written}/{attempted} events persisted.")
 
 if __name__ == "__main__":
     main()
