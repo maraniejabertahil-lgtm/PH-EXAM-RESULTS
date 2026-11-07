@@ -2,6 +2,15 @@ import { loadDataset } from "./storage.mjs";
 import { createDiagnosticReference, safeErrorMessage } from "./error-messages.mjs";
 
 const CATALOG_URL = "/data/catalog.json";
+const OWNER_DASHBOARD_URL = "https://ph-exam-results-owner.pages.dev";
+const FIREBASE_CONFIG = {
+  apiKey: "AIzaSyDN3QQyk6ueanwjLVtU4YcEGBxgDaF4U0w",
+  authDomain: "ph-exam-results-dd94a.firebaseapp.com",
+  projectId: "ph-exam-results-dd94a",
+  storageBucket: "ph-exam-results-dd94a.firebasestorage.app",
+  messagingSenderId: "722578122359",
+  appId: "1:722578122359:web:8180388de4bbee11d40872",
+};
 const STATUS_URL = "/status.json";
 const MAX_RESULTS = 100;
 const elements = {
@@ -228,4 +237,63 @@ window.addEventListener("error", (event) => {
 
 window.addEventListener("unhandledrejection", (event) => {
   showSafeError("unexpected", event.reason);
+});
+
+
+// Owner sign-in is isolated from the public examination search workflow.
+const ownerLogin = {
+  dialog: document.querySelector("#owner-login-dialog"),
+  open: document.querySelector("#owner-login-open"),
+  close: document.querySelector("#owner-login-close"),
+  form: document.querySelector("#owner-login-form"),
+  email: document.querySelector("#owner-email"),
+  password: document.querySelector("#owner-password"),
+  submit: document.querySelector("#owner-login-submit"),
+  message: document.querySelector("#owner-login-message"),
+};
+
+function showOwnerLogin() {
+  if (ownerLogin.dialog && !ownerLogin.dialog.open) ownerLogin.dialog.showModal();
+}
+ownerLogin.open?.addEventListener("click", showOwnerLogin);
+ownerLogin.close?.addEventListener("click", () => ownerLogin.dialog.close());
+ownerLogin.dialog?.addEventListener("click", (event) => {
+  if (event.target === ownerLogin.dialog) ownerLogin.dialog.close();
+});
+if (new URLSearchParams(location.search).get("owner") === "login") showOwnerLogin();
+
+ownerLogin.form?.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  ownerLogin.submit.disabled = true;
+  ownerLogin.message.textContent = "Verifying owner account… / جارٍ التحقق من حساب المالك…";
+  try {
+    const [{ initializeApp }, { initializeAuth, inMemoryPersistence, signInWithEmailAndPassword, getIdToken, signOut }] =
+      await Promise.all([
+        import("https://www.gstatic.com/firebasejs/11.10.0/firebase-app.js"),
+        import("https://www.gstatic.com/firebasejs/11.10.0/firebase-auth.js"),
+      ]);
+    const app = initializeApp(FIREBASE_CONFIG, "ph-exam-results-owner-login");
+    const auth = initializeAuth(app, { persistence: inMemoryPersistence });
+    const credential = await signInWithEmailAndPassword(auth, ownerLogin.email.value.trim(), ownerLogin.password.value);
+    const idToken = await getIdToken(credential.user, true);
+    const response = await fetch(OWNER_DASHBOARD_URL + "/auth/firebase/exchange", {
+      method: "POST",
+      mode: "cors",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ idToken }),
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok || result.authenticated !== true) {
+      throw new Error(result.error || "Owner access was denied. / تم رفض دخول المالك.");
+    }
+    await signOut(auth);
+    location.assign(OWNER_DASHBOARD_URL + "/");
+  } catch (error) {
+    ownerLogin.message.textContent = error?.message?.includes("auth/")
+      ? "Sign-in failed. Check your email and password. / تعذّر تسجيل الدخول. تحقق من البريد وكلمة المرور."
+      : (error instanceof Error ? error.message : "Owner sign-in failed. / فشل تسجيل دخول المالك.");
+  } finally {
+    ownerLogin.submit.disabled = false;
+  }
 });
