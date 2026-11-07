@@ -10,11 +10,11 @@ test("direct dashboard URL redirects to the public Owner login dialog without a 
   assert.equal(response.headers.get("Location"),"https://ph-exam-results.pages.dev/?owner=login");
 });
 test("only the Firebase handoff and authentication routes are reachable before login",async()=>{
-  for(const path of ["/continue.html","/continue","/continue.js","/continue.css","/auth/firebase","/auth/firebase/complete","/auth/login","/auth/callback","/auth/session"]){
+  for(const path of ["/continue.html","/continue","/continue.js","/continue.css","/auth/firebase","/auth/firebase/complete","/auth/session"]){
     const response=await onRequest({request:new Request("https://owner.example.pages.dev"+path),env,next});
     assert.equal(response.status,200,path);
   }
-  for(const path of ["/","/activity.js","/owner.css","/api/activity"]){
+  for(const path of ["/","/activity.js","/owner.css","/api/activity","/auth/login","/auth/callback"]){
     const blocked=await onRequest({request:new Request("https://owner.example.pages.dev"+path),env,next});
     assert.equal(blocked.status,302,path);
   }
