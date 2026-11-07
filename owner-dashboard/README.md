@@ -27,7 +27,7 @@ match /users/{userId} {
 
 Trusted Firebase Admin operations bypass Firestore rules. Never place an Admin SDK credential in the browser or repository.
 
-The public page uses the Firebase Web App configuration (a public client configuration, not an Admin credential). The dashboard server verifies the Firebase ID-token RS256 signature and claims against Google's Secure Token public keys, then reads the Owner's own Firestore document using the ID token.
+The public page sends the Owner email/password over HTTPS only to the private dashboard endpoint. The dashboard uses its server-side `FIREBASE_API_KEY` Pages variable to request a Firebase ID token, verifies the token's RS256 signature and claims against Google's Secure Token public keys, then reads the Owner's own Firestore document using the ID token. The password is not logged or stored; the API key and Firebase ID token are never sent to the public page or returned to the browser.
 
 ### 2. Safe handoff between the two Pages sites
 
@@ -63,6 +63,7 @@ Create the separate Pages project `ph-exam-results-owner`, production branch `ma
 Configure these production environment variables:
 
 - `FIREBASE_PROJECT_ID` — `ph-exam-results-dd94a`
+- `FIREBASE_API_KEY` — Firebase Web App API key, configured only as a private Pages environment variable (not in public source)
 - `FIREBASE_OWNER_UID` — exact Firebase Owner UID (optional additional pin; recommended)
 - `PUBLIC_SITE_ORIGIN` — `https://ph-exam-results.pages.dev`
 - `OWNER_GITHUB_ID` — `338246827`
