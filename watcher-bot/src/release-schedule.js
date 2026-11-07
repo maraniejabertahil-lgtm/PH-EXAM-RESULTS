@@ -339,7 +339,9 @@ export async function refreshOfficialReleaseSchedule({ sources, kv, fetchImpl = 
   const refreshInterval = Number.isInteger(configuredHours) && configuredHours >= 1 && configuredHours <= 24
     ? configuredHours * 60 * 60 * 1000
     : REFRESH_INTERVAL_MS;
-  if (cached && Number.isFinite(fetchedAt) && now.getTime() - fetchedAt < refreshInterval) {
+  const hasCurrentRobotsEvidence = cached?.access_policy?.outcome === "allowed"
+    && cached?.access_policy?.user_agent === USER_AGENT;
+  if (cached && hasCurrentRobotsEvidence && Number.isFinite(fetchedAt) && now.getTime() - fetchedAt < refreshInterval) {
     return { status: "cached", snapshot: cached };
   }
 
