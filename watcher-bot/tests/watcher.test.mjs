@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { runScheduled, expandPreemptiveTemplates } from "../src/index.js";
+import worker from "../src/index.js";
 
 const repository = "owner/repository";
 class MemoryKV {
@@ -880,4 +881,57 @@ test("PRC listing snapshots historical pages and processes newly posted result a
   assert.equal(dispatches[3].client_payload.event.result_level, "secondary");
   assert.equal(dispatches[3].client_payload.event.article_url, newArticles[3]);
   assert.ok(secondBatch.outbound_subrequests_used <= secondBatch.outbound_subrequest_safety_limit);
+});
+
+
+test("scheduled Watcher discovers the nearest official PRC release and serves its cached endpoint", async () => {
+  const scheduleSource = {
+    id: "PRC-OFFICIAL-SCHEDULE-INDEX",
+    authority: "PRC",
+    exam: "ALL-LICENSURE-EXAMS",
+    source_type: "official_schedule_index",
+    authorized: true,
+    enabled: true,
+    url: "https://www.prc.gov.ph/exam-schedules-menu",
+    max_schedule_pages: 2
+  };
+  const scheduleHtml =
+    '<table>' +
+    '<tr><th>SEQ</th><th>NAME OF EXAMINATION</th><th>DATE/S OF EXAMINATION</th><th>DAY/S</th><th>TESTING CENTER/S</th><th colspan="2">APPLICATION PERIOD</th><th>TARGET DATE OF RELEASE OF EXAMINATION RESULTS</th><th>REQUIREMENTS</th></tr>' +
+    '<tr><td>71</td><td>Veterinarians</td><td>November 04, 05, and 06, 2026</td><td>Wed, Thu, Fri</td><td>NCR</td><td>August 06, 2026</td><td>October 05, 2026</td><td>November 10, 2026</td><td>Click Here</td></tr>' +
+    '<tr><td>72</td><td>Midwives</td><td>November 07 and 08, 2026</td><td>Sat, Sun</td><td>NCR</td><td>August 07, 2026</td><td>October 08, 2026</td><td>November 11, 2026</td><td>Click Here</td></tr>' +
+    '</table>';
+  const env = envFor();
+  const { fetchImpl } = githubFetch([scheduleSource], async (url) => {
+    if (url === "https://www.prc.gov.ph/robots.txt") {
+      return new Response("User-agent: *\nAllow: /exam-schedules-menu\nAllow: /2026-schedule-examination\n", {
+        status: 200, headers: { "content-type": "text/plain" }
+      });
+    }
+    if (url === "https://www.prc.gov.ph/exam-schedules-menu") {
+      return new Response('<a href="/2026-schedule-examination">2026</a>', {
+        status: 200, headers: { "content-type": "text/html" }
+      });
+    }
+    if (url === "https://www.prc.gov.ph/2026-schedule-examination") {
+      return new Response(scheduleHtml, { status: 200, headers: { "content-type": "text/html" } });
+    }
+    throw new Error("Unexpected request: " + url);
+  });
+  const report = await runScheduled({
+    env,
+    fetchImpl,
+    scheduledTime: Date.UTC(2026, 10, 8, 4)
+  });
+  assert.equal(report.schedule_discovery.status, "updated");
+  assert.equal(report.schedule_discovery.nearest_release.exam, "Veterinarians");
+  assert.equal(report.schedule_discovery.nearest_release.target_release_date, "2026-11-10");
+
+  const response = await worker.fetch(
+    new Request("https://watcher.example/api/releases/upcoming"),
+    env
+  );
+  assert.equal(response.status, 200);
+  const payload = await response.json();
+  assert.equal(payload.nearest.exam, "Veterinarians");
 });
