@@ -25,6 +25,26 @@ const scheduleHtml =
   '<tr><td>74</td><td>Old Examination</td><td>October 01, 2026</td><td>Thu</td><td>NCR</td><td>July 01, 2026</td><td>September 01, 2026</td><td>October 06, 2026</td><td>Click Here</td></tr>' +
   '</table></html>';
 
+test("deduplicates only identical normalized examination names and target dates", () => {
+  const html = '<table>' +
+    '<tr><th>SEQ</th><th>NAME OF EXAMINATION</th><th>DATE/S OF EXAMINATION</th><th>DAY/S</th><th>TESTING CENTER/S</th><th colspan="2">APPLICATION PERIOD</th><th>TARGET DATE OF RELEASE OF EXAMINATION RESULTS</th><th>REQUIREMENTS</th></tr>' +
+    '<tr><td>1</td><td>Professional Mechanical Engineers (Technical Evaluation)</td><td>Nov 1, 2026</td><td>Sun</td><td>Manila</td><td></td><td></td><td>December 17, 2026</td><td></td></tr>' +
+    '<tr><td>2</td><td> Professional  Mechanical Engineers (Technical Evaluation) </td><td>Nov 2, 2026</td><td>Mon</td><td>Cebu</td><td></td><td></td><td>December 17, 2026</td><td></td></tr>' +
+    '<tr><td>3</td><td>Professional Mechanical Engineers (Technical Evaluation)</td><td>Nov 3, 2026</td><td>Tue</td><td>Davao</td><td></td><td></td><td>December 18, 2026</td><td></td></tr>' +
+    '<tr><td>4</td><td>Professional Electrical Engineers (Oral Examination)</td><td>Nov 4, 2026</td><td>Wed</td><td>NCR</td><td></td><td></td><td>December 17, 2026</td><td></td></tr>' +
+    '</table>';
+  const result = parsePrcScheduleHtml(html, "https://www.prc.gov.ph/2026-schedule-examination", new Date("2026-11-08T04:00:00.000Z"));
+  assert.equal(result.parsed_count, 3);
+  assert.equal(result.upcoming_count, 3);
+  assert.equal(result.upcoming.filter((item) => item.exam.includes("Mechanical")).length, 2);
+  assert.equal(result.upcoming.filter((item) => item.target_release_date === "2026-12-17").length, 2);
+});
+
+test("parses date labels with whitespace before the comma", () => {
+  const html = scheduleHtml.replace("November 10, 2026", "October 23 , 2026");
+  const result = parsePrcScheduleHtml(html, "https://www.prc.gov.ph/2026-schedule-examination", new Date("2026-11-08T04:00:00.000Z"));
+  assert.equal(result.unparsed_count, 0);
+});
 test("parses official PRC target-release column and chooses the nearest future date", () => {
   const now = new Date("2026-11-08T04:00:00.000Z");
   const result = parsePrcScheduleHtml(scheduleHtml, "https://www.prc.gov.ph/2026-schedule-examination", now);
@@ -87,6 +107,8 @@ test("refresh fetches official pages, checks robots, and stores the schedule sna
   const result = await refreshOfficialReleaseSchedule({ sources: [source], kv, fetchImpl, now });
   assert.equal(result.status, "updated");
   assert.equal(result.snapshot.nearest.exam, "Veterinarians (CBLE)");
+  assert.equal(result.snapshot.access_policy.outcome, "allowed");
+  assert.equal(result.snapshot.access_policy.user_agent, "PH-EXAM-RESULTS-Watcher");
   assert.equal(calls.length, 3);
   assert.ok(kv.values.has(RELEASE_SCHEDULE_CACHE_KEY));
   assert.equal(kv.lastOptions.expirationTtl, 14 * 24 * 60 * 60);
