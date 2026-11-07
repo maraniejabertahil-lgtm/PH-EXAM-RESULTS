@@ -22,6 +22,7 @@ These documents are connected by references, not synchronized copies. Each has a
 6. Keep the Master Technical Blueprint and AI Blueprint governing. This connection protocol does not authorize changing either blueprint.
 
 ## Phase 1: The Watcher (Cloudflare Worker)
+- [ ] Implement official PRC future-release schedule discovery in the Watcher (official schedule-index discovery, runtime robots.txt compliance, bounded HTML extraction, nearest upcoming target-date calculation using the Manila calendar, six-hour KV cache, and read-only JSON endpoint; automated tests and live production verification tracked separately under P1-11 / Owner decision D-011).
 - [x] Initialize `watcher-bot/` directory and `wrangler.toml` config
 - [x] Implement standard 1-minute cron check against approved official PRC/CSC sources (PRC monitored; CSC safely paused pending compliant access)
 - [x] Implement Peak Week Mode (Cloudflare KV check, 30-sec loop)

@@ -96,3 +96,26 @@ The `prc-release-detected` receiver in `.github/workflows/process-import.yml` at
 Only a batch that passes ingestion checks is sent to the existing Python Greenlight/GitOps pipeline. The publisher remains fail-closed and can publish only through its validated dataset PR/CI path. A configured exam-specific source overrides the general PRC listing source, so a disabled exam cannot be acquired through the general listing. The current CPALE Drive list remains disabled because its ordinary public route presented a sign-in page; no authentication, CAPTCHA, or access-control workaround is attempted. With no reviewed CPALE PDF mapping, the system cannot yet publish that exam automatically.
 
 This improves the processing path but does not change the one-minute Worker schedule or prove a production run. "Second after PRC" timing is not guaranteed by the current polling interval or by a release whose official linked content is not publicly accessible.
+
+### Official PRC future-release schedule discovery
+
+The Watcher also discovers the nearest upcoming PRC target release date from the official examination-schedule index. The authorized registry entry is `PRC-OFFICIAL-SCHEDULE-INDEX` in `python-engine/config/sources.json`.
+
+- Starts at the official PRC schedule index: `https://www.prc.gov.ph/exam-schedules-menu`.
+- Discovers only same-origin yearly schedule pages matching the official `/{year}-schedule-examination` path, limited to the current and following Manila calendar year.
+- Fetches the same-origin `robots.txt` on each refresh and stops without fetching schedule pages if the index or any discovered schedule path is disallowed or the robots policy cannot be verified.
+- Uses disclosed HTTPS GET requests, same-origin redirects only, a 10-second request timeout, a 32 KiB robots limit, and a 1 MiB per-page HTML limit.
+- Extracts the official table columns by their header labels (examination name and **Target Date of Release of Examination Results**), accounts for the application-period colspan, and refuses to publish a nearest date if the expected table structure cannot be identified.
+- Calculates date-only countdowns using the Philippines (Asia/Manila, UTC+8) calendar. These are PRC **target** dates, not confirmation that results have actually been published.
+- Refreshes at most once every six hours and caches the public schedule snapshot in the existing `PEAK_WEEK` KV namespace. A failed refresh preserves the last known-good snapshot.
+- Exposes the cached public schedule at `GET /api/releases/upcoming`. The endpoint contains only public schedule data; it does not expose D1 records or secrets. The endpoint returns 503 until the first compliant schedule snapshot has been stored.
+- Existing official result-announcement detection and the Python Greenlight/GitOps publication pipeline remain separate and unchanged.
+
+Run the schedule parser and policy tests with:
+
+```bash
+node --test tests/release-schedule.test.mjs
+npm test
+```
+
+Unit tests use mocked PRC responses. They do not prove the live PRC robots policy, live schedule retrieval, Worker deployment, or production endpoint availability; those remain separate acceptance checks.

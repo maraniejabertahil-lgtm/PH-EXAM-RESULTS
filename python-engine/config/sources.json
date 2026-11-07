@@ -85,6 +85,22 @@
         "poll_ms": 100,
         "max_pages": 100
       }
+    },
+    {
+      "id": "PRC-OFFICIAL-SCHEDULE-INDEX",
+      "authority": "PRC",
+      "exam": "ALL-LICENSURE-EXAMS",
+      "exam_scope": "all",
+      "source_type": "official_schedule_index",
+      "authorized": true,
+      "enabled": true,
+      "url": "https://www.prc.gov.ph/exam-schedules-menu",
+      "robots_policy_runtime_check": true,
+      "schedule_year_scope": "current_and_next",
+      "max_schedule_pages": 2,
+      "refresh_interval_hours": 6,
+      "direct_drive_fallback": false,
+      "third_party_fallback": false
     }
   ]
 }
