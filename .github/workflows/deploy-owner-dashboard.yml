@@ -51,15 +51,24 @@ jobs:
       - name: Check private dashboard JavaScript syntax
         run: |
           node --check owner-dashboard/public/activity.js
+          node --check owner-dashboard/public/continue.js
+          node --check public/assets/js/app.mjs
           node --check owner-dashboard/functions/api/activity.js
           node --check owner-dashboard/functions/lib/access.js
+          node --check owner-dashboard/functions/lib/firebase.js
+          node --check owner-dashboard/functions/_middleware.js
+          node --check owner-dashboard/functions/auth/firebase.js
+          node --check owner-dashboard/functions/auth/firebase/complete.js
           node --check owner-dashboard/functions/lib/oauth.js
           node --check owner-dashboard/functions/auth/login.js
           node --check owner-dashboard/functions/auth/callback.js
           node --check owner-dashboard/functions/auth/session.js
           node --check owner-dashboard/functions/auth/logout.js
-      - name: Test exact owner Access verification and private D1 API
+          node --check owner-dashboard/functions/auth/health.js
+      - name: Test Firebase/GitHub dual Owner verification and private D1 API
         run: node --test owner-dashboard/functions/tests/*.test.mjs
+      - name: Test public browser error messaging
+        run: node --test public/tests/*.test.mjs
       - name: Test Python D1 REST client and additive migration
         working-directory: python-engine
         run: python -m unittest discover -s tests -p "test_d1_client.py" -v
@@ -89,12 +98,48 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CF_PAGES_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
           PROJECT_NAME: ${{ secrets.CF_OWNER_PAGES_PROJECT_NAME }}
+          CF_D1_API_TOKEN: ${{ secrets.CF_D1_API_TOKEN }}
+          CF_D1_DATABASE_ID: ${{ secrets.CF_D1_DATABASE_ID }}
         run: |
           set -euo pipefail
           test -n "$CLOUDFLARE_API_TOKEN" || { echo "::error::Missing CF_PAGES_API_TOKEN."; exit 1; }
           test -n "$CLOUDFLARE_ACCOUNT_ID" || { echo "::error::Missing CF_ACCOUNT_ID."; exit 1; }
           test -n "$PROJECT_NAME" || { echo "::error::Missing CF_OWNER_PAGES_PROJECT_NAME."; exit 1; }
-          echo "Private Pages deployment settings are present."
+          test -n "$CF_D1_API_TOKEN" || { echo "::error::Missing CF_D1_API_TOKEN."; exit 1; }
+          test -n "$CF_D1_DATABASE_ID" || { echo "::error::Missing CF_D1_DATABASE_ID."; exit 1; }
+          echo "Private Pages and D1 deployment settings are present."
+      - name: Verify D1 migration is complete before deployment
+        env:
+          CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
+          CF_D1_DATABASE_ID: ${{ secrets.CF_D1_DATABASE_ID }}
+          CF_D1_API_TOKEN: ${{ secrets.CF_D1_API_TOKEN }}
+        run: |
+          python - <<'PY'
+          import json, os
+          from urllib.request import Request, urlopen
+          account = os.environ["CF_ACCOUNT_ID"]
+          database = os.environ["CF_D1_DATABASE_ID"]
+          token = os.environ["CF_D1_API_TOKEN"]
+          sql = "SELECT name FROM sqlite_master WHERE type='table' AND name IN ('monitoring_logs','import_batches','release_predictions')"
+          request = Request(
+              f"https://api.cloudflare.com/client/v4/accounts/{account}/d1/database/{database}/query",
+              data=json.dumps({"sql": sql, "params": []}).encode(),
+              headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json", "Accept": "application/json"},
+              method="POST",
+          )
+          with urlopen(request, timeout=20) as response:
+              payload = json.load(response)
+          if payload.get("success") is not True:
+              raise SystemExit("Cloudflare D1 schema preflight failed.")
+          results = payload.get("result", [])
+          rows = results[0].get("results", []) if results and isinstance(results[0], dict) else []
+          found = {row.get("name") for row in rows if isinstance(row, dict)}
+          required = {"monitoring_logs", "import_batches", "release_predictions"}
+          missing = sorted(required - found)
+          if missing:
+              raise SystemExit("D1 migration is incomplete; run Migrate Private Activity Monitor D1 before deploying.")
+          print("Required private activity-monitor D1 tables are present.")
+          PY
       - name: Deploy isolated private dashboard
         working-directory: owner-dashboard
         env:
@@ -102,3 +147,20 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
           PROJECT_NAME: ${{ secrets.CF_OWNER_PAGES_PROJECT_NAME }}
         run: npx --yes wrangler@4.156.2 pages deploy public --project-name "$PROJECT_NAME" --branch main
+      - name: Verify deployed Owner authentication configuration
+        env:
+          PROJECT_NAME: ${{ secrets.CF_OWNER_PAGES_PROJECT_NAME }}
+        run: |
+          set -euo pipefail
+          url="https://${PROJECT_NAME}.pages.dev/auth/health"
+          for attempt in $(seq 1 12); do
+            status=$(curl -sS -o /tmp/owner-health.json -w "%{http_code}" "$url" || true)
+            if [ "$status" = "200" ] && python -c 'import json; assert json.load(open("/tmp/owner-health.json"))["ready"] is True'; then
+              echo "Private Owner dashboard configuration is ready."
+              exit 0
+            fi
+            sleep 5
+          done
+          cat /tmp/owner-health.json || true
+          echo "::error::Private Owner dashboard configuration is incomplete; see production Pages variables."
+          exit 1

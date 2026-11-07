@@ -1,4 +1,5 @@
 const SESSION_COOKIE = "__Host-ph_owner_session";
+const FIREBASE_COOKIE = "__Host-ph_owner_firebase";
 const STATE_COOKIE = "__Host-ph_owner_oauth_state";
 const VERIFIER_COOKIE = "__Host-ph_owner_pkce";
 function b64url(bytes) { return btoa(String.fromCharCode(...bytes)).replace(/=/g, "").replace(/\+/g, "-").replace(/\//g, "_"); }
@@ -8,22 +9,43 @@ function equal(a,b) { if(typeof a!=="string"||typeof b!=="string"||a.length!==b.
 async function hmac(secret,value) { const key=await crypto.subtle.importKey("raw",new TextEncoder().encode(secret),{name:"HMAC",hash:"SHA-256"},false,["sign"]); return b64url(new Uint8Array(await crypto.subtle.sign("HMAC",key,new TextEncoder().encode(value)))); }
 export function randomToken(bytes=32) { const value=new Uint8Array(bytes); crypto.getRandomValues(value); return b64url(value); }
 export function cookieHeader(name,value,maxAge) { return name+"="+value+"; Path=/; Max-Age="+maxAge+"; HttpOnly; Secure; SameSite=Lax"; }
+export function crossSiteCookieHeader(name,value,maxAge) { return name+"="+value+"; Path=/; Max-Age="+maxAge+"; HttpOnly; Secure; SameSite=None"; }
 export function clearCookie(name) { return name+"=; Path=/; Max-Age=0; HttpOnly; Secure; SameSite=Lax"; }
-export const COOKIE_NAMES={session:SESSION_COOKIE,state:STATE_COOKIE,verifier:VERIFIER_COOKIE};
+export const COOKIE_NAMES={session:SESSION_COOKIE,firebase:FIREBASE_COOKIE,state:STATE_COOKIE,verifier:VERIFIER_COOKIE};
 export async function signSession(payload,secret) { const body=b64url(new TextEncoder().encode(JSON.stringify(payload))); return body+"."+await hmac(secret,body); }
-export async function readSession(request,env) {
+export async function readSignedValue(value,env) {
  const secret=env.SESSION_SIGNING_KEY;
- if(!secret||secret.length<32||!env.OWNER_GITHUB_ID||!env.OWNER_EMAIL)return null;
+ if(typeof secret!=="string"||secret.length<32||typeof value!=="string")return null;
  try {
-  const parts=cookie(request,SESSION_COOKIE).split(".");
+  const parts=value.split(".");
   if(parts.length!==2||!equal(await hmac(secret,parts[0]),parts[1]))return null;
   const data=JSON.parse(new TextDecoder().decode(fromB64url(parts[0])));
   const now=Math.floor(Date.now()/1000);
-  if(!Number.isInteger(data.exp)||data.exp<=now||!Number.isInteger(data.iat)||data.iat>now+60||
-    typeof data.csrf!=="string"||data.csrf.length<32)return null;
-  if(String(data.github_id)!==String(env.OWNER_GITHUB_ID)||data.email!==String(env.OWNER_EMAIL).trim().toLowerCase()||data.email_verified!==true)return null;
+  if(!Number.isInteger(data.exp)||data.exp<=now||!Number.isInteger(data.iat)||data.iat>now+60)return null;
   return data;
  } catch{return null;}
+}
+export async function readSignedCookie(request,name,env) {
+ const value=(request.headers.get("Cookie")||"").split(";").map(v=>v.trim()).find(v=>v.startsWith(name+"="))?.slice(name.length+1)||"";
+ return readSignedValue(value,env);
+}
+export async function readFirebaseProof(request,env) {
+ const data=await readSignedCookie(request,FIREBASE_COOKIE,env);
+ const ownerEmail=String(env.OWNER_EMAIL||"").trim().toLowerCase();
+ if(!data||typeof data.firebase_uid!=="string"||!data.firebase_uid||
+   data.firebase_role!=="owner"||data.purpose!=="firebase-owner-proof"||data.firebase_email!==ownerEmail)return null;
+ return data;
+}
+export async function readSession(request,env) {
+ if(!env.OWNER_GITHUB_ID||!env.OWNER_EMAIL)return null;
+ const data=await readSignedCookie(request,SESSION_COOKIE,env);
+ const ownerEmail=String(env.OWNER_EMAIL).trim().toLowerCase();
+ if(!data||String(data.github_id)!==String(env.OWNER_GITHUB_ID)||
+   data.email!==ownerEmail||data.email_verified!==true||
+   typeof data.firebase_uid!=="string"||!data.firebase_uid||
+   data.firebase_email!==ownerEmail||data.firebase_role!=="owner"||
+   typeof data.csrf!=="string"||data.csrf.length<32)return null;
+ return data;
 }
 export async function isOwnerAccessRequest(request,env){return Boolean(await readSession(request,env));}
 export async function requireCsrf(request,env){

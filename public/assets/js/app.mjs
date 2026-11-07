@@ -3,6 +3,7 @@ import { createDiagnosticReference, safeErrorMessage } from "./error-messages.mj
 
 const CATALOG_URL = "/data/catalog.json";
 const STATUS_URL = "/status.json";
+let siteStatus = null;
 const MAX_RESULTS = 100;
 const elements = {
   searchView: document.querySelector("#search-view"),
@@ -63,6 +64,7 @@ async function loadStatus() {
   const response = await fetch(STATUS_URL, { cache: "no-store", credentials: "same-origin" });
   if (!response.ok) throw new Error(`Site status could not be loaded (HTTP ${response.status}).`);
   const status = await response.json();
+  siteStatus = status;
   if (!["searching", "preparing"].includes(status.mode)) throw new Error("Site status has an invalid mode.");
   if (status.mode === "preparing") showPreparingMode();
 }
@@ -228,4 +230,65 @@ window.addEventListener("error", (event) => {
 
 window.addEventListener("unhandledrejection", (event) => {
   showSafeError("unexpected", event.reason);
+});
+
+
+// Owner authentication is isolated from the public examination search workflow.
+// The Firebase API key and password-to-ID-token exchange stay server-side.
+const OWNER_DASHBOARD_URL = "https://ph-exam-results-owner.pages.dev";
+const ownerLogin = {
+  dialog: document.querySelector("#owner-login-dialog"),
+  open: document.querySelector("#owner-login-open"),
+  close: document.querySelector("#owner-login-close"),
+  form: document.querySelector("#owner-login-form"),
+  email: document.querySelector("#owner-email"),
+  password: document.querySelector("#owner-password"),
+  submit: document.querySelector("#owner-login-submit"),
+  message: document.querySelector("#owner-login-message"),
+};
+function showOwnerLogin() {
+  if (ownerLogin.dialog && !ownerLogin.dialog.open) ownerLogin.dialog.showModal();
+}
+ownerLogin.open?.addEventListener("click", showOwnerLogin);
+ownerLogin.close?.addEventListener("click", () => ownerLogin.dialog.close());
+ownerLogin.dialog?.addEventListener("click", (event) => {
+  if (event.target === ownerLogin.dialog) ownerLogin.dialog.close();
+});
+const ownerQuery = new URLSearchParams(location.search);
+const ownerLoginEnabled = siteStatus?.owner_login_enabled === true;
+if (ownerLogin.open) ownerLogin.open.hidden = !ownerLoginEnabled;
+if (ownerQuery.get("owner") === "login" && ownerLoginEnabled) showOwnerLogin();
+if (ownerQuery.get("owner_reason")) {
+  const reason = ownerQuery.get("owner_reason");
+  if (reason === "github_denied") ownerLogin.message.textContent = "GitHub Owner verification failed. / فشل التحقق من حساب المالك في GitHub.";
+  else if (reason === "github_failed") ownerLogin.message.textContent = "GitHub sign-in could not be completed. Please try again. / تعذّر إكمال تسجيل الدخول عبر GitHub. حاول مرة أخرى.";
+  else if (reason === "firebase_required") ownerLogin.message.textContent = "Please verify your Firebase Owner account first. / يرجى التحقق من حساب Firebase الخاص بالمالك أولاً.";
+}
+ownerLogin.form?.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  ownerLogin.submit.disabled = true;
+  ownerLogin.message.textContent = "Verifying Firebase Owner account… / جارٍ التحقق من حساب مالك Firebase…";
+  const email = ownerLogin.email.value.trim();
+  const password = ownerLogin.password.value;
+  try {
+    const response = await fetch(OWNER_DASHBOARD_URL + "/auth/firebase", {
+      method: "POST",
+      mode: "cors",
+      credentials: "omit",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, password }),
+    });
+    const result = await response.json().catch(() => ({}));
+    ownerLogin.password.value = "";
+    if (!response.ok || result.authenticated !== true || typeof result.proof !== "string") {
+      throw new Error(result.error || "Firebase Owner access was denied. / تم رفض صلاحية مالك Firebase.");
+    }
+    ownerLogin.message.textContent = "Firebase Owner verified. Continue with GitHub verification… / تم التحقق من مالك Firebase. أكمل التحقق عبر GitHub…";
+    location.assign(OWNER_DASHBOARD_URL + "/continue.html#proof=" + encodeURIComponent(result.proof));
+  } catch (error) {
+    ownerLogin.password.value = "";
+    const raw = error instanceof Error ? error.message : "";
+    ownerLogin.message.textContent = raw || "Owner sign-in failed. / فشل تسجيل دخول المالك.";
+    ownerLogin.submit.disabled = false;
+  }
 });

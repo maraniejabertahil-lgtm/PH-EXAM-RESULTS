@@ -57,6 +57,7 @@ These documents are connected by references, not synchronized copies. Each has a
 - [x] Implement `search.js` (Web Worker) to search 50,000+ array records without freezing UI (five Chromium worker searches completed with zero observed >50 ms frame gaps)
 - [x] Configure Cloudflare Pages deployment via `.github/workflows/deploy-pages.yml` (PR #98 merged; production Pages deployment succeeded)
 - [x] Build an Owner-facing website review experience for official preview evidence and extracted name/sequence records, while keeping the public search route read-only (local-only, exact-hash receipt; D-009 makes this supplemental for batches passing all automated checks)
+- [ ] Deploy and complete production acceptance of the separate Private Owner Activity Dashboard with Firebase `users/{uid}` Owner-role authorization AND the existing GitHub OAuth identity check; protect direct routes, private D1 activity API, session, and logout (P4-15–P4-18; implementation candidate on `feature/owner-dashboard-firebase-github-dual-auth`; production Pages/D1 configuration and live identity tests remain outstanding)
 
 ## Phase 5: Final Live Acceptance & Security
 - [ ] Run an eligible PRC release through Watcher detection, capture, Greenlight, GitOps PR, exact-head CI/merge, and Pages deployment under the D-008/D-009 one-month trial (configured sources only; CSC excluded by D-003)

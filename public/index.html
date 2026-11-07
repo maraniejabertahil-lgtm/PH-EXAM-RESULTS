@@ -7,16 +7,37 @@
   <meta name="description" content="Search published Philippine examination results by authority, examination, year, and name.">
   <title>Exam Results Search</title>
   <link rel="stylesheet" href="/assets/css/site.css">
+  <link rel="stylesheet" href="/assets/css/owner-login.css">
   <script type="module" src="/assets/js/app.mjs"></script>
 </head>
 <body>
   <header class="site-header">
-    <a class="brand" href="/" aria-label="PH Exam Results home">
-      <span class="brand-mark" aria-hidden="true">PH</span>
-      <span>Exam Results</span>
-    </a>
+    <div class="header-left">
+      <button id="owner-login-open" class="owner-login-button" type="button" hidden aria-haspopup="dialog" aria-label="Owner Login · دخول المالك">
+        <span aria-hidden="true">♙</span> Owner Login <span lang="ar" dir="rtl">دخول المالك</span>
+      </button>
+      <a class="brand" href="/" aria-label="PH Exam Results home">
+        <span class="brand-mark" aria-hidden="true">PH</span>
+        <span>Exam Results</span>
+      </a>
+    </div>
     <span class="header-note">Officially sourced · Verified before publication</span>
   </header>
+
+  <dialog id="owner-login-dialog" class="owner-login-dialog" aria-labelledby="owner-login-title">
+    <form id="owner-login-form" class="owner-login-form">
+      <button id="owner-login-close" class="dialog-close" type="button" aria-label="Close">×</button>
+      <p class="eyebrow">PRIVATE ACCESS · دخول خاص</p>
+      <h2 id="owner-login-title">Owner Login · دخول المالك</h2>
+      <p>Authorized owner account only. حساب المالك المصرّح له فقط.</p>
+      <label for="owner-email">Email · البريد الإلكتروني</label>
+      <input id="owner-email" name="email" type="email" autocomplete="username" required>
+      <label for="owner-password">Password · كلمة المرور</label>
+      <input id="owner-password" name="password" type="password" autocomplete="current-password" required>
+      <button id="owner-login-submit" class="button" type="submit">Sign in · تسجيل الدخول</button>
+      <p id="owner-login-message" class="owner-login-message" role="status" aria-live="polite"></p>
+    </form>
+  </dialog>
 
   <main>
     <section id="preparing-view" class="preparing-panel" hidden aria-labelledby="preparing-title">
