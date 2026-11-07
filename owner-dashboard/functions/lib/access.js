@@ -13,7 +13,7 @@ export const COOKIE_NAMES={session:SESSION_COOKIE,state:STATE_COOKIE,verifier:VE
 export async function signSession(payload,secret) { const body=b64url(new TextEncoder().encode(JSON.stringify(payload))); return body+"."+await hmac(secret,body); }
 export async function readSession(request,env) {
  const secret=env.SESSION_SIGNING_KEY;
- if(!secret||secret.length<32||!env.OWNER_GITHUB_ID||!env.OWNER_EMAIL)return null;
+ if(!secret||secret.length<32||!env.OWNER_EMAIL)return null;
  try {
   const parts=cookie(request,SESSION_COOKIE).split(".");
   if(parts.length!==2||!equal(await hmac(secret,parts[0]),parts[1]))return null;
@@ -21,7 +21,13 @@ export async function readSession(request,env) {
   const now=Math.floor(Date.now()/1000);
   if(!Number.isInteger(data.exp)||data.exp<=now||!Number.isInteger(data.iat)||data.iat>now+60||
     typeof data.csrf!=="string"||data.csrf.length<32)return null;
-  if(String(data.github_id)!==String(env.OWNER_GITHUB_ID)||data.email!==String(env.OWNER_EMAIL).trim().toLowerCase()||data.email_verified!==true)return null;
+  const ownerEmail=String(env.OWNER_EMAIL).trim().toLowerCase();
+  if(data.provider==="firebase") {
+   if(!env.FIREBASE_PROJECT_ID||data.project_id!==env.FIREBASE_PROJECT_ID||
+     data.role!=="owner"||typeof data.uid!=="string"||!data.uid||
+     data.email!==ownerEmail||data.email_verified!==true)return null;
+  } else if(String(data.github_id)!==String(env.OWNER_GITHUB_ID)||
+    data.email!==ownerEmail||data.email_verified!==true)return null;
   return data;
  } catch{return null;}
 }
