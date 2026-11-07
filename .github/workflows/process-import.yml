@@ -188,6 +188,17 @@ jobs:
         working-directory: python-engine
         run: python -m pip install -r requirements.txt
 
+      - name: Install Tesseract only for explicitly selected Tier 3 OCR
+        env:
+          BATCH_FILE: ${{ github.event_name == 'push' && 'manual-drop/normalized-batch.json' || inputs.batch_file }}
+        run: |
+          set -euo pipefail
+          if python -c 'import json,os; p=os.environ["BATCH_FILE"]; b=json.load(open(p,encoding="utf-8")); raise SystemExit(0 if b.get("official_content_mode")=="static_png_ocr" else 1)' ; then
+            sudo apt-get update
+            sudo apt-get install -y tesseract-ocr tesseract-ocr-eng
+          else
+            echo "Tier 3 OCR not selected; skipping Tesseract installation."
+          fi
       - name: Run Greenlight-to-GitOps processing pipeline
         env:
           BATCH_FILE: ${{ github.event_name == 'push' && 'manual-drop/normalized-batch.json' || inputs.batch_file }}

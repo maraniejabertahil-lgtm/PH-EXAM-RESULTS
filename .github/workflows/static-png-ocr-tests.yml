@@ -1,0 +1,39 @@
+name: Static PNG OCR fallback tests
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "python-engine/acquisition/static_png_ocr.py"
+      - "python-engine/config/static_png_ocr_mappings.json"
+      - "python-engine/tests/test_static_png_ocr.py"
+      - "python-engine/main.py"
+      - ".github/workflows/static-png-ocr-tests.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test-tier3-ocr:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Run isolated Tier 3 OCR safety tests
+        working-directory: python-engine
+        run: python -m unittest discover -s tests -p "test_static_png_ocr.py" -v
+      - name: Compile OCR and pipeline modules
+        run: python -m py_compile python-engine/acquisition/static_png_ocr.py python-engine/main.py
+      - name: Validate disabled-by-default mapping registry
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          config = json.loads(Path("python-engine/config/static_png_ocr_mappings.json").read_text(encoding="utf-8"))
+          assert config.get("schema_version") == 1
+          assert config.get("mappings") == {}, "No source mapping may be enabled without review."
+          print("Tier 3 OCR registry is valid and disabled by default.")
+          PY

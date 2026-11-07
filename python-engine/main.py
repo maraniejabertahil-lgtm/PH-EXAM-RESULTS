@@ -29,6 +29,7 @@ from acquisition.official_content import (
     verify_official_preview_link,
 )
 from acquisition.public_preview import PublicPreviewCaptureError, load_public_preview_capture
+from acquisition.static_png_ocr import StaticPngOcrError, load_static_png_ocr_capture
 from extractor.pdf_parser import extract_pdf
 from processor.greenlight import validate_records, write_validation_report
 from publication_policy import PublicationPolicyError, requires_owner_visual_review
@@ -247,6 +248,30 @@ def _process_batch(batch_path: str | Path, *, root: str | Path | None = None) ->
                 raise PipelineError("Captured viewer page count exceeds the exam-specific approved page cap.")
             acquisition_log_path = batch.get("capture_manifest")
             source_pdf_sha256 = None
+        elif content_mode == "static_png_ocr":
+            article_url = _https_url(batch.get("official_article_url"), "official_article_url")
+            document_url = _https_url(batch.get("official_content_url"), "official_content_url")
+            _https_url(batch.get("public_preview_url"), "public_preview_url")
+            preview_source = _approved_public_preview_source(
+                batch,
+                root=repository_root,
+                exam_listing_source=source,
+            )
+            evidence_path = repository_root / "python-engine" / "artifacts" / "official-content-evidence.json"
+            try:
+                verify_official_preview_link(
+                    source=preview_source,
+                    article_url=article_url,
+                    content_url=document_url,
+                    evidence_path=evidence_path,
+                )
+                normalized_records, ocr_evidence = load_static_png_ocr_capture(
+                    batch=batch, root=repository_root
+                )
+            except (OfficialContentError, StaticPngOcrError) as exc:
+                raise PipelineError(f"Official static PNG OCR fallback stopped safely: {exc}") from exc
+            acquisition_log_path = batch.get("tier_failure_evidence")
+            source_pdf_sha256 = None
         else:
             document_url = _https_url(batch.get("official_document_url"), "official_document_url")
             from urllib.parse import urlsplit
@@ -335,6 +360,8 @@ def _process_batch(batch_path: str | Path, *, root: str | Path | None = None) ->
     report["official_attempt_log"] = acquisition_log_path if provenance == "official_direct" else batch.get("official_attempt_log")
     if provenance == "official_direct" and batch.get("official_content_mode") == "public_preview_capture":
         report["public_preview_capture"] = capture_evidence
+    if provenance == "official_direct" and batch.get("official_content_mode") == "static_png_ocr":
+        report["static_png_ocr"] = ocr_evidence
     report["source_a_url"] = batch.get("source_a_url") if provenance == "third_party_fallback" else None
     report["source_b_url"] = batch.get("source_b_url") if provenance == "third_party_fallback" else None
 
