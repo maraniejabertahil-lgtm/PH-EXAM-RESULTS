@@ -65,7 +65,7 @@ jobs:
           node --check owner-dashboard/functions/auth/session.js
           node --check owner-dashboard/functions/auth/logout.js
           node --check owner-dashboard/functions/auth/health.js
-      - name: Test Firebase/GitHub dual Owner verification and private D1 API
+      - name: Test Firebase Owner password login and private D1 API
         run: node --test owner-dashboard/functions/tests/*.test.mjs
       - name: Test public browser error messaging
         run: node --test public/tests/*.test.mjs
@@ -151,8 +151,7 @@ jobs:
           configured = production.get("env_vars") or {}
           required = {
               "FIREBASE_PROJECT_ID", "FIREBASE_API_KEY", "PUBLIC_SITE_ORIGIN",
-              "OWNER_EMAIL", "OWNER_GITHUB_ID", "GITHUB_OAUTH_CLIENT_ID",
-              "GITHUB_OAUTH_CLIENT_SECRET", "SESSION_SIGNING_KEY",
+              "OWNER_EMAIL", "SESSION_SIGNING_KEY",
               "CF_ACCOUNT_ID", "CF_D1_DATABASE_ID", "CF_D1_READ_API_TOKEN",
           }
           missing = sorted(required - set(configured))
@@ -160,8 +159,7 @@ jobs:
               raise SystemExit("Missing required production Pages variable names: " + ", ".join(missing))
 
           secret_names = {
-              "FIREBASE_API_KEY", "GITHUB_OAUTH_CLIENT_SECRET",
-              "SESSION_SIGNING_KEY", "CF_D1_READ_API_TOKEN",
+              "FIREBASE_API_KEY", "SESSION_SIGNING_KEY", "CF_D1_READ_API_TOKEN",
           }
           if "FIREBASE_OWNER_UID" in configured:
               secret_names.add("FIREBASE_OWNER_UID")
@@ -363,7 +361,8 @@ jobs:
           check_public_asset "/continue.css"
           curl --connect-timeout 5 --max-time 10 -fsS "$base/auth/session" -o /tmp/owner-session.json
           python -c 'import json; assert json.load(open("/tmp/owner-session.json")) == {"authenticated": False}'
-          check_redirect "/auth/login" "https://ph-exam-results.pages.dev/?owner=login&owner_reason=firebase_required"
+          check_redirect "/auth/login" "https://ph-exam-results.pages.dev/?owner=login"
+          check_redirect "/auth/callback" "https://ph-exam-results.pages.dev/?owner=login"
 
           # Cross-origin proof completion and Firebase CORS preflight must fail closed.
           status=$(curl --connect-timeout 5 --max-time 10 -sS -o /dev/null -w "%{http_code}" -X POST "$base/auth/firebase/complete" \
