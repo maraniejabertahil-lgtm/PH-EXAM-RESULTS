@@ -14,6 +14,7 @@ import subprocess
 from datetime import datetime
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlsplit
 
 
 class StaticPngOcrError(RuntimeError):
@@ -199,12 +200,31 @@ def load_static_png_ocr_capture(
     tier_failure = _verify_tier1_tier2_failure(batch, repository_root)
     mapping = _load_reviewed_mapping(batch, repository_root)
 
+    content_url = urlsplit(str(batch.get("official_content_url", "")))
+    preview_url = urlsplit(str(batch.get("public_preview_url", "")))
+    content_match = re.fullmatch(r"/file/d/([A-Za-z0-9_-]+)/view", content_url.path)
+    preview_match = re.fullmatch(r"/file/d/([A-Za-z0-9_-]+)/preview", preview_url.path)
+    if (
+        content_url.scheme != "https"
+        or content_url.hostname != "drive.google.com"
+        or content_match is None
+        or preview_url.scheme != "https"
+        or preview_url.hostname != "drive.google.com"
+        or preview_match is None
+        or content_match.group(1) != preview_match.group(1)
+        or content_url.username or content_url.password
+        or preview_url.username or preview_url.password
+    ):
+        raise StaticPngOcrError("Tier 3 screenshots must be tied to the ordinary preview for the exact allowlisted official Drive file.")
+
     manifest_path = _safe_file(repository_root, batch.get("static_png_ocr_manifest"), "static PNG OCR manifest")
     manifest = _read_object(manifest_path, "static PNG OCR manifest")
     if (
         manifest.get("schema_version") != 1
         or manifest.get("capture_method") != "ordinary_public_preview_ui"
-        or manifest.get("source_url") != batch.get("official_content_url")
+        or manifest.get("source_url") != batch.get("public_preview_url")
+        or manifest.get("official_content_url") != batch.get("official_content_url")
+        or manifest.get("public_preview_url") != batch.get("public_preview_url")
         or manifest.get("stable_viewport") is not True
         or manifest.get("lossless_png") is not True
         or manifest.get("access_challenge_detected") is not False
