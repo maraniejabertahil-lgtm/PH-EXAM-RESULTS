@@ -215,27 +215,9 @@ elements.form.addEventListener("submit", async (event) => {
   }
 });
 
-try {
-  await loadStatus();
-  if (!elements.searchView.hidden) await loadCatalog();
-} catch (error) {
-  showSafeError("startup", error);
-}
-
-elements.retryButton.addEventListener("click", () => window.location.reload());
-
-window.addEventListener("error", (event) => {
-  showSafeError("unexpected", event.error);
-});
-
-window.addEventListener("unhandledrejection", (event) => {
-  showSafeError("unexpected", event.reason);
-});
-
-
-// Owner authentication is isolated from the public examination search workflow.
-// The Firebase API key and password-to-ID-token exchange stay server-side.
+// ---------- Owner login: attach handlers before startup awaits ----------
 const OWNER_DASHBOARD_URL = "https://ph-exam-results-owner.pages.dev";
+
 const ownerLogin = {
   dialog: document.querySelector("#owner-login-dialog"),
   open: document.querySelector("#owner-login-open"),
@@ -246,30 +228,71 @@ const ownerLogin = {
   submit: document.querySelector("#owner-login-submit"),
   message: document.querySelector("#owner-login-message"),
 };
-function showOwnerLogin() {
-  if (ownerLogin.dialog && !ownerLogin.dialog.open) ownerLogin.dialog.showModal();
+
+// Keep the dialog outside any section that may be hidden during site updates.
+if (ownerLogin.dialog) {
+  if (ownerLogin.dialog.parentElement !== document.body) {
+    document.body.append(ownerLogin.dialog);
+  }
+  ownerLogin.dialog.hidden = false;
 }
+
+function setOwnerMessage(message) {
+  if (ownerLogin.message) ownerLogin.message.textContent = message;
+}
+
+function showOwnerLogin() {
+  const dialog = ownerLogin.dialog;
+  if (!dialog || dialog.open) return;
+
+  try {
+    dialog.showModal();
+  } catch {
+    dialog.setAttribute("open", "");
+  }
+}
+
 ownerLogin.open?.addEventListener("click", showOwnerLogin);
-ownerLogin.close?.addEventListener("click", () => ownerLogin.dialog.close());
+ownerLogin.close?.addEventListener("click", () => ownerLogin.dialog?.close());
 ownerLogin.dialog?.addEventListener("click", (event) => {
   if (event.target === ownerLogin.dialog) ownerLogin.dialog.close();
 });
+
 const ownerQuery = new URLSearchParams(location.search);
-const ownerLoginEnabled = siteStatus?.owner_login_enabled === true;
-if (ownerLogin.open) ownerLogin.open.hidden = !ownerLoginEnabled;
-if (ownerQuery.get("owner") === "login" && ownerLoginEnabled) showOwnerLogin();
-if (ownerQuery.get("owner_reason")) {
-  const reason = ownerQuery.get("owner_reason");
-  if (reason === "github_denied") ownerLogin.message.textContent = "GitHub Owner verification failed. / فشل التحقق من حساب المالك في GitHub.";
-  else if (reason === "github_failed") ownerLogin.message.textContent = "GitHub sign-in could not be completed. Please try again. / تعذّر إكمال تسجيل الدخول عبر GitHub. حاول مرة أخرى.";
-  else if (reason === "firebase_required") ownerLogin.message.textContent = "Please verify your Firebase Owner account first. / يرجى التحقق من حساب Firebase الخاص بالمالك أولاً.";
+const ownerReasons = {
+  github_denied: "GitHub Owner verification failed. / فشل التحقق من حساب المالك في GitHub.",
+  github_failed: "GitHub sign-in could not be completed. Please try again. / تعذّر إكمال تسجيل الدخول عبر GitHub. حاول مرة أخرى.",
+  firebase_required: "Please verify your Firebase Owner account first. / يرجى التحقق من حساب مالك Firebase الخاص بك أولاً.",
+};
+const ownerReason = ownerQuery.get("owner_reason");
+
+if (ownerReason && ownerReasons[ownerReason]) {
+  setOwnerMessage(ownerReasons[ownerReason]);
 }
+
+function applyOwnerLoginState() {
+  const enabled = siteStatus?.owner_login_enabled === true;
+
+  if (ownerLogin.open) ownerLogin.open.hidden = !enabled;
+
+  if (enabled && (ownerQuery.get("owner") === "login" || ownerReason)) {
+    showOwnerLogin();
+  }
+}
+
 ownerLogin.form?.addEventListener("submit", async (event) => {
   event.preventDefault();
+
+  if (!ownerLogin.submit || !ownerLogin.email || !ownerLogin.password) return;
+
   ownerLogin.submit.disabled = true;
-  ownerLogin.message.textContent = "Verifying Firebase Owner account… / جارٍ التحقق من حساب مالك Firebase…";
+  setOwnerMessage(
+    "Verifying Firebase Owner account… / جارٍ التحقق من حساب مالك Firebase…"
+  );
+
   const email = ownerLogin.email.value.trim();
   const password = ownerLogin.password.value;
+
   try {
     const response = await fetch(OWNER_DASHBOARD_URL + "/auth/firebase", {
       method: "POST",
@@ -278,17 +301,60 @@ ownerLogin.form?.addEventListener("submit", async (event) => {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email, password }),
     });
+
     const result = await response.json().catch(() => ({}));
     ownerLogin.password.value = "";
-    if (!response.ok || result.authenticated !== true || typeof result.proof !== "string") {
-      throw new Error(result.error || "Firebase Owner access was denied. / تم رفض صلاحية مالك Firebase.");
+
+    if (
+      !response.ok ||
+      result.authenticated !== true ||
+      typeof result.proof !== "string"
+    ) {
+      throw new Error(
+        result.error ||
+        "Firebase Owner access was denied. / تم رفض صلاحية مالك Firebase."
+      );
     }
-    ownerLogin.message.textContent = "Firebase Owner verified. Continue with GitHub verification… / تم التحقق من مالك Firebase. أكمل التحقق عبر GitHub…";
-    location.assign(OWNER_DASHBOARD_URL + "/continue.html#proof=" + encodeURIComponent(result.proof));
+
+    setOwnerMessage(
+      "Firebase Owner verified. Continue with GitHub verification… / تم التحقق من مالك Firebase. أكمل التحقق عبر GitHub…"
+    );
+
+    location.assign(
+      OWNER_DASHBOARD_URL +
+      "/continue.html#proof=" +
+      encodeURIComponent(result.proof)
+    );
   } catch (error) {
     ownerLogin.password.value = "";
-    const raw = error instanceof Error ? error.message : "";
-    ownerLogin.message.textContent = raw || "Owner sign-in failed. / فشل تسجيل دخول المالك.";
+    setOwnerMessage(
+      (error instanceof Error && error.message) ||
+      "Owner sign-in failed. / فشل تسجيل دخول المالك."
+    );
     ownerLogin.submit.disabled = false;
   }
 });
+
+// Global handlers are registered exactly once.
+elements.retryButton.addEventListener("click", () => window.location.reload());
+
+window.addEventListener("error", (event) => {
+  showSafeError("unexpected", event.error);
+});
+
+window.addEventListener("unhandledrejection", (event) => {
+  showSafeError("unexpected", event.reason);
+});
+
+// Startup runs last so slow status/catalog requests cannot delay login handlers.
+try {
+  await loadStatus();
+
+  if (!elements.searchView.hidden) {
+    await loadCatalog();
+  }
+} catch (error) {
+  showSafeError("startup", error);
+} finally {
+  applyOwnerLoginState();
+}
