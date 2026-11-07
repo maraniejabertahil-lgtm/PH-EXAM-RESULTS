@@ -95,7 +95,9 @@ class StaticPngOcrTests(unittest.TestCase):
         manifest = {
             "schema_version": 1,
             "capture_method": "ordinary_public_preview_ui",
-            "source_url": self.batch["official_content_url"],
+            "source_url": self.batch["public_preview_url"],
+            "official_content_url": self.batch["official_content_url"],
+            "public_preview_url": self.batch["public_preview_url"],
             "stable_viewport": True,
             "lossless_png": True,
             "access_challenge_detected": False,
@@ -118,7 +120,8 @@ class StaticPngOcrTests(unittest.TestCase):
             {"sequence_number": "2", "name": "ROE, JOHN B"},
         ])
         report = json.loads((self.root / evidence["report_path"]).read_text(encoding="utf-8"))
-        self.assertTrue(report["publication_allowed"])
+        self.assertTrue(report["ocr_gate_passed"])
+        self.assertFalse(report["publication_allowed"])
         self.assertEqual(report["screenshot_count"], 2)
         self.assertEqual(len(report["ocr_tokens"]), 8)
         self.assertEqual(len(report["screenshots"][0]["ocr_tsv_sha256"]), 64)
@@ -132,6 +135,7 @@ class StaticPngOcrTests(unittest.TestCase):
             with self.assertRaisesRegex(StaticPngOcrError, "below 95%"):
                 load_static_png_ocr_capture(batch=self.batch, root=self.root)
         report = json.loads((self.root / "python-engine" / "artifacts" / "static-png-ocr-report.json").read_text())
+        self.assertFalse(report["ocr_gate_passed"])
         self.assertFalse(report["publication_allowed"])
         self.assertTrue(report["low_confidence_tokens"])
 
@@ -168,6 +172,13 @@ class StaticPngOcrTests(unittest.TestCase):
         with patch("acquisition.static_png_ocr._tesseract_tsv", side_effect=outputs):
             with self.assertRaisesRegex(StaticPngOcrError, "exact sequence coverage"):
                 load_static_png_ocr_capture(batch=self.batch, root=self.root)
+
+    def test_preview_url_must_reference_the_same_allowlisted_drive_file(self):
+        self.batch["public_preview_url"] = "https://drive.google.com/file/d/another-file/preview"
+        with patch("acquisition.static_png_ocr._tesseract_tsv") as ocr:
+            with self.assertRaisesRegex(StaticPngOcrError, "exact allowlisted official Drive file"):
+                load_static_png_ocr_capture(batch=self.batch, root=self.root)
+        ocr.assert_not_called()
 
     def test_screenshot_hash_mismatch_is_rejected_before_ocr(self):
         manifest_path = self.root / "capture" / "manifest.json"
