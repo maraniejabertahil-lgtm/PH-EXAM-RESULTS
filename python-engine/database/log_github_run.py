@@ -84,7 +84,7 @@ def main():
         for step in steps:
             step_name = str(step.get("name") or "workflow_step")
             status = normalize_status(step.get("status"), step.get("conclusion"))
-            record_activity({
+            persist({
                 "event_id": f"gha:{run_id}:job:{job.get('id', job_name)}:step:{step.get('number', step_name)}",
                 "execution_id": execution_id,
                 "occurred_at": step.get("completed_at") or step.get("started_at") or now,
