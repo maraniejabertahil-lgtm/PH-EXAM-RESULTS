@@ -317,7 +317,7 @@ ownerLogin.form?.addEventListener("submit", async (event) => {
     }
 
     setOwnerMessage(
-      "Firebase Owner verified. Continue with GitHub verification… / تم التحقق من مالك Firebase. أكمل التحقق عبر GitHub…"
+      "Firebase Owner verified. Opening your private dashboard… / تم التحقق من مالك Firebase. جارٍ فتح لوحة المراقبة الخاصة…"
     );
 
     location.assign(OWNER_DASHBOARD_URL + "/continue.html#proof=" + encodeURIComponent(result.proof));
