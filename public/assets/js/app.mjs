@@ -271,7 +271,7 @@ if (ownerReason && ownerReasons[ownerReason]) {
 }
 
 function applyOwnerLoginState() {
-  const enabled = siteStatus?.owner_login_enabled === true;
+  const enabled = siteStatus?.owner_login_enabled !== false;
 
   if (ownerLogin.open) ownerLogin.open.hidden = !enabled;
 
