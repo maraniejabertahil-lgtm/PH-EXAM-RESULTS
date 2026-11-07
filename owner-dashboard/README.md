@@ -9,7 +9,7 @@ This folder is deployed as a **separate Cloudflare Pages project**. Never add it
    npx wrangler@4.156.2 login
    npx wrangler@4.156.2 pages project create ph-exam-results-owner --production-branch main
    ```
-2. In Cloudflare Zero Trust → Access → Applications, create a Self-hosted application for `https://ph-exam-results-owner.pages.dev/*`. Its Allow policy must contain only the Owner's exact email. Keep the default deny behavior and protect any enabled preview hostnames.
+2. In the new Pages project, open **Settings → General → Enable access policy**. Open the generated application under Zero Trust → Access → Applications → Configure. Remove the wildcard subdomain and select the exact `ph-exam-results-owner.pages.dev` production hostname. Its Allow policy must contain only the Owner's exact email. Re-enable the Pages access policy if preview deployments are also used.
 3. In the new Pages project's production Variables and Secrets, configure:
    - `CF_ACCESS_TEAM_DOMAIN`
    - `CF_ACCESS_AUD`
@@ -21,8 +21,8 @@ This folder is deployed as a **separate Cloudflare Pages project**. Never add it
 5. Add GitHub Actions secrets:
    - `CF_ACCOUNT_ID`
    - `CF_D1_DATABASE_ID`
-   - `CF_D1_API_TOKEN` (D1 Edit/Write token)
-   - `CF_PAGES_API_TOKEN` (Pages Edit/Write token)
+   - `CF_D1_API_TOKEN` (D1 Edit token)
+   - `CF_PAGES_API_TOKEN` (Cloudflare Pages Edit token)
    - `CF_OWNER_PAGES_PROJECT_NAME` = `ph-exam-results-owner`
 6. Set the repository variable `CF_OWNER_DASHBOARD_ENABLED=true` only after the Access application and private Pages project are ready.
 7. Configure the production Watcher Worker with `CF_ACCOUNT_ID`, `CF_D1_DATABASE_ID`, and secret `CF_D1_API_TOKEN`.
