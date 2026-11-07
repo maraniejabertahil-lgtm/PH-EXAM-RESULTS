@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { onRequestGet } from "../auth/health.js";
 const readyEnv={
   FIREBASE_PROJECT_ID:"ph-exam-results-dd94a",
+  FIREBASE_API_KEY:"public-web-api-key-kept-server-side",
   PUBLIC_SITE_ORIGIN:"https://ph-exam-results.pages.dev",
   OWNER_EMAIL:"owner@example.com",
   OWNER_GITHUB_ID:"338246827",
