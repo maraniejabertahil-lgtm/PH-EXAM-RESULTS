@@ -229,3 +229,94 @@ window.addEventListener("error", (event) => {
 window.addEventListener("unhandledrejection", (event) => {
   showSafeError("unexpected", event.reason);
 });
+
+
+// Owner authentication is isolated from the public examination search workflow.
+// Firebase configuration is public web-app configuration; no Admin credential is used here.
+const OWNER_DASHBOARD_URL = "https://ph-exam-results-owner.pages.dev";
+const OWNER_FIREBASE_CONFIG = {
+  apiKey: "AIzaSyDN3QQyk6ueanwjLVtU4YcEGBxgDaF4U0w",
+  authDomain: "ph-exam-results-dd94a.firebaseapp.com",
+  projectId: "ph-exam-results-dd94a",
+  storageBucket: "ph-exam-results-dd94a.firebasestorage.app",
+  messagingSenderId: "722578122359",
+  appId: "1:722578122359:web:8180388de4bbee11d40872",
+};
+let ownerFirebaseAuthPromise;
+const ownerLogin = {
+  dialog: document.querySelector("#owner-login-dialog"),
+  open: document.querySelector("#owner-login-open"),
+  close: document.querySelector("#owner-login-close"),
+  form: document.querySelector("#owner-login-form"),
+  email: document.querySelector("#owner-email"),
+  password: document.querySelector("#owner-password"),
+  submit: document.querySelector("#owner-login-submit"),
+  message: document.querySelector("#owner-login-message"),
+};
+function showOwnerLogin() {
+  if (ownerLogin.dialog && !ownerLogin.dialog.open) ownerLogin.dialog.showModal();
+}
+ownerLogin.open?.addEventListener("click", showOwnerLogin);
+ownerLogin.close?.addEventListener("click", () => ownerLogin.dialog.close());
+ownerLogin.dialog?.addEventListener("click", (event) => {
+  if (event.target === ownerLogin.dialog) ownerLogin.dialog.close();
+});
+const ownerQuery = new URLSearchParams(location.search);
+if (ownerQuery.get("owner") === "login") showOwnerLogin();
+if (ownerQuery.get("owner_reason")) {
+  const reason = ownerQuery.get("owner_reason");
+  if (reason === "github_denied") ownerLogin.message.textContent = "GitHub Owner verification failed. / فشل التحقق من حساب المالك في GitHub.";
+  else if (reason === "github_failed") ownerLogin.message.textContent = "GitHub sign-in could not be completed. Please try again. / تعذّر إكمال تسجيل الدخول عبر GitHub. حاول مرة أخرى.";
+  else if (reason === "firebase_required") ownerLogin.message.textContent = "Please verify your Firebase Owner account first. / يرجى التحقق من حساب Firebase الخاص بالمالك أولاً.";
+}
+ownerLogin.form?.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  ownerLogin.submit.disabled = true;
+  ownerLogin.message.textContent = "Verifying Firebase Owner account… / جارٍ التحقق من حساب مالك Firebase…";
+  let authContext = null;
+  try {
+    if (!ownerFirebaseAuthPromise) {
+      ownerFirebaseAuthPromise = Promise.all([
+        import("https://www.gstatic.com/firebasejs/11.10.0/firebase-app.js"),
+        import("https://www.gstatic.com/firebasejs/11.10.0/firebase-auth.js"),
+      ]).then(([firebaseApp, firebaseAuth]) => {
+        const app = firebaseApp.getApps().find(item => item.name === "ph-exam-results-owner-login")
+          || firebaseApp.initializeApp(OWNER_FIREBASE_CONFIG, "ph-exam-results-owner-login");
+        return {
+          auth: firebaseAuth.initializeAuth(app, { persistence: firebaseAuth.inMemoryPersistence }),
+          ...firebaseAuth,
+        };
+      });
+    }
+    authContext = await ownerFirebaseAuthPromise;
+    const credential = await authContext.signInWithEmailAndPassword(
+      authContext.auth, ownerLogin.email.value.trim(), ownerLogin.password.value
+    );
+    const idToken = await authContext.getIdToken(credential.user, true);
+    const response = await fetch(OWNER_DASHBOARD_URL + "/auth/firebase", {
+      method: "POST",
+      mode: "cors",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ idToken }),
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok || result.authenticated !== true) {
+      throw new Error(result.error || "Firebase Owner access was denied. / تم رفض صلاحية مالك Firebase.");
+    }
+    await authContext.signOut(authContext.auth);
+    ownerLogin.password.value = "";
+    ownerLogin.message.textContent = "Firebase Owner verified. Continue with GitHub verification… / تم التحقق من مالك Firebase. أكمل التحقق عبر GitHub…";
+    location.assign(OWNER_DASHBOARD_URL + "/auth/login");
+  } catch (error) {
+    if (authContext?.auth) {
+      try { await authContext.signOut(authContext.auth); } catch { /* clear in-memory auth best-effort */ }
+    }
+    ownerLogin.password.value = "";
+    const raw = error instanceof Error ? error.message : "";
+    ownerLogin.message.textContent = raw.includes("auth/")
+      ? "Sign-in failed. Check your email and password. / تعذّر تسجيل الدخول. تحقق من البريد الإلكتروني وكلمة المرور."
+      : (raw || "Owner sign-in failed. / فشل تسجيل دخول المالك.");
+    ownerLogin.submit.disabled = false;
+  }
+});
