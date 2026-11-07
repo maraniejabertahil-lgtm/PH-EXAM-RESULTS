@@ -1,0 +1,43 @@
+name: Record Private Operational Activity
+
+on:
+  workflow_run:
+    workflows:
+      - Process Detected Source and Manual Drop
+      - Deploy Cloudflare Watcher
+      - Deploy Cloudflare Pages
+      - Deploy Private Owner Dashboard
+    types:
+      - completed
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  record:
+    if: github.event.workflow_run.head_branch == 'main'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out trusted main-branch logger
+        uses: actions/checkout@v5
+        with:
+          ref: main
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Record completed workflow in private D1 activity history
+        working-directory: python-engine/database
+        env:
+          CF_D1_API_TOKEN: \${{ secrets.CF_D1_API_TOKEN }}
+          CF_ACCOUNT_ID: \${{ secrets.CF_ACCOUNT_ID }}
+          CF_D1_DATABASE_ID: \${{ secrets.CF_D1_DATABASE_ID }}
+          GITHUB_RUN_ID: \${{ github.event.workflow_run.id }}
+          GITHUB_RUN_NUMBER: \${{ github.event.workflow_run.run_number }}
+          GITHUB_WORKFLOW: \${{ github.event.workflow_run.name }}
+          GITHUB_JOB: workflow_run
+          GITHUB_REF_NAME: \${{ github.event.workflow_run.head_branch }}
+          GITHUB_SHA: \${{ github.event.workflow_run.head_sha }}
+          JOB_STATUS: \${{ github.event.workflow_run.conclusion }}
+        run: python log_github_run.py

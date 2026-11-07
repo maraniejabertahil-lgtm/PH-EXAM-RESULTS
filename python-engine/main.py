@@ -12,6 +12,7 @@ import json
 import os
 import re
 import sys
+import time
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -34,6 +35,7 @@ from publication_policy import PublicationPolicyError, requires_owner_visual_rev
 from processor.normalizer import NormalizationError, normalize_extracted_tables
 from publisher.gitops_manager import GitHubGitOps, GitOpsError
 from publisher.json_builder import build_dataset
+from database.activity import record_pipeline_event, read_batch_for_activity, read_validation_report
 
 
 class PipelineError(RuntimeError):
@@ -154,7 +156,7 @@ def _approved_public_preview_source(
     return source
 
 
-def process_batch(batch_path: str | Path, *, root: str | Path | None = None) -> dict[str, Any]:
+def _process_batch(batch_path: str | Path, *, root: str | Path | None = None) -> dict[str, Any]:
     """Validate a reviewed batch and build local, non-published dataset artifacts."""
     repository_root = Path(root or Path.cwd()).resolve()
     input_path = _repo_path(str(batch_path), repository_root)
@@ -365,6 +367,51 @@ def process_batch(batch_path: str | Path, *, root: str | Path | None = None) -> 
     }
 
 
+def _activity_execution_id(batch_path: str | Path) -> str:
+    run_identity = os.getenv("GITHUB_RUN_ID") or str(time.time_ns())
+    batch_key = hashlib.sha256(str(batch_path).encode("utf-8")).hexdigest()[:12]
+    return f"python:{run_identity}:{batch_key}"
+
+
+def process_batch(
+    batch_path: str | Path, *, root: str | Path | None = None,
+    activity_execution_id: str | None = None,
+) -> dict[str, Any]:
+    """Run Greenlight processing and record its outcome without making D1 a dependency."""
+    repository_root = Path(root or Path.cwd()).resolve()
+    batch, batch_bytes = read_batch_for_activity(batch_path, repository_root)
+    execution_id = activity_execution_id or _activity_execution_id(batch_path)
+    started = time.perf_counter()
+    record_pipeline_event(
+        batch, event_type="processing_started", status="started",
+        operation="process_result_batch", summary="Python result-processing pipeline started.",
+        batch_status="processing", correlation_id=execution_id, batch_bytes=batch_bytes,
+    )
+    try:
+        result = _process_batch(batch_path, root=repository_root)
+    except Exception as exc:
+        is_greenlight = "greenlight" in str(exc).lower() or "validation" in str(exc).lower()
+        record_pipeline_event(
+            batch, event_type="greenlight_failed" if is_greenlight else "publication_failed",
+            status="failed", operation="process_result_batch",
+            summary="Python result-processing pipeline failed.",
+            batch_status="greenlight_failed" if is_greenlight else "failed",
+            report=read_validation_report(repository_root), correlation_id=execution_id,
+            batch_bytes=batch_bytes, duration_ms=max(0, int((time.perf_counter() - started) * 1000)),
+            error_code=type(exc).__name__, error_message=str(exc),
+        )
+        raise
+    record_pipeline_event(
+        batch, event_type="greenlight_passed", status="passed",
+        operation="process_result_batch",
+        summary="Greenlight passed; reviewed dataset artifacts were generated.",
+        batch_status="greenlight_passed", report=result.get("report"),
+        correlation_id=execution_id, batch_bytes=batch_bytes,
+        duration_ms=max(0, int((time.perf_counter() - started) * 1000)),
+    )
+    return result
+
+
 def _build_public_catalog(
     repository_root: Path,
     *,
@@ -518,15 +565,16 @@ def _validate_owner_review_receipt(
     }
 
 
-def publish_batch(
+def _publish_batch(
     batch_path: str | Path,
     *,
     root: str | Path | None = None,
     owner_review_receipt: str | Path | None = None,
+    activity_execution_id: str | None = None,
 ) -> dict[str, Any]:
     """Run Greenlight, build data artifacts, open a PR, dispatch CI, then merge."""
     repository_root = Path(root or Path.cwd()).resolve()
-    processed = process_batch(batch_path, root=repository_root)
+    processed = process_batch(batch_path, root=repository_root, activity_execution_id=activity_execution_id)
     owner_review = _validate_owner_review_receipt(
         batch_path,
         owner_review_receipt,
@@ -575,6 +623,46 @@ def publish_batch(
     )
     return {"pull_request": opened, "publication": merged, "manifest": processed["manifest"]}
 
+
+
+def publish_batch(
+    batch_path: str | Path, *, root: str | Path | None = None,
+    owner_review_receipt: str | Path | None = None,
+) -> dict[str, Any]:
+    """Publish a reviewed batch and record the end-to-end publication outcome."""
+    repository_root = Path(root or Path.cwd()).resolve()
+    batch, batch_bytes = read_batch_for_activity(batch_path, repository_root)
+    execution_id = _activity_execution_id(batch_path)
+    started = time.perf_counter()
+    record_pipeline_event(
+        batch, event_type="processing_started", status="started",
+        operation="publish_result_batch", summary="Result publication workflow started.",
+        correlation_id=execution_id, batch_bytes=batch_bytes,
+    )
+    try:
+        result = _publish_batch(
+            batch_path, root=repository_root,
+            owner_review_receipt=owner_review_receipt,
+            activity_execution_id=execution_id,
+        )
+    except Exception as exc:
+        record_pipeline_event(
+            batch, event_type="publication_failed", status="failed",
+            operation="publish_result_batch", summary="Result publication failed.",
+            batch_status="failed", report=read_validation_report(repository_root),
+            correlation_id=execution_id, batch_bytes=batch_bytes,
+            duration_ms=max(0, int((time.perf_counter() - started) * 1000)),
+            error_code=type(exc).__name__, error_message=str(exc),
+        )
+        raise
+    record_pipeline_event(
+        batch, event_type="publication_completed", status="completed",
+        operation="publish_result_batch", summary="Result publication completed successfully.",
+        batch_status="published", report=read_validation_report(repository_root),
+        correlation_id=execution_id, batch_bytes=batch_bytes,
+        duration_ms=max(0, int((time.perf_counter() - started) * 1000)),
+    )
+    return result
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Validate and publish a reviewed examination result batch.")

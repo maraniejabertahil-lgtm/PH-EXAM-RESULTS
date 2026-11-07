@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex,nofollow,noarchive">
+  <meta name="referrer" content="no-referrer">
+  <title>Private Owner Activity Dashboard · PH Exam Results</title>
+  <link rel="stylesheet" href="/owner.css">
+  <script type="module" src="/activity.js"></script>
+</head>
+<body>
+  <header class="monitor-header">
+    <a href="/" class="brand">PH EXAM RESULTS <span>/ PRIVATE OWNER DASHBOARD</span></a>
+    <span class="private-label">PRIVATE · OWNER ACCESS</span>
+  </header>
+  <main class="monitor-main">
+    <section class="intro">
+      <p class="eyebrow">SYSTEM OBSERVABILITY</p>
+      <h1>Activity Monitor</h1>
+      <p>Follow each execution, identify the first failure, and inspect the related activity history.</p>
+    </section>
+    <section class="summary-grid" aria-label="Activity summary">
+      <article><span>Total events loaded</span><strong id="total-count">—</strong></article>
+      <article><span>Failed</span><strong id="failed-count">—</strong></article>
+      <article><span>Blocked</span><strong id="blocked-count">—</strong></article>
+      <article><span>Running</span><strong id="running-count">—</strong></article>
+    </section>
+    <section class="activity-panel">
+      <div class="panel-heading">
+        <div><h2>Activity history</h2><p id="last-updated">Waiting for private activity records…</p></div>
+        <button id="refresh-button" type="button">Refresh</button>
+      </div>
+      <div class="filters">
+        <label>Status
+          <select id="status-filter">
+            <option value="">All statuses</option>
+            <option value="running">Running</option>
+            <option value="success">Success</option>
+            <option value="failed">Failed</option>
+            <option value="blocked">Blocked</option>
+            <option value="warning">Warning</option>
+          </select>
+        </label>
+        <label>Component
+          <select id="component-filter"><option value="">All components</option></select>
+        </label>
+      </div>
+      <p id="load-message" class="load-message" role="status" aria-live="polite">Loading activity history…</p>
+      <div id="activity-list" class="activity-list"></div>
+    </section>
+    <p class="security-note">Private owner view. Public visitors cannot read activity records. Examinee names and search queries are not stored in this log.</p>
+  </main>
+</body>
+</html>
