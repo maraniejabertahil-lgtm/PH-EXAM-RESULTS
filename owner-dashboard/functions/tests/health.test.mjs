@@ -37,11 +37,26 @@ test("readiness requires a successful live D1 query against the activity schema"
   });
 });
 
+test("readiness accepts the configured public origin with a trailing slash or path", async () => {
+  for (const origin of [
+    "https://ph-exam-results.pages.dev/",
+    "https://ph-exam-results.pages.dev/login",
+  ]) {
+    await withFetch(async () => new Response(JSON.stringify({
+      success: true, result: [{ success: true, results: [] }],
+    })), async () => {
+      const response = await onRequestGet({ env: { ...readyEnv, PUBLIC_SITE_ORIGIN: origin } });
+      assert.equal(response.status, 200);
+      assert.deepEqual(await response.json(), { ready: true });
+    });
+  }
+});
+
 test("readiness identifies every invalid configuration key without contacting D1", async () => {
   let calls = 0;
   const env = {
     ...readyEnv,
-    PUBLIC_SITE_ORIGIN: "not-an-origin",
+    PUBLIC_SITE_ORIGIN: "https://wrong-origin.example",
     OWNER_EMAIL: "not-an-email",
     OWNER_GITHUB_ID: "owner-account",
     SESSION_SIGNING_KEY: "short",
