@@ -24,7 +24,7 @@ match /users/{userId} {
 }
 ```
 
-The public page uses the Firebase Web App client configuration; this is not a Firebase Admin credential. The dashboard verifies Firebase ID-token RS256 signatures and claims against Google's Secure Token public keys and reads the Owner's own Firestore profile using that ID token.
+The public page sends the Owner email/password over HTTPS only to the private dashboard endpoint. The dashboard uses the server-side `FIREBASE_API_KEY` Pages variable to obtain a Firebase ID token, verifies its RS256 signature and claims against Google's Secure Token public keys, and reads the Owner's own Firestore profile using that ID token. The password is not logged or stored; the API key and Firebase ID token are never sent to the public page or returned to the browser.
 
 ## B. Create the isolated Cloudflare resources
 
