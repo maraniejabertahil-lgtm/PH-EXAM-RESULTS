@@ -296,18 +296,18 @@ ownerLogin.form?.addEventListener("submit", async (event) => {
     const response = await fetch(OWNER_DASHBOARD_URL + "/auth/firebase", {
       method: "POST",
       mode: "cors",
-      credentials: "include",
+      credentials: "omit",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ idToken }),
     });
     const result = await response.json().catch(() => ({}));
-    if (!response.ok || result.authenticated !== true) {
+    if (!response.ok || result.authenticated !== true || typeof result.proof !== "string") {
       throw new Error(result.error || "Firebase Owner access was denied. / تم رفض صلاحية مالك Firebase.");
     }
     await authContext.signOut(authContext.auth);
     ownerLogin.password.value = "";
     ownerLogin.message.textContent = "Firebase Owner verified. Continue with GitHub verification… / تم التحقق من مالك Firebase. أكمل التحقق عبر GitHub…";
-    location.assign(OWNER_DASHBOARD_URL + "/auth/login");
+    location.assign(OWNER_DASHBOARD_URL + "/continue.html#proof=" + encodeURIComponent(result.proof));
   } catch (error) {
     if (authContext?.auth) {
       try { await authContext.signOut(authContext.auth); } catch { /* clear in-memory auth best-effort */ }
