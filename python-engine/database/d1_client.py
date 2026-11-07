@@ -220,20 +220,37 @@ class D1Client:
         )
         return event_id
 
-    def upsert_import_batch(self, *, batch_id: str, authority: str, exam: str, exam_year: int,
-                            status: str, greenlight_score: int | None = None,
-                            announced_count: int | None = None, extracted_count: int | None = None,
-                            source_id: str | None = None, summary: str = "") -> None:
+    def upsert_import_batch(
+        self, *, batch_id: str, authority: str, exam: str, exam_year: int,
+        status: str, greenlight_score: int | None = None,
+        announced_count: int | None = None, extracted_count: int | None = None,
+        source_id: str | None = None, summary: str = "",
+        record_count: int | None = None, provenance: str | None = None,
+        started_at: str | None = None, completed_at: str | None = None,
+    ) -> None:
         allowed = {"processing", "greenlight_passed", "greenlight_failed", "published", "failed"}
         if status not in allowed:
             raise ValueError("Unsupported import batch status.")
         now = datetime.now(timezone.utc).isoformat(timespec="seconds")
+        started_at = started_at or now
+        if completed_at is None and status != "processing":
+            completed_at = now
         self.query(
-            "INSERT INTO import_batches (batch_id,authority,exam,exam_year,source_id,status,greenlight_score,announced_count,extracted_count,summary,created_at,updated_at) "
-            "VALUES(?,?,?,?,NULLIF(?,''),?,NULLIF(?,''),NULLIF(?,''),NULLIF(?,''),?,?,?) "
-            "ON CONFLICT(batch_id) DO UPDATE SET status=excluded.status, greenlight_score=excluded.greenlight_score, "
-            "announced_count=excluded.announced_count, extracted_count=excluded.extracted_count, summary=excluded.summary, updated_at=excluded.updated_at",
-            [batch_id,authority,exam,exam_year,source_id,status,greenlight_score,announced_count,extracted_count,
+            "INSERT INTO import_batches (batch_id,authority,exam,exam_year,source_id,status,greenlight_score,"
+            "announced_count,extracted_count,record_count,provenance,started_at,completed_at,summary,created_at,updated_at) "
+            "VALUES(?,?,?,?,NULLIF(?,''),?,NULLIF(?,''),NULLIF(?,''),NULLIF(?,''),NULLIF(?,''),"
+            "NULLIF(?,''),NULLIF(?,''),NULLIF(?,''),?,?,?) "
+            "ON CONFLICT(batch_id) DO UPDATE SET status=excluded.status, "
+            "greenlight_score=COALESCE(excluded.greenlight_score,import_batches.greenlight_score), "
+            "announced_count=COALESCE(excluded.announced_count,import_batches.announced_count), "
+            "extracted_count=COALESCE(excluded.extracted_count,import_batches.extracted_count), "
+            "record_count=COALESCE(excluded.record_count,import_batches.record_count), "
+            "provenance=COALESCE(excluded.provenance,import_batches.provenance), "
+            "started_at=COALESCE(import_batches.started_at,excluded.started_at), "
+            "completed_at=COALESCE(excluded.completed_at,import_batches.completed_at), "
+            "summary=excluded.summary, updated_at=excluded.updated_at",
+            [batch_id,authority,exam,exam_year,source_id,status,greenlight_score,announced_count,
+             extracted_count,record_count,provenance,started_at,completed_at,
              " ".join(str(summary).split())[:240],now,now],
         )
 
