@@ -66,7 +66,7 @@ class WorkflowActivityLoggerTests(unittest.TestCase):
             ".github/workflows/migrate-d1-monitoring.yml",
         ):
             source = (root / relative).read_text(encoding="utf-8")
-            self.assertNotIn("\\\\${{", source, relative)
+            self.assertNotIn("\\${{", source, relative)
 
 
 if __name__ == "__main__":
