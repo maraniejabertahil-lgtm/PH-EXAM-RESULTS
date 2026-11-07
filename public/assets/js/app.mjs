@@ -241,7 +241,8 @@ window.addEventListener("unhandledrejection", (event) => {
 
 
 // Owner sign-in is isolated from the public examination search workflow.
-let ownerFirebaseAuthPromise;\nconst ownerLogin = {
+let ownerFirebaseAuthPromise;
+const ownerLogin = {
   dialog: document.querySelector("#owner-login-dialog"),
   open: document.querySelector("#owner-login-open"),
   close: document.querySelector("#owner-login-close"),
