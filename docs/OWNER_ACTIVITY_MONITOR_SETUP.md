@@ -19,24 +19,24 @@ The dashboard shows individual operational events with timestamps, component, op
 
 In Cloudflare, create a new Pages project dedicated to the owner dashboard. Do not reuse the public results Pages project or its hostname.
 
-Choose a separate project name, such as `ph-exam-owner-dashboard`. Record the exact project name and its `*.pages.dev` hostname.
+Use the dedicated project name `ph-exam-results-owner`. From the Codespaces terminal, run `npx wrangler@4.156.2 login`, complete Cloudflare authorization, then run `npx wrangler@4.156.2 pages project create ph-exam-results-owner --production-branch main`. Record the resulting `ph-exam-results-owner.pages.dev` hostname.
 
 ## 2. Protect the entire dashboard hostname
 
 In **Zero Trust → Access → Applications**, create a Self-hosted application for the entire new dashboard hostname, for example:
 
-`https://ph-exam-owner-dashboard.pages.dev/*`
+`https://ph-exam-results-owner.pages.dev/*`
 
-Create an Allow policy containing only the Owner's exact sign-in email. Do not use Everyone or a whole email-domain rule.
+Create an Allow policy containing only the Owner's exact sign-in email. Do not use Everyone or a whole email-domain rule. Protect the production hostname and any preview hostname that is enabled for this project.
 
 The dashboard API also verifies the exact owner email. If Access settings or identity configuration are missing, the API fails closed and returns no activity data.
 
 ## 3. Create D1 and API tokens
 
 1. In **Workers & Pages → D1 SQL Database**, create a database, for example `ph-exam-results-operations`. Record its database UUID.
-2. Create a Cloudflare API token with **Account / D1 / Write** permission for trusted writers.
+2. Create a Cloudflare API token with **Account / D1 / Edit** (or **D1 Write**, depending on the token UI) permission for trusted writers.
 3. Create a separate Cloudflare API token with **Account / D1 / Read** permission for the private dashboard.
-4. Create a Cloudflare Pages deployment token with permission to deploy Pages projects.
+4. Create a Cloudflare API token with **Account / Cloudflare Pages / Edit** (or **Pages Write**) permission to deploy Pages projects.
 
 The schema and client use the Cloudflare D1 REST API. No direct SQL driver or public browser database query is introduced.
 
@@ -48,7 +48,7 @@ Add these repository secrets:
 - `CF_ACCOUNT_ID` — Cloudflare account ID
 - `CF_D1_DATABASE_ID` — D1 database UUID
 - `CF_PAGES_API_TOKEN` — Cloudflare Pages deployment token
-- `CF_OWNER_PAGES_PROJECT_NAME` — exact separate owner dashboard Pages project name
+- `CF_OWNER_PAGES_PROJECT_NAME` — `ph-exam-results-owner`
 
 Add this repository variable only after the private Pages project and Access policy are ready:
 
