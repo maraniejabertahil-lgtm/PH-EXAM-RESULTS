@@ -58,6 +58,9 @@ jobs:
           node --check owner-dashboard/functions/auth/callback.js
           node --check owner-dashboard/functions/auth/session.js
           node --check owner-dashboard/functions/auth/logout.js
+          node --check owner-dashboard/functions/auth/firebase/exchange.js
+          node --check owner-dashboard/functions/_middleware.js
+          node --check public/assets/js/app.mjs
       - name: Test exact owner Access verification and private D1 API
         run: node --test owner-dashboard/functions/tests/*.test.mjs
       - name: Test Python D1 REST client and additive migration
