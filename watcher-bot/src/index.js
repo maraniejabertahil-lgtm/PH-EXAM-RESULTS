@@ -1009,7 +1009,7 @@ export async function runScheduled({
       sources, kv: budget.kv, fetchImpl: budget.fetch, now: new Date(scheduledTime)
     });
     const scheduleStatus = scheduleDiscovery.status;
-    const scheduleOutcome = ["updated", "updated_with_unparsed_rows", "cached"].includes(scheduleStatus)
+    const scheduleOutcome = ["updated", "cached"].includes(scheduleStatus)
       ? "success"
       : (scheduleStatus === "robots_disallowed" ? "blocked" : "warning");
     activityEvents.push({
