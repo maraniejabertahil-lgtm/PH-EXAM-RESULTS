@@ -1,7 +1,7 @@
-import { COOKIE_NAMES, cookieHeader, clearCookie, randomToken, signSession } from "./access.js";
+import { COOKIE_NAMES, cookieHeader, randomToken, signSession } from "./access.js";
 
 const IDENTITY_API = "https://identitytoolkit.googleapis.com/v1/accounts:lookup";
-const FIREBASE_COOKIE = "__Host-ph_owner_firebase";
+const FIREBASE_COOKIE = COOKIE_NAMES.firebase;
 const PROOF_SECONDS = 10 * 60;
 
 function json(value, status = 200, headers = {}) {
