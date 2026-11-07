@@ -3,6 +3,7 @@ import { createDiagnosticReference, safeErrorMessage } from "./error-messages.mj
 
 const CATALOG_URL = "/data/catalog.json";
 const STATUS_URL = "/status.json";
+let siteStatus = null;
 const MAX_RESULTS = 100;
 const elements = {
   searchView: document.querySelector("#search-view"),
@@ -63,6 +64,7 @@ async function loadStatus() {
   const response = await fetch(STATUS_URL, { cache: "no-store", credentials: "same-origin" });
   if (!response.ok) throw new Error(`Site status could not be loaded (HTTP ${response.status}).`);
   const status = await response.json();
+  siteStatus = status;
   if (!["searching", "preparing"].includes(status.mode)) throw new Error("Site status has an invalid mode.");
   if (status.mode === "preparing") showPreparingMode();
 }
@@ -262,7 +264,9 @@ ownerLogin.dialog?.addEventListener("click", (event) => {
   if (event.target === ownerLogin.dialog) ownerLogin.dialog.close();
 });
 const ownerQuery = new URLSearchParams(location.search);
-if (ownerQuery.get("owner") === "login") showOwnerLogin();
+const ownerLoginEnabled = siteStatus?.owner_login_enabled === true;
+if (ownerLogin.open) ownerLogin.open.hidden = !ownerLoginEnabled;
+if (ownerQuery.get("owner") === "login" && ownerLoginEnabled) showOwnerLogin();
 if (ownerQuery.get("owner_reason")) {
   const reason = ownerQuery.get("owner_reason");
   if (reason === "github_denied") ownerLogin.message.textContent = "GitHub Owner verification failed. / فشل التحقق من حساب المالك في GitHub.";
