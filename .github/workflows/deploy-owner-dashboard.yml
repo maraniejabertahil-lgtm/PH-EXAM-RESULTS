@@ -256,7 +256,7 @@ jobs:
           from pathlib import Path
           project = re.escape(os.environ["PROJECT_NAME"])
           output = Path("/tmp/owner-pages-deploy.log").read_text(errors="replace")
-          matches = re.findall(r"https://[a-z0-9-]+\\." + project + r"\\.pages\\.dev", output)
+          matches = re.findall(r"https://[a-z0-9-]+\." + project + r"\.pages\.dev", output)
           if not matches:
               raise SystemExit("Wrangler did not report the private Pages deployment URL.")
           print(matches[-1])
