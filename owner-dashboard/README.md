@@ -8,7 +8,7 @@ The dedicated Firebase project is `ph-exam-results-dd94a`.
 
 - Enable Authentication → Sign-in method → Email/Password.
 - The Owner account must exist in Firebase Authentication and its email must be verified in Firebase.
-- Firestore must contain `users/{Firebase Auth UID}` with:
+- Firestore must contain `user/{Firebase Auth UID}` with:
   - `email`: exact Owner email (string)
   - `role`: `owner` (string, lowercase)
   - `active`: `true` (Boolean, not the text string `"true"`)
@@ -18,7 +18,7 @@ The dedicated Firebase project is `ph-exam-results-dd94a`.
 Merge this Firestore rule behavior into existing rules; do not replace unrelated application rules:
 
 ```javascript
-match /users/{userId} {
+match /user/{userId} {
   allow read: if request.auth != null && request.auth.uid == userId;
   allow create, update, delete: if false;
 }
@@ -32,7 +32,7 @@ Trusted Firebase Admin operations bypass Firestore rules. Never put an Admin SDK
 2. The Owner enters the Firebase Authentication email and password.
 3. The public page sends the credentials over HTTPS to the private dashboard's CORS-restricted `/auth/firebase` endpoint. The password is not logged or stored.
 4. The server signs in through Firebase Identity Toolkit using its server-side `FIREBASE_API_KEY`, verifies the Firebase ID token's RS256 signature and claims, and requires a verified email.
-5. The server reads `users/{uid}` from Firestore and requires the exact Firestore email, `role: "owner"`, and `active: true`. If configured, `FIREBASE_OWNER_UID` must also match.
+5. The server reads `user/{uid}` from Firestore and requires the exact Firestore email, `role: "owner"`, and `active: true`. If configured, `FIREBASE_OWNER_UID` must also match.
 6. The server returns a short-lived signed proof. The browser carries it in a URL fragment to `/continue.html`; fragments are not sent in HTTP requests.
 7. The handoff page immediately removes the fragment from browser history and posts the proof to the dashboard's same-origin `/auth/firebase/complete` endpoint.
 8. The endpoint exchanges the proof for an eight-hour signed, Secure, HttpOnly, SameSite=Lax session cookie. The browser opens the private dashboard directly.

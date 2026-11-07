@@ -3,7 +3,7 @@
 The private Owner dashboard is an isolated Cloudflare Pages project named `ph-exam-results-owner`. It must never be deployed to the public examination search Pages project.
 
 The Owner starts from the public search page's bilingual Owner Login icon. Access requires both:
-1. Firebase email/password authentication plus a verified email and Firestore `users/{uid}` profile with `role: "owner"` and `active: true`.
+1. Firebase email/password authentication plus a verified email and Firestore `user/{uid}` profile with `role: "owner"` and `active: true`.
 2. The existing GitHub OAuth account ID `338246827` and the same exact verified Owner email.
 
 The public and private Pages hostnames are separate sites. The Firebase proof handoff uses a short-lived signed token in a URL fragment, immediately removed by the private handoff page, then exchanged for a first-party HttpOnly cookie. This avoids reliance on third-party cookies on iOS/Safari. No Cloudflare Access / Zero Trust dependency is used.
@@ -14,11 +14,11 @@ Firebase project: `ph-exam-results-dd94a`.
 
 - Enable Authentication → Sign-in method → Email/Password.
 - Ensure the Owner Auth user exists and its email is verified.
-- Ensure Firestore has `users/{Firebase Auth UID}` with `role: "owner"`, `active: true`, and preferably `email: "<exact Owner email>"`.
+- Ensure Firestore has `user/{Firebase Auth UID}` with `role: "owner"`, `active: true`, and preferably `email: "<exact Owner email>"`.
 - Firestore rules must permit an authenticated user to read only their own profile document, but must not permit that user to create, update, or delete their role. Merge this behavior into existing rules; do not replace unrelated application rules:
 
 ```javascript
-match /users/{userId} {
+match /user/{userId} {
   allow read: if request.auth != null && request.auth.uid == userId;
   allow create, update, delete: if false;
 }
