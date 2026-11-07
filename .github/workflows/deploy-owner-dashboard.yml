@@ -224,38 +224,69 @@ jobs:
           print("Required private activity-monitor D1 tables are present.")
           PY
       - name: Deploy isolated private dashboard
+        id: deploy_owner_pages
         working-directory: owner-dashboard
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CF_PAGES_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
           PROJECT_NAME: ${{ secrets.CF_OWNER_PAGES_PROJECT_NAME }}
-        run: npx --yes wrangler@4.156.2 pages deploy public --project-name "$PROJECT_NAME" --branch main
+        run: |
+          set -euo pipefail
+          npx --yes wrangler@4.156.2 pages deploy public --project-name "$PROJECT_NAME" --branch main 2>&1 | tee /tmp/owner-pages-deploy.log
+          deployment_url=$(python - <<'PY'
+          import os, re
+          from pathlib import Path
+          project = re.escape(os.environ["PROJECT_NAME"])
+          output = Path("/tmp/owner-pages-deploy.log").read_text(errors="replace")
+          matches = re.findall(r"https://[a-z0-9-]+\." + project + r"\.pages\.dev", output)
+          if not matches:
+              raise SystemExit("Wrangler did not report the private Pages deployment URL.")
+          print(matches[-1])
+          PY
+          )
+          echo "url=$deployment_url" >> "$GITHUB_OUTPUT"
+          echo "Private deployment URL captured for health verification."
+
       - name: Verify deployed Owner authentication configuration
         env:
           PROJECT_NAME: ${{ secrets.CF_OWNER_PAGES_PROJECT_NAME }}
+          DEPLOYMENT_URL: ${{ steps.deploy_owner_pages.outputs.url }}
         run: |
           set -euo pipefail
-          url="https://${PROJECT_NAME}.pages.dev/auth/health"
+          test -n "$DEPLOYMENT_URL" || { echo "::error::Missing deployment-specific Pages URL."; exit 1; }
+          url="$DEPLOYMENT_URL/auth/health"
           status="000"
-          for attempt in $(seq 1 12); do
-            status=$(curl --connect-timeout 5 --max-time 10 -sS -D /tmp/owner-health-headers \
+          for attempt in $(seq 1 6); do
+            status=$(curl --connect-timeout 5 --max-time 12 -sS -D /tmp/owner-health-headers \
               -o /tmp/owner-health.json -w "%{http_code}" "$url" 2>/tmp/owner-health-curl-error || true)
             if [ "$status" = "200" ] && python -c 'import json; assert json.load(open("/tmp/owner-health.json"))["ready"] is True'; then
-              echo "Private Owner dashboard configuration is ready."
-              exit 0
+              echo "Private deployment health and live D1 schema query passed."
+              break
             fi
-            echo "Owner health attempt $attempt returned HTTP $status."
+            reason=$(python -c 'import json; print(json.load(open("/tmp/owner-health.json")).get("reason", "unavailable"))' 2>/dev/null || echo "unavailable")
+            echo "Private deployment health attempt $attempt returned HTTP $status (reason: $reason)."
+            cp /tmp/owner-health.json /tmp/owner-health-last.json 2>/dev/null || true
+            cp /tmp/owner-health-headers /tmp/owner-health-last-headers 2>/dev/null || true
             sleep 5
           done
-          echo "Final Owner health HTTP status: $status"
-          echo "Response headers:"
-          cat /tmp/owner-health-headers || true
-          echo "Response body:"
-          cat /tmp/owner-health.json || true
-          echo "Transport error:"
-          cat /tmp/owner-health-curl-error || true
-          echo "::error::Private Owner dashboard configuration is incomplete; see production Pages variables."
-          exit 1
+          if [ "$status" != "200" ] || ! python -c 'import json; assert json.load(open("/tmp/owner-health.json"))["ready"] is True' 2>/dev/null; then
+            echo "Final private deployment health HTTP status: $status"
+            cat /tmp/owner-health-last-headers /tmp/owner-health-headers 2>/dev/null || true
+            cat /tmp/owner-health-last.json /tmp/owner-health.json 2>/dev/null || true
+            cat /tmp/owner-health-curl-error 2>/dev/null || true
+            echo "::error::Private Owner dashboard D1/auth readiness failed; see the sanitized reason above."
+            exit 1
+          fi
+
+          # Verify the production alias points to a ready deployment before public route smoke tests.
+          alias_url="https://${PROJECT_NAME}.pages.dev/auth/health"
+          alias_status=$(curl --connect-timeout 5 --max-time 12 -sS -o /tmp/owner-alias-health.json -w "%{http_code}" "$alias_url")
+          if [ "$alias_status" != "200" ] || ! python -c 'import json; assert json.load(open("/tmp/owner-alias-health.json"))["ready"] is True' 2>/dev/null; then
+            echo "::error::Production Pages alias is not serving the ready deployment (HTTP $alias_status)."
+            cat /tmp/owner-alias-health.json || true
+            exit 1
+          fi
+          echo "Private deployment URL and production Pages alias are both ready."
 
       - name: Run live signed-out route and authentication smoke tests
         env:
