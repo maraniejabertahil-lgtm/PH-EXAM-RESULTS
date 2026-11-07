@@ -51,7 +51,8 @@ async function verifyFirebaseToken(token, projectId) {
   const now = Math.floor(Date.now() / 1000);
   if (claims.iss !== "https://securetoken.google.com/" + projectId ||
       claims.aud !== projectId || typeof claims.sub !== "string" || !claims.sub ||
-      claims.sub.length > 128 || claims.exp <= now || claims.iat > now + 60 ||
+      claims.sub.length > 128 || !Number.isInteger(claims.exp) || claims.exp <= now ||
+      !Number.isInteger(claims.iat) || claims.iat > now + 60 ||
       !Number.isInteger(claims.auth_time) || claims.auth_time > now + 60 ||
       now - claims.auth_time > 10 * 60 || claims.email_verified !== true ||
       typeof claims.email !== "string") throw new Error("Invalid identity claims");
@@ -83,7 +84,7 @@ async function exchange({ request, env }) {
     const userDocument = await userResponse.json();
     const fields = userDocument.fields || {};
     if (fields.role?.stringValue !== "owner" || fields.active?.booleanValue !== true ||
-        (fields.email?.stringValue && fields.email.stringValue.trim().toLowerCase() !== ownerEmail)) {
+        fields.email?.stringValue?.trim().toLowerCase() !== ownerEmail) {
       return json({ error: "Owner access denied." }, 403, origin);
     }
 
@@ -100,38 +101,15 @@ async function exchange({ request, env }) {
       exp: now + SESSION_SECONDS,
       csrf: randomToken(32),
     }, env.SESSION_SIGNING_KEY);
-    return json({ authenticated: true }, 200, origin).headers
-      ? new Response(JSON.stringify({ authenticated: true }), {
-          status: 200,
-          headers: {
-            "Content-Type": "application/json; charset=utf-8",
-            "Cache-Control": "no-store",
-            "X-Content-Type-Options": "nosniff",
-            "Access-Control-Allow-Origin": origin,
-            "Access-Control-Allow-Credentials": "true",
-            "Vary": "Origin",
-            "Set-Cookie": cookieHeader(COOKIE_NAMES.session, session, SESSION_SECONDS),
-          },
-        })
-      : json({ error: "Authentication failed." }, 500, origin);
-  } catch {
-    return json({ error: "Owner sign-in could not be verified." }, 401, origin);
-  }
-}
-
-export async function onRequestOptions({ request, env }) {
-  const origin = allowedOrigin(request, env);
-  if (!origin) return new Response(null, { status: 403 });
-  return new Response(null, { status: 204, headers: {
-    "Access-Control-Allow-Origin": origin,
-    "Access-Control-Allow-Credentials": "true",
-    "Access-Control-Allow-Methods": "POST, OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type",
-    "Access-Control-Max-Age": "600",
-    "Vary": "Origin",
-  }});
-}
-
-export async function onRequestPost(context) {
-  return exchange(context);
-}
+    return new Response(JSON.stringify({ authenticated: true }), {
+      status: 200,
+      headers: {
+        "Content-Type": "application/json; charset=utf-8",
+        "Cache-Control": "no-store",
+        "X-Content-Type-Options": "nosniff",
+        "Access-Control-Allow-Origin": origin,
+        "Access-Control-Allow-Credentials": "true",
+        "Vary": "Origin",
+        "Set-Cookie": cookieHeader(COOKIE_NAMES.session, session, SESSION_SECONDS),
+      },
+    });}
