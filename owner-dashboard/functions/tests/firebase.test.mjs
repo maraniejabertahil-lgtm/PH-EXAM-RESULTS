@@ -145,6 +145,18 @@ test("answers CORS preflight only for the configured public origin",()=>{
   const denied=firebasePreflight({request:new Request("https://ph-exam-results-owner.pages.dev/auth/firebase",{method:"OPTIONS",headers:{Origin:"https://attacker.example"}}),env});
   assert.equal(denied.status,403);
 });
+test("normalizes the configured public origin but permits only the exact production origin",()=>{
+  const normalizedEnv={...env,PUBLIC_SITE_ORIGIN:"HTTPS://PH-EXAM-RESULTS.pages.dev/"};
+  const allowed=firebasePreflight({request:new Request("https://ph-exam-results-owner.pages.dev/auth/firebase",{
+    method:"OPTIONS",headers:{Origin:"https://ph-exam-results.pages.dev"},
+  }),env:normalizedEnv});
+  assert.equal(allowed.status,204);
+  assert.equal(allowed.headers.get("Access-Control-Allow-Origin"),"https://ph-exam-results.pages.dev");
+  const wrongHost=firebasePreflight({request:new Request("https://ph-exam-results-owner.pages.dev/auth/firebase",{
+    method:"OPTIONS",headers:{Origin:"https://evil.example"},
+  }),env:normalizedEnv});
+  assert.equal(wrongHost.status,403);
+});
 test("rejects a Firebase proof submitted from a different dashboard origin",async()=>{
   const response=await completeFirebaseProof({request:new Request("https://ph-exam-results-owner.pages.dev/auth/firebase/complete",{
     method:"POST",headers:{Origin:"https://attacker.example","Content-Type":"application/json"},body:JSON.stringify({proof:"x"}),
