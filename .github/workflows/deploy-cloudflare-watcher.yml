@@ -75,6 +75,20 @@ jobs:
             exit 1
           fi
           echo "Required deployment credentials are configured."
+      - name: Configure Watcher D1 activity logging credentials
+        working-directory: watcher-bot
+        env:
+          CF_D1_API_TOKEN: ${{ secrets.CF_D1_API_TOKEN }}
+          CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
+          CF_D1_DATABASE_ID: ${{ secrets.CF_D1_DATABASE_ID }}
+        run: |
+          set -euo pipefail
+          test -n "$CF_D1_API_TOKEN" || { echo "::error::Missing repository Actions secret CF_D1_API_TOKEN."; exit 1; }
+          test -n "$CF_ACCOUNT_ID" || { echo "::error::Missing repository Actions secret CF_ACCOUNT_ID."; exit 1; }
+          test -n "$CF_D1_DATABASE_ID" || { echo "::error::Missing repository Actions secret CF_D1_DATABASE_ID."; exit 1; }
+          printf '%s' "$CF_D1_API_TOKEN" | npx --yes wrangler@4 secret put CF_D1_API_TOKEN
+          printf '%s' "$CF_ACCOUNT_ID" | npx --yes wrangler@4 secret put CF_ACCOUNT_ID
+          printf '%s' "$CF_D1_DATABASE_ID" | npx --yes wrangler@4 secret put CF_D1_DATABASE_ID
       - name: Deploy existing production Worker with Wrangler
         uses: cloudflare/wrangler-action@v4
         with:
@@ -91,5 +105,5 @@ jobs:
             echo "- Wrangler deployment command completed successfully."
             echo '- Configuration source: `watcher-bot/wrangler.toml`.'
             echo "- Existing production KV namespace and Cron configuration were read from the Wrangler configuration."
-            echo "- No Worker secrets were supplied or replaced by this workflow."
+            echo "- D1 activity logging credentials are provisioned as encrypted Worker secrets from repository Actions secrets."
           } >> "$GITHUB_STEP_SUMMARY"

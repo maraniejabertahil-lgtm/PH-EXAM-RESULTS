@@ -2,10 +2,20 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { recordActivity, recordActivities } from "../src/activity-log.js";
 
-test("Watcher activity logging is a no-op until D1 credentials are configured", async () => {
-  assert.equal(await recordActivity({}, {
-    event_id: "event-1", execution_id: "execution-1", status: "success",
-  }), false);
+test("Watcher activity logging reports missing D1 credentials without exposing values", async () => {
+  const original = console.warn;
+  const warnings = [];
+  console.warn = (message) => warnings.push(String(message));
+  try {
+    assert.equal(await recordActivity({}, {
+      event_id: "event-1", execution_id: "execution-1", status: "success",
+    }), false);
+  } finally { console.warn = original; }
+  assert.equal(warnings.length, 1);
+  assert.match(warnings[0], /CF_D1_API_TOKEN/);
+  assert.match(warnings[0], /CF_ACCOUNT_ID/);
+  assert.match(warnings[0], /CF_D1_DATABASE_ID/);
+  assert.doesNotMatch(warnings[0], /test-token|account|database/);
 });
 
 test("Watcher activity logging sends an idempotent parameterized D1 insert", async () => {

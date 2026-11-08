@@ -64,7 +64,12 @@ export async function recordActivities(env, events, fetchImpl = fetch) {
   const token = env.CF_D1_API_TOKEN;
   const account = env.CF_ACCOUNT_ID;
   const database = env.CF_D1_DATABASE_ID;
-  if (!token || !account || !database || !Array.isArray(events)) return false;
+  if (!token || !account || !database) {
+    const missing = [!token && "CF_D1_API_TOKEN", !account && "CF_ACCOUNT_ID", !database && "CF_D1_DATABASE_ID"].filter(Boolean);
+    console.warn("ACTIVITY_LOG_WARNING D1 activity logging is not configured; missing Worker bindings: " + missing.join(", "));
+    return false;
+  }
+  if (!Array.isArray(events)) return false;
   const batch = events.map(toStatement).filter(Boolean);
   if (!batch.length) return false;
   try {
