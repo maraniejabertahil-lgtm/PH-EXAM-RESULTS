@@ -1,8 +1,9 @@
 """Fail-closed Tier 3 OCR for reviewed, stable static PNG captures.
 
 OCR is never a primary acquisition path. This module requires recorded Tier 1
-and Tier 2 failures, a reviewed source/exam mapping, explicit terms/access
-review, stable lossless PNG evidence, and per-token confidence >= 95%.
+and Tier 2 failures, a reviewed source/exam mapping, Owner-reviewed public-
+viewability and access-compliance evidence, stable lossless PNG evidence, and
+per-token confidence >= 95%.
 """
 from __future__ import annotations
 
@@ -103,8 +104,19 @@ def _load_reviewed_mapping(batch: dict[str, Any], root: Path) -> dict[str, Any]:
         if mapping.get(field) != value:
             raise StaticPngOcrError(f"Tier 3 mapping does not match batch field {field}.")
     _review_is_current(mapping.get("mapping_review"), "OCR mapping review")
-    _review_is_current(mapping.get("access_directives_review"), "Source access-directives review")
-    _review_is_current(mapping.get("reuse_terms_review"), "Source reuse-terms review")
+    _review_is_current(mapping.get("public_viewability_review"), "Public-viewability review")
+    _review_is_current(mapping.get("access_compliance_review"), "Access-compliance review")
+    public_viewability = mapping.get("public_viewability")
+    if not isinstance(public_viewability, dict) or public_viewability.get("publicly_viewable") is not True:
+        raise StaticPngOcrError("Tier 3 requires evidence that the official content is publicly viewable.")
+    if not isinstance(public_viewability.get("downloadable"), bool):
+        raise StaticPngOcrError("Public-viewability evidence must record downloadable as true or false.")
+    if not isinstance(public_viewability.get("evidence_ref"), str) or not public_viewability["evidence_ref"].strip():
+        raise StaticPngOcrError("Public-viewability evidence must cite its verification evidence.")
+    if batch.get("publicly_viewable") is not True:
+        raise StaticPngOcrError("Tier 3 batch does not affirm ordinary public viewability.")
+    if batch.get("content_downloadable") is not public_viewability["downloadable"]:
+        raise StaticPngOcrError("Tier 3 batch downloadability does not match its reviewed public-viewability evidence.")
     pattern = mapping.get("record_pattern")
     if not isinstance(pattern, str) or not pattern:
         raise StaticPngOcrError("Reviewed OCR mapping must define record_pattern.")
