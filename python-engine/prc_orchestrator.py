@@ -21,6 +21,7 @@ from urllib.request import HTTPRedirectHandler, Request, build_opener
 from acquisition.official_content import (
     OfficialContentError,
     verify_official_preview_link,
+    verify_official_public_content_link,
 )
 from acquisition.public_preview import (
     PublicPreviewCaptureError,
@@ -286,11 +287,30 @@ def _approved_public_preview(
         raise NeedsReviewError("Exam-specific public-preview source identity or approval does not match the event.")
     if settings.get("method") != "ordinary_public_preview_ui":
         raise NeedsReviewError("Configured public-preview acquisition method is not approved.")
-    file_id = _drive_file_id(content_url)
-    allowed_ids = source.get("drive_file_ids")
-    if not isinstance(allowed_ids, list) or file_id not in allowed_ids:
-        raise NeedsReviewError("Drive file ID is not allowlisted for this exam-specific public-preview source.")
-    max_pages = settings.get("max_pages")
+    method = settings.get("method")
+    parsed_content = urlsplit(content_url)
+    if method == "ordinary_public_preview_ui":
+        file_id = _drive_file_id(content_url)
+        allowed_ids = source.get("drive_file_ids")
+        if not isinstance(allowed_ids, list) or file_id not in allowed_ids:
+            raise NeedsReviewError("Drive file ID is not allowlisted for this exam-specific public-preview source.")
+    elif method == "ordinary_public_page_ui":
+        approved_urls = source.get("public_content_urls")
+        allowed_hosts = settings.get("allowed_hosts")
+        if not isinstance(approved_urls, list) or content_url not in approved_urls:
+            raise NeedsReviewError("Official public-page URL is not explicitly approved for this examination.")
+        if (
+            not isinstance(allowed_hosts, list)
+            or not allowed_hosts
+            or parsed_content.hostname.lower() not in {host.lower() for host in allowed_hosts if isinstance(host, str)}
+            or parsed_content.hostname.lower() not in ALLOWED_HOSTS
+            or parsed_content.username or parsed_content.password
+            or parsed_content.fragment
+        ):
+            raise NeedsReviewError("Official public-page host is not explicitly allowlisted.")
+    else:
+        raise NeedsReviewError("Configured public acquisition method is not approved.")
+    max_pages = settings.get("max_pages", 1 if method == "ordinary_public_page_ui" else None)
     if isinstance(max_pages, bool) or not isinstance(max_pages, int) or not 1 <= max_pages <= 400:
         raise NeedsReviewError("Exam-specific public-preview page cap must be between 1 and 400.")
     return source, settings
@@ -327,6 +347,20 @@ def capture_public_preview(
         or any(not isinstance(host, str) or not host for host in allowed_hosts)
     ):
         raise NeedsReviewError("Public-preview mapping has an invalid allowed_hosts list.")
+    if settings.get("method") == "ordinary_public_page_ui":
+        try:
+            from public_preview_shards import capture_static_public_page
+            return capture_static_public_page(
+                page_url=preview_url,
+                output_dir=output_dir,
+                allowed_hosts={host.lower() for host in allowed_hosts},
+                stable_deadline=settings.get("stable_deadline", 25),
+                poll_ms=settings.get("poll_ms", 250),
+                max_text_chars=settings.get("max_text_chars", 5_000_000),
+                max_document_height=settings.get("max_document_height", 100_000),
+            )
+        except PlaywrightError as exc:
+            raise NeedsReviewError(f"Public-page browser capture stopped safely: {exc}") from exc
     shard_count = settings.get("shards", 1)
     if isinstance(shard_count, bool) or not isinstance(shard_count, int) or not 1 <= shard_count <= MAX_SHARDS:
         raise NeedsReviewError(f"Public-preview shard count must be an integer between 1 and {MAX_SHARDS}.")
