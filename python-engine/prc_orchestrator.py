@@ -380,7 +380,7 @@ def _extract_pdf_text_evidence(raw: bytes, output: Path) -> tuple[dict, bool]:
         pdf_path.write_bytes(raw)
         extraction = extract_pdf(pdf_path)
     except Exception as exc:
-        raise NeedsReviewError(f"Tier 1 PDF text extraction failed; human review is required: {exc}") from exc
+        raise NeedsReviewError(f"PDF extraction failed during Tier 1 text inspection; human review is required: {exc}") from exc
 
     extraction_path = output / "pdf-text-extraction.json"
     extraction_path.write_text(
