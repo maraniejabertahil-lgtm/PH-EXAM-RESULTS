@@ -34,17 +34,20 @@ test("public header contains only the accessible Log in icon", () => {
 });
 
 test("public HTML cache-busts the immutable login module", () => {
-  assert.ok(html.includes("/assets/js/app.mjs?v=20261108-owner-login-proxy1"));
+  assert.ok(html.includes("/assets/js/app.mjs?v=20261108-single-domain-owner1"));
 });
 
-test("Log in icon uses the same-origin proxy before opening the private dashboard", () => {
+test("Log in icon completes Firebase Owner proof exchange and opens the same-origin dashboard", () => {
   assert.ok(app.includes('ownerLogin.open?.addEventListener("click", showOwnerLogin)'));
   assert.ok(!app.includes("ownerLogin.open.hidden ="), "runtime status must never hide the permanent Log in icon");
   assert.ok(app.includes('fetch("/auth/firebase"'));
   assert.ok(!app.includes('fetch(OWNER_DASHBOARD_URL + "/auth/firebase"'),
     "browser login must not depend on a cross-origin dashboard request");
   assert.ok(app.includes("result.authenticated !== true"));
-  assert.ok(app.includes("location.assign(OWNER_DASHBOARD_URL"));
+  assert.ok(app.includes('fetch("/auth/firebase/complete"'));
+  assert.ok(app.includes('location.assign("/owner/")'));
+  assert.ok(!app.includes("OWNER_DASHBOARD_URL"));
+  assert.ok(!app.includes("ph-exam-results-owner.pages.dev"));
 });
 
 test("public CSP no longer needs a cross-origin connection for Owner login", () => {
