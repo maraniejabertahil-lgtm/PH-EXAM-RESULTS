@@ -128,7 +128,7 @@ class PRCOrchestratorTests(unittest.TestCase):
             "exam": "NLE",
             "year": 2026,
             "official_source_url": specific["url"],
-            "record_pattern": r"^(?P<sequence>\\d+) (?P<name>[A-Z]+, [A-Z]+ [A-Z])$",
+            "record_pattern": r"^(?P<sequence>\d+) (?P<name>[A-Z]+, [A-Z]+ [A-Z])$",
             "mapping_review": review,
             "public_viewability_review": review,
             "access_compliance_review": review,
@@ -145,10 +145,10 @@ class PRCOrchestratorTests(unittest.TestCase):
 
         def capture_public_viewer(*, preview_url, output_dir, settings):
             output_dir.mkdir(parents=True, exist_ok=True)
-            png = b"\\x89PNG\\r\\n\\x1a\\n" + b"public-viewer-test"
+            png = b"\x89PNG\r\n\x1a\n" + b"public-viewer-test"
             (output_dir / "page-1.png").write_bytes(png)
             (output_dir / "page-text-snapshots.jsonl").write_text(
-                json.dumps({"page": 1, "text": "Page 1 of 1"}) + "\\n",
+                json.dumps({"page": 1, "text": "Page 1 of 1"}) + "\n",
                 encoding="utf-8",
             )
             (output_dir / "capture-manifest.json").write_text(
