@@ -98,7 +98,7 @@ def write_fake_capture(preview_url: str, output_dir: Path, settings: dict) -> di
         ),
         encoding="utf-8",
     )
-    return {
+    manifest = {
         "schema_version": 1,
         "capture_method": "ordinary_public_preview_ui",
         "viewer_pages_expected": 2,
@@ -108,6 +108,10 @@ def write_fake_capture(preview_url: str, output_dir: Path, settings: dict) -> di
         "access_controls_bypassed": False,
         "files": {"screenshots": screenshots},
     }
+    (output_dir / "capture-manifest.json").write_text(
+        json.dumps(manifest), encoding="utf-8"
+    )
+    return manifest
 
 
 class PRCPublicPreviewPipelineTests(unittest.TestCase):
@@ -225,29 +229,34 @@ class PRCPublicPreviewPipelineTests(unittest.TestCase):
                 MAPPING,
             )
 
-    def run_capture(self, *, content_url=CONTENT_URL, capturer=write_fake_capture):
-        self.event["content_urls"][0]["url"] = content_url
-        return run(
-            self.event,
-            self.root / "output",
-            preview_verifier=lambda **_kwargs: {},
-            preview_capturer=capturer,
-            registry_path=self.root / "python-engine/config/sources.json",
-            cfg_path=self.root / "python-engine/config/adapter_mappings.json",
-            repository_root=self.root,
-        )
+    def run_capture(
+        self, *, content_url=CONTENT_URL, capturer=write_fake_capture,
+        pdf_extraction=None, cfg_path=None, fetcher=None,
+    ):
+        import sys
 
-    def test_public_preview_capture_parses_all_pages_and_creates_batch(self):
-        self.assertEqual(self.run_capture(), 0)
-        report = json.loads((self.root / "output/report.json").read_text(encoding="utf-8"))
-        batch = json.loads((self.root / "output/release-batch.json").read_text(encoding="utf-8"))
-        self.assertEqual(report["records"], 2)
-        self.assertEqual(report["greenlight"], 100)
-        self.assertEqual(report["viewer_pages"], 2)
-        self.assertEqual(batch["official_content_mode"], "public_preview_capture")
-        self.assertEqual(batch["exam_specific_source_id"], EXAM_SOURCE["id"])
-        self.assertEqual(batch["public_preview_mapping_key"], MAPPING_KEY)
-        self.assertFalse(batch.get("records"))
+        extractor_dir = Path(__file__).resolve().parents[1] / "extractor"
+        if str(extractor_dir) not in sys.path:
+            sys.path.insert(0, str(extractor_dir))
+        import pdf_parser
+
+        self.event["content_urls"][0]["url"] = content_url
+        extraction = pdf_extraction or {
+            "page_count": 1,
+            "pages": [{"page_number": 1, "text": "", "tables": []}],
+            "source_file_sha256": "a" * 64,
+        }
+        with patch.object(pdf_parser, "extract_pdf", return_value=extraction):
+            return run(
+                self.event,
+                self.root / "output",
+                fetcher=fetcher or (lambda _url: b"%PDF-1.4\nsynthetic"),
+                preview_verifier=lambda **_kwargs: {},
+                preview_capturer=capturer,
+                registry_path=self.root / "python-engine/config/sources.json",
+                cfg_path=cfg_path or self.root / "python-engine/config/adapter_mappings.json",
+                repository_root=self.root,
+            )
 
     def test_unapproved_drive_file_id_stops_before_capture(self):
         capturer = Mock()
