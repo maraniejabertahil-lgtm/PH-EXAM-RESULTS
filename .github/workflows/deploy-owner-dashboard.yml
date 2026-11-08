@@ -54,6 +54,7 @@ jobs:
           node --check owner-dashboard/public/continue.js
           node --check public/assets/js/app.mjs
           node --check owner-dashboard/functions/api/activity.js
+          node --check owner-dashboard/functions/api/analytics.js
           node --check owner-dashboard/functions/lib/access.js
           node --check owner-dashboard/functions/lib/firebase.js
           node --check owner-dashboard/functions/_middleware.js

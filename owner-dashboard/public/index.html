@@ -5,51 +5,42 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="robots" content="noindex,nofollow,noarchive">
   <meta name="referrer" content="no-referrer">
-  <title>Private Owner Activity Dashboard · PH Exam Results</title>
+  <title>PH Exam Results · Owner Analytics</title>
   <link rel="stylesheet" href="/owner.css">
   <script type="module" src="/activity.js"></script>
 </head>
 <body>
   <header class="monitor-header">
-    <a href="https://ph-exam-results.pages.dev/" class="brand">PH EXAM RESULTS <span>/ PRIVATE OWNER DASHBOARD</span></a>
+    <a href="https://ph-exam-results.pages.dev/" class="brand">PH EXAM RESULTS <span>/ OWNER ANALYTICS</span></a>
     <nav class="private-label"><a href="https://ph-exam-results.pages.dev/?owner=login" id="sign-in-link">Owner sign in</a> <button id="sign-out-button" type="button" hidden>Sign out</button></nav>
   </header>
   <main class="monitor-main">
-    <section class="intro">
-      <p class="eyebrow">SYSTEM OBSERVABILITY</p>
-      <h1>Activity Monitor</h1>
-      <p>Follow each execution, identify the first failure, and inspect the related activity history.</p>
-    </section>
-    <section class="summary-grid" aria-label="Activity summary">
-      <article><span>Total events loaded</span><strong id="total-count">—</strong></article>
-      <article><span>Failed</span><strong id="failed-count">—</strong></article>
-      <article><span>Blocked</span><strong id="blocked-count">—</strong></article>
-      <article><span>Running</span><strong id="running-count">—</strong></article>
-    </section>
-    <section class="activity-panel">
-      <div class="panel-heading">
-        <div><h2>Activity history</h2><p id="last-updated">Waiting for private activity records…</p></div>
-        <button id="refresh-button" type="button">Refresh</button>
+    <section class="dashboard-heading">
+      <div><p class="eyebrow">PRIVATE ANALYTICS</p><h1>Performance</h1></div>
+      <div class="range-control" role="group" aria-label="Date range">
+        <button type="button" data-days="7">7D</button><button type="button" data-days="30" aria-pressed="true">30D</button><button type="button" data-days="90">90D</button>
       </div>
-      <div class="filters">
-        <label>Status
-          <select id="status-filter">
-            <option value="">All statuses</option>
-            <option value="running">Running</option>
-            <option value="success">Success</option>
-            <option value="failed">Failed</option>
-            <option value="blocked">Blocked</option>
-            <option value="warning">Warning</option>
-          </select>
-        </label>
-        <label>Component
-          <select id="component-filter"><option value="">All components</option></select>
-        </label>
-      </div>
-      <p id="load-message" class="load-message" role="status" aria-live="polite">Loading activity history…</p>
+    </section>
+    <section class="metric-grid" aria-label="Key metrics">
+      <article class="metric-card"><span>Monitor</span><strong id="monitor-status">—</strong><small id="monitor-updated">Watcher status</small></article>
+      <article class="metric-card"><span>Peak week</span><strong id="peak-count">—</strong><small>Watcher checks · period</small></article>
+      <article class="metric-card"><span>Preemptive</span><strong id="prediction-count">—</strong><small id="next-release">Active predictions</small></article>
+      <article class="metric-card"><span>Extraction</span><strong id="extracted-count">—</strong><small>Validated records</small></article>
+      <article class="metric-card"><span>Publications</span><strong id="published-count">—</strong><small>Published batches</small></article>
+      <article class="metric-card"><span>Visitors</span><strong class="unavailable">Not connected</strong><small>Analytics integration needed</small></article>
+      <article class="metric-card"><span>AdSense</span><strong class="unavailable">Not connected</strong><small>Revenue integration needed</small></article>
+    </section>
+    <section class="chart-grid" aria-label="Performance graphs">
+      <article class="chart-panel"><div class="chart-heading"><h2>Monitoring activity</h2><span>Checks / releases</span></div><div id="monitor-chart" class="curve-chart"><p>Loading…</p></div></article>
+      <article class="chart-panel"><div class="chart-heading"><h2>Extraction</h2><span>Validated records</span></div><div id="extraction-chart" class="curve-chart"><p>Loading…</p></div></article>
+      <article class="chart-panel"><div class="chart-heading"><h2>Publications</h2><span>Published batches</span></div><div id="publication-chart" class="curve-chart"><p>Loading…</p></div></article>
+    </section>
+    <details class="activity-panel">
+      <summary>Recent activity</summary>
+      <p id="load-message" class="load-message" role="status" aria-live="polite">Loading…</p>
       <div id="activity-list" class="activity-list"></div>
-    </section>
-    <p class="security-note">Private owner view. Public visitors cannot read activity records. Examinee names and search queries are not stored in this log.</p>
+    </details>
+    <p class="security-note">Private owner view · Operational data only · No examinee names or search queries</p>
   </main>
 </body>
 </html>
