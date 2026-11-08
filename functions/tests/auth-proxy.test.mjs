@@ -108,9 +108,15 @@ test("converts upstream outages and non-JSON replies into readable no-store erro
     assert.equal(response.headers.get("Cache-Control"), "no-store");
   });
 
-  await withFetch(async () => new Response("upstream unavailable", { status: 502 }), async () => {
+  await withFetch(async () => new Response("<html>not found</html>", {
+    status: 404,
+    headers: { "Content-Type": "text/html; charset=utf-8" },
+  }), async () => {
     const response = await onRequestPost({ request: request() });
+    const payload = await response.json();
     assert.equal(response.status, 502);
-    assert.match((await response.json()).error, /invalid response/);
+    assert.match(payload.error, /HTTP 404; content-type text\/html/);
+    assert.match(payload.error, /CF_OWNER_PAGES_PROJECT_NAME is ph-exam-results-owner/);
+    assert.doesNotMatch(JSON.stringify(payload), /not found|<html>/i);
   });
 });
