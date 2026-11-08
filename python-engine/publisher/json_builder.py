@@ -168,7 +168,7 @@ def build_dataset(
     rows = [_validate_record(record, index) for index, record in enumerate(source_rows, start=1)]
     # Alphabetical ordering supports predictable name-range shards. Sequence
     # values are retained in the output and can still be searched/displayed.
-    rows.sort(key=lambda row: (row[0].casefold(), row[0], int(row[3])))
+    rows.sort(key=lambda row: (row[0].casefold(), row[0], int(row[1])))
     chunks = _partition_rows(rows, max_shard_bytes)
 
     destination = Path(output_dir).expanduser()
