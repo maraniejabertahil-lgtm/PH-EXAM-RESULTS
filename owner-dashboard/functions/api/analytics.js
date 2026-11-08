@@ -44,7 +44,7 @@ export async function onRequestGet({ request, env }) {
       queryD1(env,
         "SELECT substr(COALESCE(completed_at,started_at,updated_at,created_at),1,10) AS day, COUNT(*) AS batches, " +
         "SUM(CASE WHEN status='published' THEN 1 ELSE 0 END) AS published, " +
-        "SUM(CASE WHEN status='greenlight_passed' THEN COALESCE(record_count,extracted_count,0) ELSE 0 END) AS validated_records " +
+        "SUM(CASE WHEN status IN ('greenlight_passed','published') THEN COALESCE(record_count,extracted_count,0) ELSE 0 END) AS validated_records " +
         "FROM import_batches WHERE datetime(COALESCE(completed_at,started_at,updated_at,created_at)) >= datetime(?) " +
         "GROUP BY substr(COALESCE(completed_at,started_at,updated_at,created_at),1,10) ORDER BY day ASC", [new Date(Date.now() - days * 86400000).toISOString()]),
       queryD1(env, "SELECT COUNT(*) AS active, MIN(predicted_release_date) AS next_release FROM release_predictions WHERE status='active' AND date(predicted_release_date)>=date('now')"),
