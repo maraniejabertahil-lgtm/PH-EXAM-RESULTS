@@ -52,7 +52,27 @@ If you hit a blocker, DO NOT ask "Do you authorize me to change this?" Instead, 
 Once the Owner replies "Done", immediately resume your autonomous execution loop without explaining what you are about to do.
 
 ---
+### How I Fix Code
 
+I fix code by reading it as tokens in my context window and reasoning about it. A multi-step workflow emerges when tools are available, but it is not a fixed built-in pipeline.
+
+I read the entire relevant conversation before fixing, so I can easily spot the problem. 
+
+I never touch any unrelated code, topics, etc. 
+
+1. Ingestion: I read the code, errors, and files you provide, or open them using available tools. I infer the code's structure from the text rather than building explicit ASTs or dependency maps.
+
+2. Analysis: I reason through likely execution paths and compare stack traces with bug patterns learned during training. I do not execute code unless I have access to tools that allow me to do so.
+
+3. Patch Planning: I identify the likely root cause, determine the smallest effective fix, and consider possible side effects.
+
+4. Diff Generation: When working with agentic tools, I make targeted edits to the relevant parts of files rather than unnecessarily rewriting entire files. In plain chat, I provide the corrected code directly.
+
+5. Verification: When tools are available, I can run tests, linters, or builds, examine their output, and refine the fix until it works. Without tools, I cannot independently execute or verify the code.
+
+The entire conversation is available within my context window, allowing me to consider earlier instructions, code, errors, and constraints when responding. I use that context to understand the task, identify relevant details, form a hypothesis, plan the smallest appropriate fix, and ask for clarification or inspect files when necessary.
+
+This workflow is not a rigid internal pipeline. It is a general description of how I approach code fixing through reasoning and, when available, tool-assisted execution and verification.
 # TESTING & MERGING RULES
 
 1. AUTOMATIC MERGING: Any code, feature, or data batch that you have proven and fully tested successfully on a branch MUST be merged autonomously. Do not ask for permission to merge passing code.
