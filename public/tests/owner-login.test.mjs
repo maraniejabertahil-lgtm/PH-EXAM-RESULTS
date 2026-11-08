@@ -6,30 +6,44 @@ const status = JSON.parse(await readFile(new URL("../status.json", import.meta.u
 const html = await readFile(new URL("../index.html", import.meta.url), "utf8");
 const css = await readFile(new URL("../assets/css/owner-login.css", import.meta.url), "utf8");
 const app = await readFile(new URL("../assets/js/app.mjs", import.meta.url), "utf8");
+const headers = await readFile(new URL("../_headers", import.meta.url), "utf8");
 
 test("public header contains only the accessible Log in icon", () => {
   assert.equal(status.owner_login_enabled, true);
-  const header = html.match(/<header class="site-header">([\s\S]*?)<\/header>/)?.[1];
-  assert.ok(header, "site header must exist");
-  assert.match(header, /<div class="header-actions">\s*<button id="owner-login-open"/);
+  const start = html.indexOf('<header class="site-header">');
+  const end = html.indexOf("</header>", start);
+  assert.notEqual(start, -1, "site header must exist");
+  assert.notEqual(end, -1, "site header must close");
+  const header = html.slice(start, end);
+  assert.ok(header.includes('<div class="header-actions">'));
+  assert.ok(header.includes('<button id="owner-login-open"'));
   assert.equal((header.match(/<button\b/g) || []).length, 1, "the Log in icon must be the only header button");
-  assert.match(header, /class="owner-login-icon"/);
-  assert.match(header, /aria-label="Log in"/);
-  assert.match(header, /title="Log in"/);
-  assert.doesNotMatch(header, /search|release\s*status|menu|ellipsis/i, "Search, Release Status, and overflow controls must not appear in the header");
-  assert.match(html, /id="owner-login-dialog"/);
-  const loginDisplay = html.match(/<dialog id="owner-login-dialog"[\s\S]*?<\/dialog>/)?.[0] || "";
-  assert.doesNotMatch(loginDisplay, /[\u0600-\u06FF]/, "the login display must contain English only");
-  assert.doesNotMatch(header, /[\u0600-\u06FF]/, "the login icon must contain English only");
-  assert.doesNotMatch(header, /class="header-note"/);
+  assert.ok(header.includes('class="owner-login-icon"'));
+  assert.ok(header.includes('aria-label="Log in"'));
+  assert.ok(header.includes('title="Log in"'));
+  assert.doesNotMatch(header, /search|release\s*status|menu|ellipsis/i);
+  assert.ok(html.includes('id="owner-login-dialog"'));
+  const loginStart = html.indexOf('<dialog id="owner-login-dialog"');
+  const loginEnd = html.indexOf("</dialog>", loginStart);
+  const loginDisplay = html.slice(loginStart, loginEnd);
+  assert.equal([...loginDisplay].some((character) => character >= "\u0600" && character <= "\u06FF"), false);
+  assert.equal([...header].some((character) => character >= "\u0600" && character <= "\u06FF"), false);
+  assert.ok(!header.includes('class="header-note"'));
   assert.match(css, /\.header-actions\{[^}]*margin-left:auto/);
   assert.match(css, /\.owner-login-button\{[^}]*border-radius:50%/);
 });
 
-test("Log in icon opens the Firebase Owner login flow", () => {
-  assert.match(app, /ownerLogin\.open\?\.addEventListener\("click", showOwnerLogin\)/);
-  assert.doesNotMatch(app, /ownerLogin\.open\.hidden\s*=/, "runtime status must never hide the permanent Log in icon");
-  assert.match(app, /fetch\(OWNER_DASHBOARD_URL \+ "\/auth\/firebase"/);
-  assert.match(app, /result\.authenticated !== true/);
-  assert.match(app, /location\.assign\(OWNER_DASHBOARD_URL/);
+test("Log in icon uses the same-origin proxy before opening the private dashboard", () => {
+  assert.ok(app.includes('ownerLogin.open?.addEventListener("click", showOwnerLogin)'));
+  assert.ok(!app.includes("ownerLogin.open.hidden ="), "runtime status must never hide the permanent Log in icon");
+  assert.ok(app.includes('fetch("/auth/firebase"'));
+  assert.ok(!app.includes('fetch(OWNER_DASHBOARD_URL + "/auth/firebase"'),
+    "browser login must not depend on a cross-origin dashboard request");
+  assert.ok(app.includes("result.authenticated !== true"));
+  assert.ok(app.includes("location.assign(OWNER_DASHBOARD_URL"));
+});
+
+test("public CSP no longer needs a cross-origin connection for Owner login", () => {
+  assert.ok(headers.includes("connect-src 'self';"));
+  assert.ok(!headers.includes("ph-exam-results-owner.pages.dev"));
 });

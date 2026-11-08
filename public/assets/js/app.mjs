@@ -292,10 +292,9 @@ ownerLogin.form?.addEventListener("submit", async (event) => {
   const password = ownerLogin.password.value;
 
   try {
-    const response = await fetch(OWNER_DASHBOARD_URL + "/auth/firebase", {
+    const response = await fetch("/auth/firebase", {
       method: "POST",
-      mode: "cors",
-      credentials: "omit",
+      credentials: "same-origin",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email, password }),
     });
