@@ -7,7 +7,7 @@ from unittest.mock import patch
 
 from main import process_batch
 from prc_adapters import REGISTRY
-from prc_orchestrator import greenlight, run, validate_event
+from prc_orchestrator import _load_tier3_mapping_key, greenlight, run, validate_event
 
 
 SOURCE = {
@@ -54,6 +54,42 @@ class PRCOrchestratorTests(unittest.TestCase):
 
     def tearDown(self):
         self.temporary.cleanup()
+
+    def test_tier3_mapping_accepts_both_downloadability_states_only_when_publicly_viewable(self):
+        config_dir = self.root / "python-engine" / "config"
+        config_dir.mkdir(parents=True)
+        config_path = config_dir / "static_png_ocr_mappings.json"
+        base_mapping = {
+            "enabled": True,
+            "source_id": SOURCE["id"],
+            "authority": "PRC",
+            "exam": "NLE",
+            "year": 2026,
+            "official_source_url": SOURCE["url"],
+            "public_viewability": {"publicly_viewable": True, "downloadable": True},
+        }
+        with patch("prc_orchestrator.HERE", self.root / "python-engine"):
+            for downloadable in (True, False):
+                mapping = dict(base_mapping)
+                mapping["public_viewability"] = {
+                    "publicly_viewable": True,
+                    "downloadable": downloadable,
+                }
+                config_path.write_text(
+                    json.dumps({"schema_version": 1, "mappings": {"NLE:2026": mapping}}),
+                    encoding="utf-8",
+                )
+                self.assertEqual(
+                    _load_tier3_mapping_key(SOURCE, event(), downloadable=downloadable),
+                    "NLE:2026",
+                )
+            mapping = dict(base_mapping)
+            mapping["public_viewability"] = {"publicly_viewable": False, "downloadable": False}
+            config_path.write_text(
+                json.dumps({"schema_version": 1, "mappings": {"NLE:2026": mapping}}),
+                encoding="utf-8",
+            )
+            self.assertIsNone(_load_tier3_mapping_key(SOURCE, event(), downloadable=False))
 
     def test_event_rejects_non_official_and_invalid_count_inputs(self):
         payload = event()
