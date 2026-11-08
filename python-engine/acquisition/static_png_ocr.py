@@ -113,6 +113,16 @@ def _load_reviewed_mapping(batch: dict[str, Any], root: Path) -> dict[str, Any]:
         raise StaticPngOcrError("Public-viewability evidence must record downloadable as true or false.")
     if not isinstance(public_viewability.get("evidence_ref"), str) or not public_viewability["evidence_ref"].strip():
         raise StaticPngOcrError("Public-viewability evidence must cite its verification evidence.")
+    reviewed_hosts = public_viewability.get("allowed_hosts")
+    batch_hosts = batch.get("public_preview_allowed_hosts")
+    if (
+        not isinstance(reviewed_hosts, list) or not reviewed_hosts
+        or not isinstance(batch_hosts, list) or not batch_hosts
+        or any(not isinstance(host, str) or not host for host in reviewed_hosts + batch_hosts)
+    ):
+        raise StaticPngOcrError("Owner-reviewed public-viewability evidence must list exact allowed hosts.")
+    if not set(batch_hosts).issubset(set(reviewed_hosts)):
+        raise StaticPngOcrError("Capture hosts exceed the Owner-reviewed public-viewability host allowlist.")
     if batch.get("publicly_viewable") is not True:
         raise StaticPngOcrError("Tier 3 batch does not affirm ordinary public viewability.")
     if batch.get("content_downloadable") is not public_viewability["downloadable"]:
@@ -214,26 +224,34 @@ def load_static_png_ocr_capture(
 
     content_url = urlsplit(str(batch.get("official_content_url", "")))
     preview_url = urlsplit(str(batch.get("public_preview_url", "")))
-    content_match = re.fullmatch(r"/file/d/([A-Za-z0-9_-]+)/view", content_url.path)
-    preview_match = re.fullmatch(r"/file/d/([A-Za-z0-9_-]+)/preview", preview_url.path)
+    content_host = (content_url.hostname or "").lower()
+    preview_host = (preview_url.hostname or "").lower()
     if (
-        content_url.scheme != "https"
-        or content_url.hostname != "drive.google.com"
-        or content_match is None
-        or preview_url.scheme != "https"
-        or preview_url.hostname != "drive.google.com"
-        or preview_match is None
-        or content_match.group(1) != preview_match.group(1)
-        or content_url.username or content_url.password
-        or preview_url.username or preview_url.password
+        content_url.scheme != "https" or preview_url.scheme != "https"
+        or content_host not in set(reviewed_hosts)
+        or preview_host not in set(reviewed_hosts)
+        or content_url.username or content_url.password or content_url.fragment
+        or preview_url.username or preview_url.password or preview_url.fragment
     ):
-        raise StaticPngOcrError("Tier 3 screenshots must be tied to the ordinary preview for the exact allowlisted official Drive file.")
+        raise StaticPngOcrError("Tier 3 content and preview URLs must use Owner-reviewed credential-free HTTPS hosts.")
+    if batch.get("public_preview_method") == "ordinary_public_page_ui":
+        if batch.get("official_content_url") != batch.get("public_preview_url"):
+            raise StaticPngOcrError("Public-page OCR must use the exact official content URL.")
+    elif (
+        batch.get("public_preview_method") != "ordinary_public_preview_ui"
+        or content_host != "drive.google.com"
+        or preview_host != "drive.google.com"
+        or not re.fullmatch(r"/file/d/([A-Za-z0-9_-]+)/view", content_url.path)
+        or preview_url.path != content_url.path.rsplit("/", 1)[0] + "/preview"
+    ):
+        raise StaticPngOcrError("Drive OCR screenshots must use the ordinary preview for the exact allowlisted official file.")
 
     manifest_path = _safe_file(repository_root, batch.get("static_png_ocr_manifest"), "static PNG OCR manifest")
     manifest = _read_object(manifest_path, "static PNG OCR manifest")
     if (
         manifest.get("schema_version") != 1
-        or manifest.get("capture_method") != "ordinary_public_preview_ui"
+        or manifest.get("capture_method") not in {"ordinary_public_preview_ui", "ordinary_public_page_ui"}
+        or manifest.get("capture_method") != batch.get("public_preview_method")
         or manifest.get("source_url") != batch.get("public_preview_url")
         or manifest.get("official_content_url") != batch.get("official_content_url")
         or manifest.get("public_preview_url") != batch.get("public_preview_url")
