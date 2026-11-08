@@ -741,8 +741,7 @@ def run(
     if len(content_urls) != 1:
         return finish("needs_review", 3, reason="multiple official content links; automatic selection is not safe")
     content = content_urls[0]
-    if content["format"] != "pdf":
-        return finish("needs_review", 3, reason=f"the current three-tier PRC route accepts PDF sources only, not {content['format']}")
+    content_format = content["format"]
 
     try:
         preview_approval = _approved_public_preview(event, content["url"], registry_path)
@@ -753,38 +752,107 @@ def run(
     settings = preview_approval[1] if preview_approval is not None else None
     if preview_approval is not None:
         try:
-            preview_verifier(
-                source=specific_source,
-                article_url=event["article_url"],
-                content_url=content["url"],
-                evidence_path=output / "official-content-evidence.json",
-            )
+            if settings.get("method") == "ordinary_public_page_ui":
+                verify_official_public_content_link(
+                    source=specific_source,
+                    article_url=event["article_url"],
+                    content_url=content["url"],
+                    allowed_hosts=settings.get("allowed_hosts"),
+                    evidence_path=output / "official-content-evidence.json",
+                )
+            else:
+                preview_verifier(
+                    source=specific_source,
+                    article_url=event["article_url"],
+                    content_url=content["url"],
+                    evidence_path=output / "official-content-evidence.json",
+                )
         except (OfficialContentError, RuntimeError, OSError, ValueError) as exc:
             return finish("needs_review", 3, reason=f"Official article/link verification stopped safely: {exc}", source=content["url"])
 
-    # Tier 1: attempt the official PDF download first. A 403 is not proof that
-    # the content is private: the ordinary public viewer is checked independently
-    # in Tier 2. No credentials, alternate endpoints, or access-control bypasses
-    # are attempted. Every other acquisition failure remains a safe stop.
+    # Tier 1 attempts only the exact official linked content URL. A direct HTTP
+    # 403 may proceed to Tier 2 only when an Owner-approved ordinary public
+    # viewer/page route exists and independently proves public visibility.
     downloadable = True
+    raw = None
+    tier1 = {"status": "unavailable", "reason": "Tier 1 has not completed."}
+    tier1_available = False
     try:
         raw = fetcher(content["url"])
         if not isinstance(raw, bytes):
             raise NeedsReviewError("Content fetcher did not return bytes.")
-        _validate_content_format(raw, "pdf")
-        tier1, tier1_available = _extract_pdf_text_evidence(raw, output)
+        _validate_content_format(raw, content_format)
+        if content_format == "pdf":
+            tier1, tier1_available = _extract_pdf_text_evidence(raw, output)
+        else:
+            mapping = load_mapping(event, content_format, cfg_path)
+            if mapping is None:
+                return finish(
+                    "needs_review", 3,
+                    reason=f"Tier 1 acquired readable {content_format.upper()} content, but no reviewed {content_format.upper()} mapping exists. A missing mapping is not an extraction-unavailable fallback.",
+                    source=content["url"],
+                )
+            if not isinstance(mapping, dict):
+                return finish("needs_review", 3, reason=f"reviewed {content_format.upper()} mapping must be a JSON object", source=content["url"])
+            try:
+                records = REGISTRY[content_format](raw, mapping)
+            except NeedsReview as exc:
+                return finish("needs_review", 3, reason=f"Tier 1 {content_format.upper()} mapping/parser requires human review: {exc}", source=content["url"])
+            except (UnicodeError, ValueError, TypeError, KeyError) as exc:
+                return finish("needs_review", 3, reason=f"Tier 1 {content_format.upper()} parsing stopped safely: {exc}", source=content["url"])
+            if content_format == "html" and not records:
+                tier1 = {
+                    "status": "unavailable",
+                    "reason": "The downloaded HTML contained no server-rendered result table rows; the separately approved visible-page route may be checked as Tier 2.",
+                    "content_sha256": hashlib.sha256(raw).hexdigest(),
+                }
+            else:
+                score, failures = greenlight(records, event["announced_count"])
+                if score != 100:
+                    return finish("needs_review", 3, reason=f"Tier 1 {content_format.upper()} Greenlight failed; later tiers are not parser-error fallbacks.", failures=failures, source=content["url"])
+                batch = {
+                    "authority": "PRC",
+                    "exam": event["exam_code"] + (
+                        f"-{event['result_level'].upper()}" if event.get("result_level") else ""
+                    ),
+                    "level": event.get("result_level"),
+                    "year": event["exam_year"],
+                    "source_id": source["id"],
+                    "official_source_url": source["url"],
+                    "official_article_url": event["article_url"],
+                    "official_content_url": content["url"],
+                    "announced_count": event["announced_count"],
+                    "publicly_released": True,
+                    "provenance": "official_direct",
+                    "official_content_mode": "structured_content_extraction",
+                    "source_content_format": content_format,
+                    "source_content_sha256": hashlib.sha256(raw).hexdigest(),
+                    "records": [
+                        {"sequence_number": str(sequence), "name": name}
+                        for sequence, name in records
+                    ],
+                    "record_mapping_reviewed": True,
+                }
+                batch_path = output / "release-batch.json"
+                batch_path.write_text(json.dumps(batch, indent=2, ensure_ascii=False) + "\\n", encoding="utf-8")
+                return finish(
+                    "ready_for_greenlight_pipeline", 0,
+                    batch=batch_path.as_posix(), records=len(records), greenlight=score,
+                    mapping_reviewed=True, acquisition_method=f"official_{content_format}_content",
+                    tier1={"status": "available", "content_sha256": hashlib.sha256(raw).hexdigest()},
+                )
     except NeedsReviewError as exc:
-        if preview_approval is None or "HTTP 403" not in str(exc):
+        if preview_approval is None or not str(exc).startswith("Official content request returned HTTP 403"):
             return finish("needs_review", 3, reason=str(exc), source=content["url"])
         downloadable = False
         tier1_available = False
         tier1 = {
             "status": "unavailable",
-            "reason": "The official file request returned HTTP 403; no download workaround was attempted. Tier 2 must independently prove ordinary public viewability.",
+            "reason": "The exact official content URL returned HTTP 403; no download workaround was attempted. Tier 2 must independently prove ordinary public viewability.",
             "downloadable": False,
         }
     except (HTTPError, URLError, TimeoutError, OSError, ValueError) as exc:
-        return finish("needs_review", 3, reason=f"Tier 1 official PDF acquisition failed safely: {exc}", source=content["url"])
+        return finish("needs_review", 3, reason=f"Tier 1 official content acquisition failed safely: {exc}", source=content["url"])
 
     if tier1_available:
         # Readable PDF content is not an extraction failure. Missing mappings or
