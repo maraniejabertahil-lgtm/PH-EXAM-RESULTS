@@ -612,7 +612,7 @@ def _write_public_preview_bundle(
     source_manifest = {
         "schema_version": 2,
         "provenance": "official_direct",
-        "capture_method": "ordinary_public_preview_ui",
+        "capture_method": capture_manifest.get("capture_method", "ordinary_public_preview_ui"),
         "public_preview_only": True,
         "pdf_downloaded": False,
         "access_controls_bypassed": False,
@@ -913,8 +913,8 @@ def run(
             tier1=tier1,
         )
 
-    # Tier 2 is eligible only after every PDF page has been inspected and no
-    # extractable text or table-cell content was found.
+    # Tier 2 is eligible only after the direct official content path has been
+    # inspected and no usable, mapped passer-name/sequence records were found.
     if preview_approval is None:
         return finish(
             "needs_review", 3,
@@ -922,10 +922,13 @@ def run(
             source=content["url"], tier1=tier1,
         )
 
-    preview_url = urlsplit(content["url"])._replace(
-        path=urlsplit(content["url"]).path.rsplit("/", 1)[0] + "/preview",
-        query="", fragment="",
-    ).geturl()
+    if settings.get("method") == "ordinary_public_page_ui":
+        preview_url = content["url"]
+    else:
+        preview_url = urlsplit(content["url"])._replace(
+            path=urlsplit(content["url"]).path.rsplit("/", 1)[0] + "/preview",
+            query="", fragment="",
+        ).geturl()
     capture_dir = output / "public-preview-capture"
     try:
         capture_manifest = preview_capturer(
@@ -985,6 +988,8 @@ def run(
             "source_id": source["id"], "exam_specific_source_id": specific_source["id"],
             "official_source_url": source["url"], "official_article_url": event["article_url"],
             "official_content_url": content["url"], "public_preview_url": preview_url,
+            "public_preview_allowed_hosts": settings.get("allowed_hosts", ["drive.google.com"]),
+            "public_preview_method": settings.get("method"),
             "official_content_mode": "public_preview_capture",
             "capture_manifest": _repository_relative(manifest_path, repo_root),
             "public_preview_mapping_key": mapping_key,
@@ -1030,7 +1035,7 @@ def run(
             raise NeedsReviewError("Tier 2 capture did not retain one screenshot for every viewer page.")
         ocr_manifest = {
             "schema_version": 1,
-            "capture_method": "ordinary_public_preview_ui",
+            "capture_method": capture_manifest.get("capture_method", "ordinary_public_preview_ui"),
             "source_url": preview_url,
             "official_content_url": content["url"],
             "public_preview_url": preview_url,
@@ -1059,7 +1064,10 @@ def run(
         "level": event.get("result_level"), "year": event["exam_year"],
         "source_id": specific_source["id"], "official_source_url": specific_source["url"],
         "official_article_url": event["article_url"], "official_content_url": content["url"],
-        "public_preview_url": preview_url, "official_content_mode": "static_png_ocr",
+        "public_preview_url": preview_url,
+        "public_preview_allowed_hosts": settings.get("allowed_hosts", ["drive.google.com"]),
+        "public_preview_method": settings.get("method"),
+        "official_content_mode": "static_png_ocr",
         "static_png_ocr_mapping_key": mapping_key,
         "static_png_ocr_manifest": _repository_relative(ocr_manifest_path, repo_root),
         "tier_failure_evidence": _repository_relative(tier_failure_path, repo_root),
