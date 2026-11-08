@@ -146,21 +146,65 @@ jobs:
               payload = json.load(response)
           if payload.get("success") is not True:
               raise SystemExit("Could not inspect public Pages production settings.")
-          configured = payload.get("result", {}).get("deployment_configs", {}).get("production", {}).get("env_vars") or {}
+          result = payload.get("result") or {}
+          deployment_configs = result.get("deployment_configs") or {}
+          production = deployment_configs.get("production") or {}
+          configured = production.get("env_vars") or {}
           required = {
               "FIREBASE_PROJECT_ID", "FIREBASE_API_KEY", "PUBLIC_SITE_ORIGIN",
               "OWNER_EMAIL", "SESSION_SIGNING_KEY", "CF_ACCOUNT_ID",
               "CF_D1_DATABASE_ID", "CF_D1_READ_API_TOKEN",
           }
+          if not isinstance(configured, dict):
+              raise SystemExit(
+                  "Cloudflare returned an unexpected Production env_vars structure "
+                  f"(type={type(configured).__name__}); no values were logged."
+              )
           missing = sorted(required - set(configured))
           if missing:
-              raise SystemExit("Configure these production variables on the public Pages project before deploying: " + ", ".join(missing))
+              raise SystemExit(
+                  "Configure these production variables on the public Pages project before deploying: "
+                  + ", ".join(missing)
+              )
+
           secret_names = {"FIREBASE_API_KEY", "SESSION_SIGNING_KEY", "CF_D1_READ_API_TOKEN"}
-          insecure = sorted(name for name in secret_names if configured[name].get("type") != "secret_text")
+          diagnostics = {}
+          for name in sorted(secret_names):
+              entry = configured.get(name)
+              if isinstance(entry, dict):
+                  diagnostics[name] = {
+                      "type": entry.get("type"),
+                      "entry_keys": sorted(entry.keys()),
+                      "value_field_present": "value" in entry,
+                      "value_field_type": type(entry.get("value")).__name__ if "value" in entry else None,
+                  }
+              else:
+                  diagnostics[name] = {
+                      "entry_type": type(entry).__name__,
+                      "is_null": entry is None,
+                  }
+          print("Sanitized Cloudflare configuration diagnostics (secret values omitted):")
+          print(json.dumps({
+              "project_name": project,
+              "production_config_keys": sorted(production.keys()),
+              "deployment_config_environments": sorted(deployment_configs.keys()),
+              "production_env_vars_container_type": type(configured).__name__,
+              "secret_metadata": diagnostics,
+          }, sort_keys=True))
+
+          insecure = sorted(
+              name for name in secret_names
+              if not isinstance(configured.get(name), dict)
+              or configured[name].get("type") != "secret_text"
+          )
           if insecure:
-              raise SystemExit("These values must be Cloudflare Pages encrypted secrets, not plain text: " + ", ".join(insecure))
+              raise SystemExit(
+                  "Cloudflare API did not report these Production variables as secret_text: "
+                  + ", ".join(insecure)
+                  + ". Review the sanitized metadata above; no secret values were read or printed."
+              )
           origin = configured["PUBLIC_SITE_ORIGIN"]
-          if origin.get("type") != "plain_text" or origin.get("value") != "https://ph-exam-results.pages.dev":
+          if not isinstance(origin, dict) or origin.get("type") != "plain_text" or origin.get("value") != "https://ph-exam-results.pages.dev":
               raise SystemExit("PUBLIC_SITE_ORIGIN must be the exact public production origin.")
           print("All required same-origin Owner settings are present; secret values were not read or printed.")
           PY
