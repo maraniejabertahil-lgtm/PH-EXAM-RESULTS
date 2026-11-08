@@ -7,7 +7,7 @@ from unittest.mock import patch
 
 from main import process_batch
 from prc_adapters import REGISTRY
-from prc_orchestrator import _load_tier3_mapping_key, greenlight, run, validate_event
+from prc_orchestrator import NeedsReviewError, _load_tier3_mapping_key, greenlight, run, validate_event
 
 
 SOURCE = {
@@ -90,6 +90,106 @@ class PRCOrchestratorTests(unittest.TestCase):
                 encoding="utf-8",
             )
             self.assertIsNone(_load_tier3_mapping_key(SOURCE, event(), downloadable=False))
+
+    def test_publicly_viewable_but_non_downloadable_pdf_reaches_tier3(self):
+        payload = event()
+        specific = {
+            "id": "PRC-NLE-2026-OFFICIAL-LIST",
+            "authority": "PRC",
+            "exam": "NLE-2026",
+            "source_type": "official",
+            "authorized": True,
+            "enabled": True,
+            "auto_acquire": True,
+            "url": payload["article_url"],
+            "public_preview": {
+                "enabled": True,
+                "method": "ordinary_public_preview_ui",
+                "max_pages": 1,
+            },
+            "drive_file_ids": ["public-results"],
+        }
+        self.registry_path.write_text(
+            json.dumps({"sources": [SOURCE, specific]}), encoding="utf-8"
+        )
+        config_dir = self.root / "python-engine" / "config"
+        config_dir.mkdir(parents=True)
+        review = {
+            "approved": True,
+            "reviewer": "Owner",
+            "reviewer_role": "owner",
+            "reviewed_at": "2026-11-08T10:00:00Z",
+            "evidence_ref": "owner-review-record-002",
+        }
+        mapping = {
+            "enabled": True,
+            "source_id": specific["id"],
+            "authority": "PRC",
+            "exam": "NLE",
+            "year": 2026,
+            "official_source_url": specific["url"],
+            "record_pattern": r"^(?P<sequence>\\d+) (?P<name>[A-Z]+, [A-Z]+ [A-Z])$",
+            "mapping_review": review,
+            "public_viewability_review": review,
+            "access_compliance_review": review,
+            "public_viewability": {
+                "publicly_viewable": True,
+                "downloadable": False,
+                "evidence_ref": "public-viewer-capture-002",
+            },
+        }
+        (config_dir / "static_png_ocr_mappings.json").write_text(
+            json.dumps({"schema_version": 1, "mappings": {"NLE:2026": mapping}}),
+            encoding="utf-8",
+        )
+
+        def capture_public_viewer(*, preview_url, output_dir, settings):
+            output_dir.mkdir(parents=True, exist_ok=True)
+            png = b"\\x89PNG\\r\\n\\x1a\\n" + b"public-viewer-test"
+            (output_dir / "page-1.png").write_bytes(png)
+            (output_dir / "page-text-snapshots.jsonl").write_text(
+                json.dumps({"page": 1, "text": "Page 1 of 1"}) + "\\n",
+                encoding="utf-8",
+            )
+            (output_dir / "capture-manifest.json").write_text(
+                json.dumps({
+                    "files": {
+                        "screenshots": [{
+                            "viewer_page": 1,
+                            "path": "page-1.png",
+                            "sha256": hashlib.sha256(png).hexdigest(),
+                        }]
+                    }
+                }),
+                encoding="utf-8",
+            )
+            return {
+                "viewer_pages_captured": 1,
+                "viewer_pages_expected": 1,
+                "page_coverage_complete": True,
+            }
+
+        with patch("prc_orchestrator.HERE", self.root / "python-engine"):
+            result = run(
+                payload,
+                self.root / "output",
+                fetcher=lambda _url: (_ for _ in ()).throw(
+                    NeedsReviewError("Official content request returned HTTP 403.")
+                ),
+                preview_verifier=lambda **_kwargs: {},
+                preview_capturer=capture_public_viewer,
+                registry_path=self.registry_path,
+                repository_root=self.root,
+            )
+
+        report = json.loads((self.root / "output" / "report.json").read_text(encoding="utf-8"))
+        batch = json.loads((self.root / "output" / "release-batch.json").read_text(encoding="utf-8"))
+        self.assertEqual(result, 0)
+        self.assertEqual(report["status"], "ready_for_greenlight_pipeline")
+        self.assertEqual(batch["official_content_mode"], "static_png_ocr")
+        self.assertTrue(batch["publicly_viewable"])
+        self.assertFalse(batch["content_downloadable"])
+        self.assertEqual(batch["static_png_ocr_mapping_key"], "NLE:2026")
 
     def test_event_rejects_non_official_and_invalid_count_inputs(self):
         payload = event()
