@@ -1,4 +1,4 @@
-name: Deploy Private Owner Dashboard
+name: Legacy Private Owner Dashboard (manual rollback only)
 
 on:
   pull_request:
@@ -85,9 +85,9 @@ jobs:
         run: python tools/check_all_branch_compatibility.py
 
   deploy:
-    name: Deploy isolated private Pages project
+    name: Deploy legacy isolated private Pages project (manual rollback only)
     needs: validate
-    if: github.ref == 'refs/heads/main'
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
