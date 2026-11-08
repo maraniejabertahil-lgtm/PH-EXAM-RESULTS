@@ -66,6 +66,7 @@ class PublicPreviewCaptureTests(unittest.TestCase):
             (self.root / "capture" / name).write_text(json.dumps(value), encoding="utf-8")
         self.manifest = {
             "schema_version": 1, "provenance": "official_direct",
+            "capture_method": "ordinary_public_preview_ui",
             "public_preview_only": True,
             "official_article_url": "https://www.prc.gov.ph/article/result",
             "official_content_url": "https://drive.google.com/file/d/FILE123/view?usp=sharing",
