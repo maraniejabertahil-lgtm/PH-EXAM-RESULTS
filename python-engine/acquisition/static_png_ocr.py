@@ -247,7 +247,7 @@ def load_static_png_ocr_capture(
         or not re.fullmatch(r"/file/d/([A-Za-z0-9_-]+)/view", content_url.path)
         or preview_url.path != content_url.path.rsplit("/", 1)[0] + "/preview"
     ):
-        raise StaticPngOcrError("Drive OCR screenshots must use the ordinary preview for the exact allowlisted official file.")
+        raise StaticPngOcrError("Drive OCR screenshots must be tied to the ordinary preview for the exact allowlisted official Drive file.")
 
     manifest_path = _safe_file(repository_root, batch.get("static_png_ocr_manifest"), "static PNG OCR manifest")
     manifest = _read_object(manifest_path, "static PNG OCR manifest")
