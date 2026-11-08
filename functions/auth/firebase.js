@@ -59,17 +59,10 @@ export async function onRequestPost({ request }) {
     const rawPayload = await upstream.text();
     const upstreamContentType = upstream.headers.get("Content-Type") || "";
     const mediaTypeCandidate = upstreamContentType.split(";")[0].trim().toLowerCase();
-    const mediaType = /^[a-z0-9!#    const payload = await upstream.json().catch(() => null);
-    if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
-      return json({ error: "The Owner sign-in service returned an invalid response." }, 502);
-    }
-^_.+-]+\/[a-z0-9!#    const payload = await upstream.json().catch(() => null);
-    if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
-      return json({ error: "The Owner sign-in service returned an invalid response." }, 502);
-    }
-^_.+-]+$/.test(mediaTypeCandidate)
+    const knownMediaTypes = ["application/json", "text/html", "text/plain"];
+    const mediaType = knownMediaTypes.includes(mediaTypeCandidate)
       ? mediaTypeCandidate
-      : "missing-or-invalid";
+      : mediaTypeCandidate ? "other" : "missing";
     let payload = null;
     try {
       payload = rawPayload ? JSON.parse(rawPayload) : null;
