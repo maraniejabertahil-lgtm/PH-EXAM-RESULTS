@@ -82,9 +82,13 @@ def _approved_source(batch: dict[str, Any], root: Path) -> dict[str, Any]:
     if len(matches) != 1:
         raise PipelineError("source_id must match exactly one approved registry entry.")
     source = matches[0]
-    exam_matches = source.get("exam") == batch.get("exam") or (
-        source.get("source_type") == "official"
-        and source.get("exam_scope") == "all"
+    exam_matches = (
+        source.get("exam") == batch.get("exam")
+        or source.get("exam") == f"{batch.get('exam')}-{batch.get('year')}"
+        or (
+            source.get("source_type") == "official"
+            and source.get("exam_scope") == "all"
+        )
     )
     if (
         source.get("enabled") is not True
@@ -106,6 +110,11 @@ def _approved_public_preview_source(
     exam_listing_source: dict[str, Any],
 ) -> dict[str, Any]:
     specific_id = batch.get("exam_specific_source_id")
+    if (
+        not specific_id
+        and batch.get("official_content_mode") == "static_png_ocr"
+    ):
+        specific_id = batch.get("source_id")
     if not isinstance(specific_id, str) or not specific_id:
         raise PipelineError("Public-preview capture requires an exam-specific approved source ID.")
     registry_path = root / "python-engine" / "config" / "sources.json"
