@@ -216,7 +216,6 @@ elements.form.addEventListener("submit", async (event) => {
 });
 
 // ---------- Owner login: attach handlers before startup awaits ----------
-const OWNER_DASHBOARD_URL = "https://ph-exam-results-owner.pages.dev";
 
 const ownerLogin = {
   dialog: document.querySelector("#owner-login-dialog"),
@@ -317,7 +316,17 @@ ownerLogin.form?.addEventListener("submit", async (event) => {
       "Firebase Owner verified. Opening your private dashboard… / تم التحقق من مالك Firebase. جارٍ فتح لوحة المراقبة الخاصة…"
     );
 
-    location.assign(OWNER_DASHBOARD_URL + "/continue.html#proof=" + encodeURIComponent(result.proof));
+    const completionResponse = await fetch("/auth/firebase/complete", {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ proof: result.proof }),
+    });
+    const completion = await completionResponse.json().catch(() => ({}));
+    if (!completionResponse.ok || completion.authenticated !== true) {
+      throw new Error(completion.error || "Owner session could not be established.");
+    }
+    location.assign("/owner/");
   } catch (error) {
     ownerLogin.password.value = "";
     setOwnerMessage(
