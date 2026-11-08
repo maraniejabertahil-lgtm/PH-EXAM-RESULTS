@@ -62,9 +62,9 @@ test("returns bounded analytics from private operational tables", async () => {
 
 test("falls back to the default 30-day window for unsupported ranges", async () => {
   const original = globalThis.fetch;
-  let params;
+  const paramsHistory = [];
   globalThis.fetch = async (_url, init) => {
-    params = JSON.parse(init.body).params;
+    paramsHistory.push(JSON.parse(init.body).params);
     return new Response(JSON.stringify({ success: true, result: [{ success: true, results: [] }] }));
   };
   try {
@@ -72,6 +72,6 @@ test("falls back to the default 30-day window for unsupported ranges", async () 
     const payload = await response.json();
     assert.equal(response.status, 200);
     assert.equal(payload.days, 30);
-    assert.equal(params[0], "-30 days");
+    assert.equal(paramsHistory[0][0], "-30 days");
   } finally { globalThis.fetch = original; }
 });
