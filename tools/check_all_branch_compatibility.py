@@ -1,8 +1,12 @@
 """Read-only merge-compatibility audit against every remote repository branch."""
 from __future__ import annotations
 
+import json
 import os
 import subprocess
+from urllib.error import HTTPError, URLError
+from urllib.parse import quote
+from urllib.request import Request, urlopen
 
 
 def git(*args: str) -> subprocess.CompletedProcess[str]:
@@ -18,6 +22,35 @@ def merge_conflicts(left: str, right: str):
         if "CONFLICT" in line and " in " in line:
             paths.append(line.rsplit(" in ", 1)[-1].strip())
     return True, sorted(set(paths))
+
+
+def merged_pull_request_branch(ref: str) -> bool:
+    """Return True only when GitHub confirms this exact head branch was merged."""
+    token = os.getenv("GITHUB_TOKEN")
+    repository = os.getenv("GITHUB_REPOSITORY", "maraniejabertahil-lgtm/PH-EXAM-RESULTS")
+    if not token:
+        raise RuntimeError("GITHUB_TOKEN is required for merged-PR branch classification.")
+    owner = repository.split("/", 1)[0]
+    branch = ref.removeprefix("origin/")
+    url = (
+        "https://api.github.com/repos/"
+        + quote(repository, safe="/")
+        + "/pulls?state=closed&per_page=100&head="
+        + quote(owner + ":" + branch, safe="")
+    )
+    request = Request(url, headers={
+        "Authorization": "Bearer " + token,
+        "Accept": "application/vnd.github+json",
+        "X-GitHub-Api-Version": "2022-11-28",
+    })
+    try:
+        with urlopen(request, timeout=15) as response:
+            payload = json.load(response)
+    except (HTTPError, URLError, TimeoutError) as exc:
+        raise RuntimeError("Could not verify merged-PR status for " + ref) from exc
+    if not isinstance(payload, list):
+        raise RuntimeError("Unexpected GitHub PR response while checking " + ref)
+    return any(isinstance(pr, dict) and pr.get("merged_at") for pr in payload)
 
 
 def main() -> int:
@@ -37,7 +70,17 @@ def main() -> int:
     preexisting = []
     introduced = []
     unrelated = []
+    squash_merged = []
     for ref in refs:
+        # A squash merge does not preserve source-branch ancestry. Exclude only
+        # branches whose exact head PR GitHub confirms was merged; API errors fail closed.
+        try:
+            if merged_pull_request_branch(ref):
+                squash_merged.append(ref)
+                continue
+        except RuntimeError as exc:
+            print(str(exc))
+            return 2
         # Squash-merged branches are not necessarily ancestors of main. If their
         # complete tree is identical to main or the feature tree, their content
         # is already represented and should not be reported as a merge conflict.
@@ -69,6 +112,7 @@ def main() -> int:
     branch_count = len(refs) + len({"origin/main", feature_ref})
     print("ALL-BRANCH COMPATIBILITY AUDIT")
     print("Remote branches examined: " + str(branch_count))
+    print("Confirmed merged-PR branches skipped: " + str(len(squash_merged)))
     print("Already includes feature / feature includes branch: " + str(len(included)))
     print("Clean merge compatibility: " + str(len(clean)))
     print("Pre-existing conflicts against main: " + str(len(preexisting)))
@@ -86,6 +130,7 @@ def main() -> int:
         with open(summary_path, "a", encoding="utf-8") as summary:
             summary.write("## All-branch compatibility audit\n\n")
             summary.write(f"- Remote branches examined: {branch_count}\n")
+            summary.write(f"- Confirmed merged-PR branches skipped: {len(squash_merged)}\n")
             summary.write(f"- Already included/contains feature: {len(included)}\n")
             summary.write(f"- Clean merge compatibility: {len(clean)}\n")
             summary.write(f"- Pre-existing conflicts against main: {len(preexisting)}\n")
