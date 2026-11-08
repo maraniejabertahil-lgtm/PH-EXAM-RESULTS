@@ -55,6 +55,7 @@ jobs:
           test -f public/assets/js/search-worker.mjs
           test -f public/assets/js/review.mjs
           test -f functions/auth/firebase.js
+          test -f functions/auth/health.js
       - name: Validate JavaScript module syntax
         run: |
           node --check public/assets/js/storage.mjs
@@ -63,6 +64,7 @@ jobs:
           node --check public/assets/js/review-logic.mjs
           node --check public/assets/js/review.mjs
           node --check functions/auth/firebase.js
+          node --check functions/auth/health.js
       - name: Test same-origin Owner authentication proxy
         run: node --test functions/tests/*.test.mjs
       - name: Run browser-side module tests
