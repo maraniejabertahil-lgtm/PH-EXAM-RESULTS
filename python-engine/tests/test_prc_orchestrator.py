@@ -171,7 +171,19 @@ class PRCOrchestratorTests(unittest.TestCase):
             encoding="utf-8",
         )
         fake_pdf = b"%PDF-1.7\nsynthetic test document"
-        with patch.dict(REGISTRY, {"pdf": lambda _raw, _mapping: [(1, "SAMPLE NAME")]}):
+        import sys
+        extractor_dir = Path(__file__).resolve().parents[1] / "extractor"
+        if str(extractor_dir) not in sys.path:
+            sys.path.insert(0, str(extractor_dir))
+        import pdf_parser
+        extraction = {
+            "page_count": 1,
+            "pages": [{"page_number": 1, "text": "SAMPLE NAME", "tables": []}],
+            "source_file_sha256": hashlib.sha256(fake_pdf).hexdigest(),
+        }
+        with patch.object(pdf_parser, "extract_pdf", return_value=extraction), patch.dict(
+            REGISTRY, {"pdf": lambda _raw, _mapping: [(1, "SAMPLE NAME")]}
+        ):
             result = run(
                 event(),
                 self.root / "output",
@@ -210,7 +222,19 @@ class PRCOrchestratorTests(unittest.TestCase):
             encoding="utf-8",
         )
         fake_pdf = b"%PDF-1.7\nsynthetic test document"
-        with patch.dict(REGISTRY, {"pdf": lambda _raw, _mapping: [(1, "SAMPLE NAME")]}):
+        import sys
+        extractor_dir = Path(__file__).resolve().parents[1] / "extractor"
+        if str(extractor_dir) not in sys.path:
+            sys.path.insert(0, str(extractor_dir))
+        import pdf_parser
+        extraction = {
+            "page_count": 1,
+            "pages": [{"page_number": 1, "text": "SAMPLE NAME", "tables": []}],
+            "source_file_sha256": hashlib.sha256(fake_pdf).hexdigest(),
+        }
+        with patch.object(pdf_parser, "extract_pdf", return_value=extraction), patch.dict(
+            REGISTRY, {"pdf": lambda _raw, _mapping: [(1, "SAMPLE NAME")]}
+        ):
             result = run(
                 payload,
                 self.root / "output",
