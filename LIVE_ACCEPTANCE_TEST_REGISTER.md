@@ -529,32 +529,35 @@ For each affected test or test execution:
 
 #### P4-15 — Firebase Owner identity and Firestore role authorization
 
-- **Pass condition:** The dashboard accepts only a Firebase-authenticated, email-verified account whose exact email matches `OWNER_EMAIL` and whose `user/{uid}` Firestore document has `role: "owner"` and `active: true`. A student, inactive, unverified, mismatched-email, missing-profile, or wrong-UID account is denied before GitHub OAuth.
-- **Evidence to retain:** Firebase project/config reference (no secrets), sanitized Owner UID/email, Firestore profile field types, rules review, browser walkthrough, and denied-account results.
+- **Related Owner decision:** D-010, D-012
+- **Pass condition:** The same-origin sign-in accepts only a Firebase-authenticated, email-verified account whose exact email matches `OWNER_EMAIL` and whose `user/{uid}` Firestore document has `role: "owner"` and `active: true`. Student, inactive, unverified, mismatched-email, missing-profile, and wrong-UID accounts are denied.
+- **Evidence to retain:** Sanitized Firebase project/config reference, Owner UID/email evidence, Firestore profile field types, rules review, real Owner browser walkthrough, and denied-account results.
 - **Status:** `NOT RUN`
-- **Candidate evidence:** Implementation merged in PR #114. GitHub Actions tests passed for Firebase ID-token RS256 verification, exact email/UID checks, Firestore Owner role and active flag, missing/invalid profile denial, and signed proof handoff. Production Firebase variables, Firestore rules, and real Owner/non-owner browser tests have not been verified.
+- **Candidate evidence:** The Firebase-only authorization implementation from PR #143 is deployed on the previous isolated architecture. The same-origin implementation is proposed in PR #160 and has not yet been deployed or tested against production Owner credentials.
 
-#### P4-16 — GitHub OAuth second identity proof and combined session
+#### P4-16 — Same-origin proof exchange and signed Owner session
 
-- **Pass condition:** After Firebase Owner verification, GitHub OAuth must independently verify numeric account ID `338246827` and the same exact verified Owner email. Neither Firebase alone nor GitHub alone may issue a dashboard session. A successful dual check issues only a signed, eight-hour HttpOnly session.
-- **Evidence to retain:** GitHub OAuth App callback configuration, sanitized workflow/browser evidence, accepted Owner login, and denied alternate GitHub identity.
-- **Status:** `PARTIAL`
-- **Candidate evidence:** Implementation merged in PR #114. Automated tests passed for Firebase-proof-gated GitHub OAuth PKCE, exact GitHub account ID and verified email, successful combined session issuance, and rejection of an alternate GitHub account. Production OAuth credentials and live Owner sign-in remain unverified.
+- **Related Owner decision:** D-010, D-012
+- **Pass condition:** After Firebase Owner verification, the browser posts the short-lived proof to the same-origin `/auth/firebase/complete` endpoint. Only a valid, unexpired, correctly signed proof may issue the existing short-lived signed HttpOnly Owner session. No GitHub OAuth or cross-project redirect is used.
+- **Evidence to retain:** Browser network trace showing same-origin proof exchange, sanitized accepted/rejected proof cases, cookie attributes, session expiry and replay tests.
+- **Status:** `NOT RUN`
+- **Candidate evidence:** PR #160 includes same-origin proof completion and session handling with regression tests. Production browser/session acceptance remains outstanding.
 
-#### P4-17 — Direct-route denial, private activity API, and logout
+#### P4-17 — Protected dashboard/API routes and CSRF logout
 
-- **Pass condition:** An unauthenticated or non-owner direct visit to the dashboard root redirects to the public website's bilingual Owner Login entry (`/?owner=login`); private scripts/routes and `/api/activity` remain unavailable without the combined session; logout requires same-origin CSRF validation and clears both authentication cookies. Authorized Owner can read D1 activity history using a D1 Read-only token.
-- **Evidence to retain:** Automated middleware/API tests, signed-out and non-owner browser tests, authorized activity timeline, logout/replay test, and D1 query evidence.
-- **Status:** `PARTIAL`
-- **Candidate evidence:** Implementation merged in PRs #114 and #115. Automated middleware, session, D1 API, and CSRF/logout tests passed. Latest production deployment workflow #142 (2026-11-07; commit `31920cbf009cdd265091d3a9fcf07bef39fbb534`; [run](https://github.com/maraniejabertahil-lgtm/PH-EXAM-RESULTS/actions/runs/42405226272)) successfully verified the Pages production branch, secured the required Pages secrets, applied and verified the additive D1 migration, confirmed the exact deployment URL and canonical production alias both returned `/auth/health` HTTP 200 with `ready: true`, and passed live signed-out smoke checks for dashboard root, private activity script, private stylesheet, private activity API, unauthenticated session state, Firebase handoff/canonical route, and trusted/untrusted Firebase CORS behavior. Authenticated Owner D1 activity reads and live CSRF/logout behavior still require an actual Owner browser session.
+- **Related Owner decision:** D-010, D-012
+- **Pass condition:** Unauthenticated or non-owner visits to `/owner/`, dashboard assets, `/api/activity`, and `/api/analytics` are denied or redirected to `/?owner=login`. An authorized Owner can read permitted D1 activity and analytics data. Logout requires same-origin CSRF validation, rejects cross-origin/replayed requests, and clears the authentication cookies.
+- **Evidence to retain:** Signed-out and non-owner route/API tests, authorized Owner activity/analytics results, CSRF rejection/replay evidence, and successful logout cookie-clearing evidence.
+- **Status:** `NOT RUN`
+- **Candidate evidence:** PR #160 carries forward the existing signed-session, protected D1 API, and CSRF logout implementation and adds same-origin route protection. The branch's automated tests are not live Owner acceptance.
 
-#### P4-18 — Public-page Owner Login entry and isolated production deployment
+#### P4-18 — Single-domain deployment, public-search isolation, and rollback
 
-- **Pass condition:** The public search page displays a bilingual Owner Login icon and Firebase email/password modal at the top-left. After Firebase Owner verification, the browser completes the GitHub OAuth check on the separate `ph-exam-results-owner.pages.dev` project. The public login control is enabled only after the private dashboard is deployed and production smoke tests pass. Public search remains available without login and has no private data or write credentials.
-- **Evidence to retain:** Successful dashboard Pages workflow/deployment, public Pages workflow/deployment, both live URLs, desktop/mobile header walkthrough, and a public-site read-only/security check.
-- **Status:** `PARTIAL`
-- **Candidate evidence:** The bilingual public login modal and isolated dashboard handoff are merged in PR #114. The public Owner Login flag remains enabled (`owner_login_enabled: true`) after public Pages deployment workflow #138 (commit `3b6b6807d0ca441666f471f4f14a50ab2ea51c7f`). Latest private production deployment workflow #142 (2026-11-07; commit `31920cbf009cdd265091d3a9fcf07bef39fbb534`; [run](https://github.com/maraniejabertahil-lgtm/PH-EXAM-RESULTS/actions/runs/42405226272)) passed the D1-backed readiness probe on both the exact deployment URL and canonical private Pages alias, then passed all live signed-out route, private asset/API, Firebase handoff, session, and CORS smoke tests. The private Pages production branch is verified as `main`, and required sensitive environment variables are stored as secret text. The desktop/mobile browser walkthrough, actual Firebase Owner sign-in, GitHub OAuth identity check, authorized private activity view, and complete signed-out/non-owner-to-signed-in acceptance remain outstanding.
-
+- **Related Owner decision:** D-012
+- **Pass condition:** The public search site and Owner dashboard are served from the single public Pages origin, with dashboard access at `/owner/`; public search remains usable signed out and exposes no private data or write credentials. The production deployment verifies required public Pages variables and encrypted secret types. Desktop and mobile walkthroughs pass. The previous private Pages project remains available and a documented rollback can restore service if acceptance fails.
+- **Evidence to retain:** Merged commit and successful production Pages deployment, live same-origin URLs, signed-out public search, desktop/mobile walkthrough, secret-name/type preflight evidence without values, rollback deployment evidence, and confirmation that the private project remains available during acceptance.
+- **Status:** `NOT RUN`
+- **Candidate evidence:** PR #160 implements the same-domain route and deployment preflight and changes the legacy private Pages workflow's Wrangler deployment to manual-only. The PR is not merged; public production variables, deployment, browser walkthrough, rollback, and live acceptance are outstanding. Cloudflare's own Git integration may still create previews until separately disconnected with Owner approval.
 ---
 
 ## 6. Phase 5 — End-to-End Simulation & Security
