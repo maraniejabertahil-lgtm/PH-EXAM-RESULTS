@@ -222,14 +222,17 @@ def load_static_png_ocr_capture(
     tier_failure = _verify_tier1_tier2_failure(batch, repository_root)
     mapping = _load_reviewed_mapping(batch, repository_root)
 
+    public_viewability = mapping.get("public_viewability")
+    reviewed_hosts = public_viewability.get("allowed_hosts") if isinstance(public_viewability, dict) else None
     content_url = urlsplit(str(batch.get("official_content_url", "")))
     preview_url = urlsplit(str(batch.get("public_preview_url", "")))
     content_host = (content_url.hostname or "").lower()
     preview_host = (preview_url.hostname or "").lower()
     if (
-        content_url.scheme != "https" or preview_url.scheme != "https"
-        or content_host not in set(reviewed_hosts)
-        or preview_host not in set(reviewed_hosts)
+        not isinstance(reviewed_hosts, list) or not reviewed_hosts
+        or content_url.scheme != "https" or preview_url.scheme != "https"
+        or content_host not in {host.lower() for host in reviewed_hosts if isinstance(host, str)}
+        or preview_host not in {host.lower() for host in reviewed_hosts if isinstance(host, str)}
         or content_url.username or content_url.password or content_url.fragment
         or preview_url.username or preview_url.password or preview_url.fragment
     ):
