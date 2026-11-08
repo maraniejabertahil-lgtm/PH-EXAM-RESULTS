@@ -203,9 +203,36 @@ jobs:
                   + ", ".join(insecure)
                   + ". Review the sanitized metadata above; no secret values were read or printed."
               )
+          from urllib.parse import urlsplit
+
           origin = configured["PUBLIC_SITE_ORIGIN"]
-          if not isinstance(origin, dict) or origin.get("type") != "plain_text" or origin.get("value") != "https://ph-exam-results.pages.dev":
-              raise SystemExit("PUBLIC_SITE_ORIGIN must be the exact public production origin.")
+          origin_value = origin.get("value") if isinstance(origin, dict) else None
+          origin_text = origin_value if isinstance(origin_value, str) else ""
+          parsed_origin = urlsplit(origin_text) if origin_text else None
+          origin_diagnostics = {
+              "entry_type": type(origin).__name__,
+              "entry_keys": sorted(origin.keys()) if isinstance(origin, dict) else [],
+              "configured_type": origin.get("type") if isinstance(origin, dict) else None,
+              "value_field_present": isinstance(origin, dict) and "value" in origin,
+              "value_field_type": type(origin_value).__name__,
+              "value_length": len(origin_text) if isinstance(origin_value, str) else None,
+              "exact_expected_value": origin_value == "https://ph-exam-results.pages.dev",
+              "has_leading_or_trailing_whitespace": bool(origin_text) and origin_text != origin_text.strip(),
+              "has_trailing_slash": origin_text.endswith("/"),
+              "uses_https": parsed_origin.scheme == "https" if parsed_origin else False,
+              "expected_host": parsed_origin.netloc == "ph-exam-results.pages.dev" if parsed_origin else False,
+          }
+          print("Sanitized PUBLIC_SITE_ORIGIN diagnostics (configured value omitted):")
+          print(json.dumps(origin_diagnostics, sort_keys=True))
+          if (
+              not isinstance(origin, dict)
+              or origin.get("type") != "plain_text"
+              or origin_value != "https://ph-exam-results.pages.dev"
+          ):
+              raise SystemExit(
+                  "PUBLIC_SITE_ORIGIN must be plain_text and exactly "
+                  "https://ph-exam-results.pages.dev; review sanitized diagnostics above."
+              )
           print("All required same-origin Owner settings are present; secret values were not read or printed.")
           PY
 
