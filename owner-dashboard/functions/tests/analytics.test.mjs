@@ -39,6 +39,7 @@ test("returns bounded analytics from private operational tables", async () => {
     [{ day: "2026-11-01", batches: 1, published: 1, validated_records: 50 }],
     [{ active: 2, next_release: "2026-11-10" }],
     [{ occurred_at: new Date().toISOString() }],
+    [{ status: "updated", upcoming_count: 22, exam: "Veterinarians (CBLE)", target_release_date: "2026-11-10", checked_at: new Date().toISOString() }],
   ];
   globalThis.fetch = async (_url, init) => {
     requests.push(JSON.parse(init.body));
@@ -53,8 +54,10 @@ test("returns bounded analytics from private operational tables", async () => {
     assert.equal(payload.batches[0].validated_records, 50);
     assert.equal(payload.predictions.active, 2);
     assert.equal(payload.monitor.status, "active");
+    assert.equal(payload.schedule.exam, "Veterinarians (CBLE)");
+    assert.equal(payload.schedule.target_release_date, "2026-11-10");
     assert.deepEqual(payload.integrations, { visitors: "not_connected", adsense: "not_connected" });
-    assert.equal(requests.length, 4);
+    assert.equal(requests.length, 5);
     assert.ok(requests.every((item) => typeof item.sql === "string" && item.sql.includes("FROM ")));
     assert.ok(!JSON.stringify(payload).includes("examinee"));
   } finally { globalThis.fetch = original; }

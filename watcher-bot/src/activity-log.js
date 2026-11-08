@@ -8,7 +8,7 @@ const LEGACY_EVENT_TYPES = new Set([
 function toStatement(event) {
   if (!event || !event.event_id || !event.execution_id || !ALLOWED.has(event.status)) return null;
   const metadata = {};
-  for (const key of ["source_id", "authority", "exam", "exam_year", "checked_targets", "skipped_targets", "mode"]) {
+  for (const key of ["source_id", "authority", "exam", "exam_year", "checked_targets", "skipped_targets", "mode", "schedule_status", "upcoming_count", "nearest_release_exam", "nearest_release_date"]) {
     const value = event.metadata?.[key];
     if (["string", "number", "boolean"].includes(typeof value)) metadata[key] = value;
   }

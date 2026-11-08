@@ -1023,7 +1023,7 @@ export async function runScheduled({
       error_code: scheduleOutcome === "blocked" ? "PRC_SCHEDULE_ROBOTS_DISALLOWED" : null,
       error_message: scheduleDiscovery.error || null,
       source: "cloudflare_worker",
-      metadata: { source_id: "PRC-OFFICIAL-SCHEDULE-INDEX", authority: "PRC", exam: "ALL-LICENSURE-EXAMS", exam_year: new Date(scheduledTime).getUTCFullYear(), mode: peakWeek ? "peak_week" : "standard" }
+      metadata: { source_id: "PRC-OFFICIAL-SCHEDULE-INDEX", authority: "PRC", exam: "ALL-LICENSURE-EXAMS", exam_year: new Date(scheduledTime).getUTCFullYear(), mode: peakWeek ? "peak_week" : "standard", schedule_status: scheduleStatus, upcoming_count: scheduleDiscovery.snapshot?.upcoming_count ?? 0, nearest_release_exam: scheduleDiscovery.snapshot?.nearest?.exam ?? "", nearest_release_date: scheduleDiscovery.snapshot?.nearest?.target_release_date ?? "" }
     });
     const report = {
       checked_at: isoNow(new Date(scheduledTime)),

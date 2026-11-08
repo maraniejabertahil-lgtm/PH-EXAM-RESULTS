@@ -115,7 +115,14 @@ function renderAnalytics(payload) {
   setMetric("#peak-count", fmt(sum("watcher_scans")));
   const predictions = payload.predictions || {};
   setMetric("#prediction-count", fmt(predictions.active));
-  $("#next-release").textContent = predictions.next_release ? "Next " + predictions.next_release : "No upcoming prediction";
+  const schedule = payload.schedule || null;
+  if (schedule?.exam && schedule?.target_release_date) {
+    const releaseDate = new Date(schedule.target_release_date + "T00:00:00Z");
+    const dateText = releaseDate.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" });
+    $("#next-release").textContent = schedule.exam + " · " + dateText;
+  } else {
+    $("#next-release").textContent = schedule?.status ? "Schedule " + schedule.status : "Awaiting watcher schedule data";
+  }
   setMetric("#extracted-count", fmt(sum("validated_records")));
   setMetric("#published-count", fmt(sum("published")));
   drawChart("#monitor-chart", labels, [

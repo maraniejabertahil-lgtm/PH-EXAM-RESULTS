@@ -32,7 +32,7 @@ export async function onRequestGet({ request, env }) {
   const days = [7, 30, 90].includes(requested) ? requested : 30;
   const window = "-" + days + " days";
   try {
-    const [daily, batches, predictions, latestWatcher] = await Promise.all([
+    const [daily, batches, predictions, latestWatcher, latestSchedule] = await Promise.all([
       queryD1(env,
         "SELECT substr(COALESCE(occurred_at,created_at),1,10) AS day, COUNT(*) AS events, " +
         "SUM(CASE WHEN event_type='watcher_scan' THEN 1 ELSE 0 END) AS watcher_scans, " +
@@ -49,6 +49,7 @@ export async function onRequestGet({ request, env }) {
         "GROUP BY substr(COALESCE(completed_at,started_at,updated_at,created_at),1,10) ORDER BY day ASC", [new Date(Date.now() - days * 86400000).toISOString()]),
       queryD1(env, "SELECT COUNT(*) AS active, MIN(predicted_release_date) AS next_release FROM release_predictions WHERE status='active' AND date(predicted_release_date)>=date('now')"),
       queryD1(env, "SELECT COALESCE(occurred_at,created_at) AS occurred_at FROM monitoring_logs WHERE event_type='watcher_scan' ORDER BY COALESCE(occurred_at,created_at) DESC LIMIT 1"),
+      queryD1(env, "SELECT json_extract(metadata_json, '$.schedule_status') AS status, json_extract(metadata_json, '$.upcoming_count') AS upcoming_count, json_extract(metadata_json, '$.nearest_release_exam') AS exam, json_extract(metadata_json, '$.nearest_release_date') AS target_release_date, COALESCE(occurred_at,created_at) AS checked_at FROM monitoring_logs WHERE operation='source_check:PRC-OFFICIAL-SCHEDULE-INDEX' ORDER BY COALESCE(occurred_at,created_at) DESC LIMIT 1"),
     ]);
     const latest = latestWatcher[0]?.occurred_at || null;
     const age = latest ? Date.now() - Date.parse(latest) : Infinity;
@@ -56,6 +57,7 @@ export async function onRequestGet({ request, env }) {
       days, generated_at: new Date().toISOString(), daily, batches,
       predictions: predictions[0] || { active: 0, next_release: null },
       monitor: { last_watcher_scan: latest, status: age <= 10 * 60 * 1000 ? "active" : latest ? "stale" : "no_data" },
+      schedule: latestSchedule[0] || null,
       integrations: { visitors: "not_connected", adsense: "not_connected" },
     });
   } catch {
