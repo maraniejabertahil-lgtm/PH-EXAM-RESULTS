@@ -299,6 +299,79 @@ class PRCPublicPreviewPipelineTests(unittest.TestCase):
             with self.assertRaises(PipelineError):
                 process_batch("output/release-batch.json", root=self.root)
 
+    def test_tier1_readable_pdf_without_reviewed_mapping_stops_before_preview(self):
+        capturer = Mock()
+        result = self.run_capture(
+            capturer=capturer,
+            pdf_extraction={
+                "page_count": 1,
+                "pages": [{"page_number": 1, "text": "Official result text", "tables": []}],
+                "source_file_sha256": "b" * 64,
+            },
+        )
+        report = json.loads((self.root / "output/report.json").read_text(encoding="utf-8"))
+        self.assertEqual(result, 3)
+        self.assertIn("readable PDF content", report["reason"])
+        self.assertEqual(report["tier1"]["status"], "available")
+        capturer.assert_not_called()
+        self.assertFalse((self.root / "output/release-batch.json").exists())
+
+    def test_tier1_reviewed_pdf_mapping_takes_priority_over_preview(self):
+        config_path = self.root / "python-engine/config/adapter_mappings.json"
+        config = json.loads(config_path.read_text(encoding="utf-8"))
+        config["CPALE:*:pdf"] = {"seq_idx": 0, "name_idx": 1}
+        config_path.write_text(json.dumps(config), encoding="utf-8")
+        capturer = Mock()
+        with patch.dict(
+            "prc_orchestrator.REGISTRY",
+            {"pdf": Mock(return_value=[(1, "DOE, JANE"), (2, "ROE, JOHN")])},
+        ):
+            result = self.run_capture(
+                capturer=capturer,
+                pdf_extraction={
+                    "page_count": 1,
+                    "pages": [{"page_number": 1, "text": "1 DOE, JANE", "tables": []}],
+                    "source_file_sha256": "c" * 64,
+                },
+            )
+        batch = json.loads((self.root / "output/release-batch.json").read_text(encoding="utf-8"))
+        self.assertEqual(result, 0)
+        self.assertEqual(batch["official_content_mode"], "pdf_text_extraction")
+        capturer.assert_not_called()
+
+    def test_tier2_readable_text_without_mapping_stops_without_ocr(self):
+        config_path = self.root / "python-engine/config/adapter_mappings.json"
+        config_path.write_text("{}", encoding="utf-8")
+        result = self.run_capture()
+        report = json.loads((self.root / "output/report.json").read_text(encoding="utf-8"))
+        self.assertEqual(result, 3)
+        self.assertIn("rendered readable DOM text", report["reason"])
+        self.assertEqual(report["tier2"]["status"], "available")
+        self.assertFalse((self.root / "output/release-batch.json").exists())
+
+    def test_tier3_is_not_enabled_without_owner_reviewed_mapping(self):
+        def blank_preview(**kwargs):
+            manifest = write_fake_capture(**kwargs)
+            capture_dir = kwargs["output_dir"]
+            snapshots = [
+                {"viewer_page": 1, "text": "Page 1 of 2"},
+                {"viewer_page": 2, "text": "Page 2 of 2"},
+            ]
+            (capture_dir / "page-text-snapshots.jsonl").write_text(
+                "".join(json.dumps(item) + "\n" for item in snapshots),
+                encoding="utf-8",
+            )
+            return manifest
+
+        result = self.run_capture(capturer=blank_preview)
+        report = json.loads((self.root / "output/report.json").read_text(encoding="utf-8"))
+        evidence = json.loads((self.root / "output/tier-failures.json").read_text(encoding="utf-8"))
+        self.assertEqual(result, 3)
+        self.assertEqual(evidence["tier1_direct_text"]["status"], "unavailable")
+        self.assertEqual(evidence["tier2_rendered_dom"]["status"], "unavailable")
+        self.assertIn("Tier 3 remains disabled", report["reason"])
+        self.assertFalse((self.root / "output/release-batch.json").exists())
+
     def test_preview_source_verifier_requires_robot_permission_and_exact_article_link(self):
         evidence_path = self.root / "preview-evidence.json"
         article = f'<html><a href="{CONTENT_URL}">List of successful examinees</a></html>'.encode()
