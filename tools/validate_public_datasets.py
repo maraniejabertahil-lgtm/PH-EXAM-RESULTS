@@ -15,7 +15,7 @@ if str(ENGINE) not in sys.path:
 
 from processor.greenlight import records_sha256, validate_records  # noqa: E402
 
-EXPECTED_COLUMNS = ["name", "rating", "region", "seq"]
+EXPECTED_COLUMNS = ["name", "seq"]
 
 
 class DatasetValidationError(RuntimeError):
@@ -90,8 +90,13 @@ def validate_manifest(manifest_path: Path) -> dict:
         data = shard.get("data")
         if not isinstance(data, list) or len(data) != entry.get("record_count"):
             raise DatasetValidationError(f"{shard_path}: record_count mismatch")
-        if any(not isinstance(row, list) or len(row) != len(EXPECTED_COLUMNS) for row in data):
-            raise DatasetValidationError(f"{shard_path}: malformed Array-of-Arrays row")
+        if any(
+            not isinstance(row, list) or len(row) != len(EXPECTED_COLUMNS)
+            or not isinstance(row[0], str) or not row[0].strip()
+            or not isinstance(row[1], str) or not row[1].isdigit() or int(row[1]) < 1
+            for row in data
+        ):
+            raise DatasetValidationError(f"{shard_path}: malformed or privacy-incompatible Array-of-Arrays row")
         rows.extend(data)
         total_bytes += len(raw)
 
@@ -99,7 +104,7 @@ def validate_manifest(manifest_path: Path) -> dict:
         raise DatasetValidationError(f"{manifest_path}: total record_count mismatch")
 
     records = [
-        {"name": row[0], "sequence_number": row[3]}
+        {"name": row[0], "sequence_number": row[1]}
         for row in rows
     ]
     records.sort(key=lambda item: int(item["sequence_number"]) if str(item["sequence_number"]).isdigit() else -1)

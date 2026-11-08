@@ -168,15 +168,6 @@ function renderResults(result) {
     name.className = "result-name";
     name.textContent = record.name;
     details.append(name);
-    if (record.rating !== null || record.region !== null) {
-      const extra = document.createElement("p");
-      extra.className = "result-detail";
-      extra.textContent = [
-        record.rating === null ? "" : `Rating: ${record.rating}`,
-        record.region === null ? "" : `Region: ${record.region}`,
-      ].filter(Boolean).join(" · ");
-      details.append(extra);
-    }
     const sequence = document.createElement("span");
     sequence.className = "sequence";
     sequence.textContent = `Sequence ${record.sequence_number}`;

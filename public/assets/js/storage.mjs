@@ -1,7 +1,7 @@
 const DB_NAME = "ph-exam-results";
 const DB_VERSION = 1;
 const STORE_NAME = "datasets";
-const EXPECTED_COLUMNS = ["name", "rating", "region", "seq"];
+const EXPECTED_COLUMNS = ["name", "seq"];
 
 function requestResult(request) {
   return new Promise((resolve, reject) => {
@@ -19,7 +19,7 @@ export function validateShard(shard, expectedCount) {
       || shard.data.some((row) => !Array.isArray(row)
         || row.length !== EXPECTED_COLUMNS.length
         || typeof row[0] !== "string"
-        || typeof row[3] !== "string")) {
+        || typeof row[1] !== "string")) {
     throw new Error("Dataset shard has an invalid schema or record count.");
   }
   return shard;

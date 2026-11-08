@@ -4,11 +4,11 @@ import { webcrypto } from "node:crypto";
 import { searchRecords } from "../assets/js/search-worker.mjs";
 import { fetchVerifiedShard, loadDataset, validateShard } from "../assets/js/storage.mjs";
 
-const columns = ["name", "rating", "region", "seq"];
+const columns = ["name", "seq"];
 const rows = [
-  ["AALA, DESIREE JOY DE RAMOS", null, null, "1"],
-  ["ABA, JUNAIRA M'LA", null, null, "2"],
-  ["ABABA, LADY MAMAC", null, null, "3"],
+  ["AALA, DESIREE JOY DE RAMOS", "1"],
+  ["ABA, JUNAIRA M'LA", "2"],
+  ["ABABA, LADY MAMAC", "3"],
 ];
 const shard = { columns, data: rows };
 const shardText = JSON.stringify(shard);
@@ -32,8 +32,6 @@ test("searches case- and accent-insensitively and returns official sequence stri
   assert.equal(result.total, 1);
   assert.deepEqual(result.results[0], {
     name: "AALA, DESIREE JOY DE RAMOS",
-    rating: null,
-    region: null,
     sequence_number: "1",
   });
   assert.equal(searchRecords(rows, "aala, désirée").total, 1);
@@ -129,6 +127,7 @@ test("loads all manifest shards and checks catalog identity and counts", async (
     },
   });
   assert.equal(loaded.rows.length, rows.length);
+  assert.deepEqual(loaded.rows[0], ["AALA, DESIREE JOY DE RAMOS", "1"]);
   assert.equal(calls.length, 2);
 
   await assert.rejects(

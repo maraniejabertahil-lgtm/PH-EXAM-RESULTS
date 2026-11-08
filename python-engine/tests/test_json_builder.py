@@ -29,11 +29,14 @@ class ArrayJsonBuilderTests(unittest.TestCase):
         )
         self.assertEqual(manifest["record_count"], 3)
         self.assertEqual(manifest["shard_count"], 1)
-        self.assertEqual(manifest["columns"], ["name", "rating", "region", "seq"])
+        self.assertEqual(manifest["columns"], ["name", "seq"])
         shard = self.output / manifest["shards"][0]["file"]
         payload = json.loads(shard.read_text(encoding="utf-8"))
         self.assertEqual(payload["data"][0][0], "ALPHA, ANN")
-        self.assertEqual(payload["data"][0][3], "001")
+        self.assertEqual(payload["data"][0][1], "001")
+        self.assertEqual(len(payload["data"][0]), 2)
+        self.assertNotIn("rating", payload["columns"])
+        self.assertNotIn("region", payload["columns"])
         self.assertEqual((self.output / "manifest.json").exists(), True)
 
     def test_shards_are_below_configured_size_and_preserve_every_record(self) -> None:
@@ -55,7 +58,7 @@ class ArrayJsonBuilderTests(unittest.TestCase):
             payload = json.loads(path.read_text(encoding="utf-8"))
             all_rows.extend(payload["data"])
         self.assertEqual(len(all_rows), 15)
-        self.assertEqual([row[3] for row in all_rows], [f"{i:03d}" for i in range(1, 16)])
+        self.assertEqual([row[1] for row in all_rows], [f"{i:03d}" for i in range(1, 16)])
 
     def test_rejects_non_greenlight_report(self) -> None:
         failed = dict(self.report, status="REJECTED", greenlight_score=0, publication_allowed=False)
