@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import hashlib
 import json
-import math
 import os
 import re
 from pathlib import Path
@@ -17,7 +16,7 @@ from typing import Any, Iterable
 
 from processor.greenlight import records_sha256
 
-COLUMNS = ["name", "rating", "region", "seq"]
+COLUMNS = ["name", "seq"]
 DEFAULT_MAX_SHARD_BYTES = 10 * 1024 * 1024
 _EXAM_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,79}$")
 _SEQUENCE_PATTERN = re.compile(r"^[0-9]+$")
@@ -54,20 +53,10 @@ def _validate_record(record: dict[str, Any], index: int) -> list[Any]:
     if not _SEQUENCE_PATTERN.fullmatch(sequence_check) or int(sequence_check) < 1:
         raise DatasetBuildError(f"Record {index} sequence number must be a positive integer string.")
 
-    rating = record.get("rating")
-    if isinstance(rating, bool) or not (
-        rating is None or isinstance(rating, (str, int, float))
-    ):
-        raise DatasetBuildError(f"Record {index} has an unsupported rating value.")
-    if isinstance(rating, float) and not math.isfinite(rating):
-        raise DatasetBuildError(f"Record {index} rating must be finite.")
-
-    region = record.get("region")
-    if region is not None and not isinstance(region, str):
-        raise DatasetBuildError(f"Record {index} region must be text or null.")
-    # Only the public schema fields are emitted. Sequence text remains a string
-    # so values such as 001 are not converted to 1.
-    return [name, rating, region, sequence_text]
+    # Public records contain only the minimum identifying fields. Any source
+    # ratings, grades, or regional metadata are deliberately excluded.
+    # Sequence text remains a string so values such as 001 are preserved.
+    return [name, sequence_text]
 
 
 def _initial(name: str) -> str:
