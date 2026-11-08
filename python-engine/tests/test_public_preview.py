@@ -90,6 +90,8 @@ class PublicPreviewCaptureTests(unittest.TestCase):
             "official_article_url": self.manifest["official_article_url"],
             "official_content_url": self.manifest["official_content_url"],
             "public_preview_url": self.manifest["public_preview_url"],
+            "public_preview_allowed_hosts": ["drive.google.com"],
+            "public_preview_method": "ordinary_public_preview_ui",
             "official_content_mode": "public_preview_capture",
             "capture_manifest": "capture/manifest.json",
         }
