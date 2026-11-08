@@ -834,7 +834,7 @@ def run(
                     "record_mapping_reviewed": True,
                 }
                 batch_path = output / "release-batch.json"
-                batch_path.write_text(json.dumps(batch, indent=2, ensure_ascii=False) + "\\n", encoding="utf-8")
+                batch_path.write_text(json.dumps(batch, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
                 return finish(
                     "ready_for_greenlight_pipeline", 0,
                     batch=batch_path.as_posix(), records=len(records), greenlight=score,
