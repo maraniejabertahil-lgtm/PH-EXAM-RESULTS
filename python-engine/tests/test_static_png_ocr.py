@@ -43,6 +43,8 @@ class StaticPngOcrTests(unittest.TestCase):
             "official_content_url": "https://drive.google.com/file/d/test/view",
             "official_article_url": "https://www.prc.gov.ph/results/article",
             "public_preview_url": "https://drive.google.com/file/d/test/preview",
+            "public_preview_allowed_hosts": ["drive.google.com"],
+            "public_preview_method": "ordinary_public_preview_ui",
             "official_content_mode": "static_png_ocr",
             "static_png_ocr_mapping_key": "PRC-TEST:2026",
             "static_png_ocr_manifest": "capture/manifest.json",
@@ -71,7 +73,7 @@ class StaticPngOcrTests(unittest.TestCase):
             "mapping_review": review,
             "public_viewability_review": review,
             "access_compliance_review": review,
-            "public_viewability": {"publicly_viewable": True, "downloadable": True, "evidence_ref": "ordinary-public-viewer-evidence-001"},
+            "public_viewability": {"publicly_viewable": True, "downloadable": True, "evidence_ref": "ordinary-public-viewer-evidence-001", "allowed_hosts": ["drive.google.com"]},
         }
         (self.root / "python-engine" / "config" / "static_png_ocr_mappings.json").write_text(
             json.dumps({"schema_version": 1, "mappings": {"PRC-TEST:2026": mapping}}),

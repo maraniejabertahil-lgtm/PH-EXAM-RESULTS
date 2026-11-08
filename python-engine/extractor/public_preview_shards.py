@@ -235,6 +235,117 @@ def capture_shard(
     return metadata
 
 
+
+def capture_static_public_page(
+    *,
+    page_url: str,
+    output_dir: Path,
+    allowed_hosts: set[str],
+    user_agent: str = DEFAULT_USER_AGENT,
+    stable_deadline: int = 25,
+    poll_ms: int = 250,
+    max_text_chars: int = 5_000_000,
+    max_document_height: int = 100_000,
+) -> dict:
+    """Capture one ordinary public HTML page without assuming viewer pagination."""
+    _validate_url(page_url, allowed_hosts)
+    if stable_deadline < 1 or poll_ms < 50 or max_text_chars < 1:
+        raise ValueError("static public-page capture bounds are invalid")
+    from playwright.sync_api import sync_playwright
+
+    output_dir.mkdir(parents=True, exist_ok=True)
+    with sync_playwright() as playwright:
+        browser = _launch_browser(playwright)
+        context = browser.new_context(
+            user_agent=user_agent,
+            locale="en-US",
+            viewport={"width": 1600, "height": 1200},
+            extra_http_headers={"Accept-Language": "en-US,en;q=0.9"},
+        )
+        try:
+            page = context.new_page()
+            response = page.goto(page_url, wait_until="domcontentloaded", timeout=60000)
+            final_url = page.url
+            final_host = (urlsplit(final_url).hostname or "").lower()
+            if final_host not in allowed_hosts:
+                raise RuntimeError(f"public page redirected to an unapproved host: {final_host}")
+            http_status = response.status if response else None
+            if http_status is not None and http_status >= 400:
+                raise RuntimeError(f"ordinary public page returned HTTP {http_status}")
+            deadline = time.monotonic() + stable_deadline
+            previous_text = None
+            stable_samples = 0
+            visible = ""
+            while time.monotonic() < deadline:
+                visible = page.locator("body").inner_text(timeout=10000)
+                if _challenge_present(visible + page.content()[:100000]):
+                    raise AccessChallengeError("ordinary public page requires permission or human verification")
+                if len(visible) > max_text_chars:
+                    raise RuntimeError("ordinary public page text exceeds the configured capture bound")
+                if visible == previous_text and visible.strip():
+                    stable_samples += 1
+                else:
+                    stable_samples = 0
+                previous_text = visible
+                if stable_samples >= 2:
+                    break
+                page.wait_for_timeout(poll_ms)
+            else:
+                raise RuntimeError("ordinary public page did not produce stable, non-empty visible text")
+            document_height = page.locator("body").evaluate("(element) => Math.max(element.scrollHeight, element.offsetHeight)")
+            if not isinstance(document_height, (int, float)) or document_height < 1 or document_height > max_document_height:
+                raise RuntimeError("ordinary public page height is outside the configured safe bound")
+            screenshot_path = output_dir / "public-page-0001.png"
+            page.screenshot(path=str(screenshot_path), full_page=True, animations="disabled")
+        finally:
+            context.close()
+            browser.close()
+
+    screenshot_hash = hashlib.sha256(screenshot_path.read_bytes()).hexdigest()
+    text_hash = hashlib.sha256(visible.encode("utf-8")).hexdigest()
+    index_path = output_dir / "page-capture-index.json"
+    index_path.write_text(json.dumps([{
+        "viewer_page": 1,
+        "sha256": text_hash,
+        "screenshot_sha256": screenshot_hash,
+    }], ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    snapshots_path = output_dir / "page-text-snapshots.jsonl"
+    snapshots_path.write_text(
+        json.dumps({"viewer_page": 1, "text": visible}, ensure_ascii=False) + "\n",
+        encoding="utf-8",
+    )
+    manifest = {
+        "schema_version": 1,
+        "capture_method": "ordinary_public_page_ui",
+        "viewer_pages_expected": 1,
+        "viewer_pages_captured": 1,
+        "page_coverage_complete": True,
+        "pdf_downloaded": False,
+        "access_controls_bypassed": False,
+        "final_url": final_url,
+        "http_status": http_status,
+        "files": {
+            "page_capture_index": {
+                "path": index_path.name,
+                "sha256": hashlib.sha256(index_path.read_bytes()).hexdigest(),
+            },
+            "page_text_snapshots": {
+                "path": snapshots_path.name,
+                "sha256": hashlib.sha256(snapshots_path.read_bytes()).hexdigest(),
+            },
+            "screenshots": [{
+                "viewer_page": 1,
+                "path": screenshot_path.name,
+                "sha256": screenshot_hash,
+            }],
+        },
+    }
+    (output_dir / "capture-manifest.json").write_text(
+        json.dumps(manifest, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
+    return manifest
+
 def merge_shards(*, shard_count: int, output_dir: Path) -> dict:
     """Verify every page and hash, then write ordered visible-text evidence."""
     metadata = []

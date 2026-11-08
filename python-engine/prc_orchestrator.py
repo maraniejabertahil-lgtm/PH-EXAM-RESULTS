@@ -21,6 +21,7 @@ from urllib.request import HTTPRedirectHandler, Request, build_opener
 from acquisition.official_content import (
     OfficialContentError,
     verify_official_preview_link,
+    verify_official_public_content_link,
 )
 from acquisition.public_preview import (
     PublicPreviewCaptureError,
@@ -284,13 +285,30 @@ def _approved_public_preview(
         or source.get("url") != event["article_url"]
     ):
         raise NeedsReviewError("Exam-specific public-preview source identity or approval does not match the event.")
-    if settings.get("method") != "ordinary_public_preview_ui":
-        raise NeedsReviewError("Configured public-preview acquisition method is not approved.")
-    file_id = _drive_file_id(content_url)
-    allowed_ids = source.get("drive_file_ids")
-    if not isinstance(allowed_ids, list) or file_id not in allowed_ids:
-        raise NeedsReviewError("Drive file ID is not allowlisted for this exam-specific public-preview source.")
-    max_pages = settings.get("max_pages")
+    method = settings.get("method")
+    parsed_content = urlsplit(content_url)
+    if method == "ordinary_public_preview_ui":
+        file_id = _drive_file_id(content_url)
+        allowed_ids = source.get("drive_file_ids")
+        if not isinstance(allowed_ids, list) or file_id not in allowed_ids:
+            raise NeedsReviewError("Drive file ID is not allowlisted for this exam-specific public-preview source.")
+    elif method == "ordinary_public_page_ui":
+        approved_urls = source.get("public_content_urls")
+        allowed_hosts = settings.get("allowed_hosts")
+        if not isinstance(approved_urls, list) or content_url not in approved_urls:
+            raise NeedsReviewError("Official public-page URL is not explicitly approved for this examination.")
+        if (
+            not isinstance(allowed_hosts, list)
+            or not allowed_hosts
+            or parsed_content.hostname.lower() not in {host.lower() for host in allowed_hosts if isinstance(host, str)}
+            or parsed_content.hostname.lower() not in ALLOWED_HOSTS
+            or parsed_content.username or parsed_content.password
+            or parsed_content.fragment
+        ):
+            raise NeedsReviewError("Official public-page host is not explicitly allowlisted.")
+    else:
+        raise NeedsReviewError("Configured public acquisition method is not approved.")
+    max_pages = settings.get("max_pages", 1 if method == "ordinary_public_page_ui" else None)
     if isinstance(max_pages, bool) or not isinstance(max_pages, int) or not 1 <= max_pages <= 400:
         raise NeedsReviewError("Exam-specific public-preview page cap must be between 1 and 400.")
     return source, settings
@@ -327,6 +345,20 @@ def capture_public_preview(
         or any(not isinstance(host, str) or not host for host in allowed_hosts)
     ):
         raise NeedsReviewError("Public-preview mapping has an invalid allowed_hosts list.")
+    if settings.get("method") == "ordinary_public_page_ui":
+        try:
+            from public_preview_shards import capture_static_public_page
+            return capture_static_public_page(
+                page_url=preview_url,
+                output_dir=output_dir,
+                allowed_hosts={host.lower() for host in allowed_hosts},
+                stable_deadline=settings.get("stable_deadline", 25),
+                poll_ms=settings.get("poll_ms", 250),
+                max_text_chars=settings.get("max_text_chars", 5_000_000),
+                max_document_height=settings.get("max_document_height", 100_000),
+            )
+        except PlaywrightError as exc:
+            raise NeedsReviewError(f"Public-page browser capture stopped safely: {exc}") from exc
     shard_count = settings.get("shards", 1)
     if isinstance(shard_count, bool) or not isinstance(shard_count, int) or not 1 <= shard_count <= MAX_SHARDS:
         raise NeedsReviewError(f"Public-preview shard count must be an integer between 1 and {MAX_SHARDS}.")
@@ -578,7 +610,7 @@ def _write_public_preview_bundle(
     source_manifest = {
         "schema_version": 2,
         "provenance": "official_direct",
-        "capture_method": "ordinary_public_preview_ui",
+        "capture_method": capture_manifest.get("capture_method", "ordinary_public_preview_ui"),
         "public_preview_only": True,
         "pdf_downloaded": False,
         "access_controls_bypassed": False,
@@ -707,8 +739,7 @@ def run(
     if len(content_urls) != 1:
         return finish("needs_review", 3, reason="multiple official content links; automatic selection is not safe")
     content = content_urls[0]
-    if content["format"] != "pdf":
-        return finish("needs_review", 3, reason=f"the current three-tier PRC route accepts PDF sources only, not {content['format']}")
+    content_format = content["format"]
 
     try:
         preview_approval = _approved_public_preview(event, content["url"], registry_path)
@@ -719,38 +750,107 @@ def run(
     settings = preview_approval[1] if preview_approval is not None else None
     if preview_approval is not None:
         try:
-            preview_verifier(
-                source=specific_source,
-                article_url=event["article_url"],
-                content_url=content["url"],
-                evidence_path=output / "official-content-evidence.json",
-            )
+            if settings.get("method") == "ordinary_public_page_ui":
+                verify_official_public_content_link(
+                    source=specific_source,
+                    article_url=event["article_url"],
+                    content_url=content["url"],
+                    allowed_hosts=settings.get("allowed_hosts"),
+                    evidence_path=output / "official-content-evidence.json",
+                )
+            else:
+                preview_verifier(
+                    source=specific_source,
+                    article_url=event["article_url"],
+                    content_url=content["url"],
+                    evidence_path=output / "official-content-evidence.json",
+                )
         except (OfficialContentError, RuntimeError, OSError, ValueError) as exc:
             return finish("needs_review", 3, reason=f"Official article/link verification stopped safely: {exc}", source=content["url"])
 
-    # Tier 1: attempt the official PDF download first. A 403 is not proof that
-    # the content is private: the ordinary public viewer is checked independently
-    # in Tier 2. No credentials, alternate endpoints, or access-control bypasses
-    # are attempted. Every other acquisition failure remains a safe stop.
+    # Tier 1 attempts only the exact official linked content URL. A direct HTTP
+    # 403 may proceed to Tier 2 only when an Owner-approved ordinary public
+    # viewer/page route exists and independently proves public visibility.
     downloadable = True
+    raw = None
+    tier1 = {"status": "unavailable", "reason": "Tier 1 has not completed."}
+    tier1_available = False
     try:
         raw = fetcher(content["url"])
         if not isinstance(raw, bytes):
             raise NeedsReviewError("Content fetcher did not return bytes.")
-        _validate_content_format(raw, "pdf")
-        tier1, tier1_available = _extract_pdf_text_evidence(raw, output)
+        _validate_content_format(raw, content_format)
+        if content_format == "pdf":
+            tier1, tier1_available = _extract_pdf_text_evidence(raw, output)
+        else:
+            mapping = load_mapping(event, content_format, cfg_path)
+            if mapping is None:
+                return finish(
+                    "needs_review", 3,
+                    reason=f"Tier 1 acquired readable {content_format.upper()} content, but no reviewed {content_format.upper()} mapping exists. A missing mapping is not an extraction-unavailable fallback.",
+                    source=content["url"],
+                )
+            if not isinstance(mapping, dict):
+                return finish("needs_review", 3, reason=f"reviewed {content_format.upper()} mapping must be a JSON object", source=content["url"])
+            try:
+                records = REGISTRY[content_format](raw, mapping)
+            except NeedsReview as exc:
+                return finish("needs_review", 3, reason=f"Tier 1 {content_format.upper()} mapping/parser requires human review: {exc}", source=content["url"])
+            except (UnicodeError, ValueError, TypeError, KeyError) as exc:
+                return finish("needs_review", 3, reason=f"Tier 1 {content_format.upper()} parsing stopped safely: {exc}", source=content["url"])
+            if content_format == "html" and not records:
+                tier1 = {
+                    "status": "unavailable",
+                    "reason": "The downloaded HTML contained no server-rendered result table rows; the separately approved visible-page route may be checked as Tier 2.",
+                    "content_sha256": hashlib.sha256(raw).hexdigest(),
+                }
+            else:
+                score, failures = greenlight(records, event["announced_count"])
+                if score != 100:
+                    return finish("needs_review", 3, reason=f"Tier 1 {content_format.upper()} Greenlight failed; later tiers are not parser-error fallbacks.", failures=failures, source=content["url"])
+                batch = {
+                    "authority": "PRC",
+                    "exam": event["exam_code"] + (
+                        f"-{event['result_level'].upper()}" if event.get("result_level") else ""
+                    ),
+                    "level": event.get("result_level"),
+                    "year": event["exam_year"],
+                    "source_id": source["id"],
+                    "official_source_url": source["url"],
+                    "official_article_url": event["article_url"],
+                    "official_content_url": content["url"],
+                    "announced_count": event["announced_count"],
+                    "publicly_released": True,
+                    "provenance": "official_direct",
+                    "official_content_mode": "structured_content_extraction",
+                    "source_content_format": content_format,
+                    "source_content_sha256": hashlib.sha256(raw).hexdigest(),
+                    "records": [
+                        {"sequence_number": str(sequence), "name": name}
+                        for sequence, name in records
+                    ],
+                    "record_mapping_reviewed": True,
+                }
+                batch_path = output / "release-batch.json"
+                batch_path.write_text(json.dumps(batch, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+                return finish(
+                    "ready_for_greenlight_pipeline", 0,
+                    batch=batch_path.as_posix(), records=len(records), greenlight=score,
+                    mapping_reviewed=True, acquisition_method=f"official_{content_format}_content",
+                    tier1={"status": "available", "content_sha256": hashlib.sha256(raw).hexdigest()},
+                )
     except NeedsReviewError as exc:
-        if preview_approval is None or "HTTP 403" not in str(exc):
+        if preview_approval is None or not str(exc).startswith("Official content request returned HTTP 403"):
             return finish("needs_review", 3, reason=str(exc), source=content["url"])
         downloadable = False
         tier1_available = False
         tier1 = {
             "status": "unavailable",
-            "reason": "The official file request returned HTTP 403; no download workaround was attempted. Tier 2 must independently prove ordinary public viewability.",
+            "reason": "The exact official content URL returned HTTP 403; no download workaround was attempted. Tier 2 must independently prove ordinary public viewability.",
             "downloadable": False,
         }
     except (HTTPError, URLError, TimeoutError, OSError, ValueError) as exc:
-        return finish("needs_review", 3, reason=f"Tier 1 official PDF acquisition failed safely: {exc}", source=content["url"])
+        return finish("needs_review", 3, reason=f"Tier 1 official content acquisition failed safely: {exc}", source=content["url"])
 
     if tier1_available:
         # Readable PDF content is not an extraction failure. Missing mappings or
@@ -811,8 +911,8 @@ def run(
             tier1=tier1,
         )
 
-    # Tier 2 is eligible only after every PDF page has been inspected and no
-    # extractable text or table-cell content was found.
+    # Tier 2 is eligible only after the direct official content path has been
+    # inspected and no usable, mapped passer-name/sequence records were found.
     if preview_approval is None:
         return finish(
             "needs_review", 3,
@@ -820,10 +920,13 @@ def run(
             source=content["url"], tier1=tier1,
         )
 
-    preview_url = urlsplit(content["url"])._replace(
-        path=urlsplit(content["url"]).path.rsplit("/", 1)[0] + "/preview",
-        query="", fragment="",
-    ).geturl()
+    if settings.get("method") == "ordinary_public_page_ui":
+        preview_url = content["url"]
+    else:
+        preview_url = urlsplit(content["url"])._replace(
+            path=urlsplit(content["url"]).path.rsplit("/", 1)[0] + "/preview",
+            query="", fragment="",
+        ).geturl()
     capture_dir = output / "public-preview-capture"
     try:
         capture_manifest = preview_capturer(
@@ -883,6 +986,8 @@ def run(
             "source_id": source["id"], "exam_specific_source_id": specific_source["id"],
             "official_source_url": source["url"], "official_article_url": event["article_url"],
             "official_content_url": content["url"], "public_preview_url": preview_url,
+            "public_preview_allowed_hosts": settings.get("allowed_hosts", ["drive.google.com"]),
+            "public_preview_method": settings.get("method"),
             "official_content_mode": "public_preview_capture",
             "capture_manifest": _repository_relative(manifest_path, repo_root),
             "public_preview_mapping_key": mapping_key,
@@ -928,7 +1033,7 @@ def run(
             raise NeedsReviewError("Tier 2 capture did not retain one screenshot for every viewer page.")
         ocr_manifest = {
             "schema_version": 1,
-            "capture_method": "ordinary_public_preview_ui",
+            "capture_method": capture_manifest.get("capture_method", "ordinary_public_preview_ui"),
             "source_url": preview_url,
             "official_content_url": content["url"],
             "public_preview_url": preview_url,
@@ -957,7 +1062,10 @@ def run(
         "level": event.get("result_level"), "year": event["exam_year"],
         "source_id": specific_source["id"], "official_source_url": specific_source["url"],
         "official_article_url": event["article_url"], "official_content_url": content["url"],
-        "public_preview_url": preview_url, "official_content_mode": "static_png_ocr",
+        "public_preview_url": preview_url,
+        "public_preview_allowed_hosts": settings.get("allowed_hosts", ["drive.google.com"]),
+        "public_preview_method": settings.get("method"),
+        "official_content_mode": "static_png_ocr",
         "static_png_ocr_mapping_key": mapping_key,
         "static_png_ocr_manifest": _repository_relative(ocr_manifest_path, repo_root),
         "tier_failure_evidence": _repository_relative(tier_failure_path, repo_root),

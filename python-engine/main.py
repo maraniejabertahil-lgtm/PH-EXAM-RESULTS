@@ -27,6 +27,7 @@ from acquisition.official_content import (
     OfficialContentError,
     verify_official_content_link,
     verify_official_preview_link,
+    verify_official_public_content_link,
 )
 from acquisition.public_preview import PublicPreviewCaptureError, load_public_preview_capture
 from acquisition.static_png_ocr import StaticPngOcrError, load_static_png_ocr_capture
@@ -81,9 +82,13 @@ def _approved_source(batch: dict[str, Any], root: Path) -> dict[str, Any]:
     if len(matches) != 1:
         raise PipelineError("source_id must match exactly one approved registry entry.")
     source = matches[0]
-    exam_matches = source.get("exam") == batch.get("exam") or (
-        source.get("source_type") == "official"
-        and source.get("exam_scope") == "all"
+    exam_matches = (
+        source.get("exam") == batch.get("exam")
+        or source.get("exam") == f"{batch.get('exam')}-{batch.get('year')}"
+        or (
+            source.get("source_type") == "official"
+            and source.get("exam_scope") == "all"
+        )
     )
     if (
         source.get("enabled") is not True
@@ -105,6 +110,11 @@ def _approved_public_preview_source(
     exam_listing_source: dict[str, Any],
 ) -> dict[str, Any]:
     specific_id = batch.get("exam_specific_source_id")
+    if (
+        not specific_id
+        and batch.get("official_content_mode") == "static_png_ocr"
+    ):
+        specific_id = batch.get("source_id")
     if not isinstance(specific_id, str) or not specific_id:
         raise PipelineError("Public-preview capture requires an exam-specific approved source ID.")
     registry_path = root / "python-engine" / "config" / "sources.json"
@@ -132,10 +142,11 @@ def _approved_public_preview_source(
         or source.get("enabled") is not True
         or source.get("auto_acquire") is not True
         or source.get("url") != batch.get("official_article_url")
-        or source.get("allow_linked_drive_documents") is not True
         or not isinstance(preview_settings, dict)
         or preview_settings.get("enabled") is not True
-        or preview_settings.get("method") != "ordinary_public_preview_ui"
+        or preview_settings.get("method") not in {
+            "ordinary_public_preview_ui", "ordinary_public_page_ui"
+        }
         or isinstance(preview_settings.get("max_pages"), bool)
         or not isinstance(preview_settings.get("max_pages"), int)
         or not 1 <= preview_settings["max_pages"] <= 400
@@ -146,14 +157,34 @@ def _approved_public_preview_source(
 
     content_url = _https_url(batch.get("official_content_url"), "official_content_url")
     parsed = urlsplit(content_url)
-    match = re.fullmatch(r"/file/d/([A-Za-z0-9_-]+)/view", parsed.path)
-    if (
-        parsed.hostname != "drive.google.com"
-        or match is None
-        or not isinstance(source.get("drive_file_ids"), list)
-        or match.group(1) not in source["drive_file_ids"]
-    ):
-        raise PipelineError("Official Drive file ID is not allowlisted for this examination.")
+    method = preview_settings["method"]
+    if method == "ordinary_public_preview_ui":
+        match = re.fullmatch(r"/file/d/([A-Za-z0-9_-]+)/view", parsed.path)
+        if (
+            source.get("allow_linked_drive_documents") is not True
+            or parsed.hostname != "drive.google.com"
+            or match is None
+            or not isinstance(source.get("drive_file_ids"), list)
+            or match.group(1) not in source["drive_file_ids"]
+        ):
+            raise PipelineError("Official Drive file ID is not allowlisted for this examination.")
+    else:
+        allowed_hosts = preview_settings.get("allowed_hosts")
+        approved_urls = source.get("public_content_urls")
+        batch_hosts = batch.get("public_preview_allowed_hosts")
+        if (
+            not isinstance(allowed_hosts, list) or not allowed_hosts
+            or any(not isinstance(host, str) or not host for host in allowed_hosts)
+            or not isinstance(approved_urls, list) or content_url not in approved_urls
+            or not isinstance(batch_hosts, list) or set(batch_hosts) != set(allowed_hosts)
+            or batch.get("public_preview_method") != method
+            or batch.get("public_preview_url") != content_url
+            or parsed.hostname.lower() not in {host.lower() for host in allowed_hosts}
+            or parsed.username or parsed.password or parsed.fragment
+            or source.get("robots_policy_verified") is not True
+            or not isinstance(source.get("robots_policy_url"), str)
+        ):
+            raise PipelineError("Official public-page URL, host allowlist, or robots-policy approval does not match the source registry.")
     return source
 
 
@@ -228,12 +259,21 @@ def _process_batch(batch_path: str | Path, *, root: str | Path | None = None) ->
                         root=repository_root,
                         exam_listing_source=source,
                     )
-                    verify_official_preview_link(
-                        source=preview_source,
-                        article_url=article_url,
-                        content_url=document_url,
-                        evidence_path=evidence_path,
-                    )
+                    if preview_source["public_preview"]["method"] == "ordinary_public_page_ui":
+                        verify_official_public_content_link(
+                            source=preview_source,
+                            article_url=article_url,
+                            content_url=document_url,
+                            allowed_hosts=preview_source["public_preview"]["allowed_hosts"],
+                            evidence_path=evidence_path,
+                        )
+                    else:
+                        verify_official_preview_link(
+                            source=preview_source,
+                            article_url=article_url,
+                            content_url=document_url,
+                            evidence_path=evidence_path,
+                        )
                 else:
                     raise PipelineError("Unsupported public-preview capture manifest schema.")
                 normalized_records, capture_evidence = load_public_preview_capture(
@@ -259,12 +299,21 @@ def _process_batch(batch_path: str | Path, *, root: str | Path | None = None) ->
             )
             evidence_path = repository_root / "python-engine" / "artifacts" / "official-content-evidence.json"
             try:
-                verify_official_preview_link(
-                    source=preview_source,
-                    article_url=article_url,
-                    content_url=document_url,
-                    evidence_path=evidence_path,
-                )
+                if preview_source["public_preview"]["method"] == "ordinary_public_page_ui":
+                    verify_official_public_content_link(
+                        source=preview_source,
+                        article_url=article_url,
+                        content_url=document_url,
+                        allowed_hosts=preview_source["public_preview"]["allowed_hosts"],
+                        evidence_path=evidence_path,
+                    )
+                else:
+                    verify_official_preview_link(
+                        source=preview_source,
+                        article_url=article_url,
+                        content_url=document_url,
+                        evidence_path=evidence_path,
+                    )
                 normalized_records, ocr_evidence = load_static_png_ocr_capture(
                     batch=batch, root=repository_root
                 )

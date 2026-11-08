@@ -66,6 +66,7 @@ class PublicPreviewCaptureTests(unittest.TestCase):
             (self.root / "capture" / name).write_text(json.dumps(value), encoding="utf-8")
         self.manifest = {
             "schema_version": 1, "provenance": "official_direct",
+            "capture_method": "ordinary_public_preview_ui",
             "public_preview_only": True,
             "official_article_url": "https://www.prc.gov.ph/article/result",
             "official_content_url": "https://drive.google.com/file/d/FILE123/view?usp=sharing",
@@ -89,6 +90,8 @@ class PublicPreviewCaptureTests(unittest.TestCase):
             "official_article_url": self.manifest["official_article_url"],
             "official_content_url": self.manifest["official_content_url"],
             "public_preview_url": self.manifest["public_preview_url"],
+            "public_preview_allowed_hosts": ["drive.google.com"],
+            "public_preview_method": "ordinary_public_preview_ui",
             "official_content_mode": "public_preview_capture",
             "capture_manifest": "capture/manifest.json",
         }
@@ -117,6 +120,123 @@ class PublicPreviewCaptureTests(unittest.TestCase):
         self.assertEqual(result["manifest"]["record_count"], 2)
         self.assertTrue((result["dataset_dir"] / "manifest.json").is_file())
         self.assertEqual(result["report"]["public_preview_capture"]["visual_review_status"], "PENDING")
+
+    def _configure_public_page_batch(self, content_mode="public_preview_capture"):
+        article_url = "https://www.prc.gov.ph/article/result"
+        content_url = "https://www.prc.gov.ph/results/let-2026-passers"
+        allowed_hosts = ["www.prc.gov.ph"]
+        registry_path = self.root / "python-engine/config/sources.json"
+        registry = json.loads(registry_path.read_text(encoding="utf-8"))
+        registry["sources"].append({
+            "id": "PRC-TEST-PUBLIC-PAGE",
+            "authority": "PRC",
+            "exam": "LET-ELEMENTARY-2026",
+            "year": 2026,
+            "source_type": "official",
+            "authorized": True,
+            "enabled": True,
+            "auto_acquire": True,
+            "url": article_url,
+            "public_content_urls": [content_url],
+            "robots_policy_verified": True,
+            "robots_policy_url": "https://www.prc.gov.ph/robots.txt",
+            "public_preview": {
+                "enabled": True,
+                "method": "ordinary_public_page_ui",
+                "allowed_hosts": allowed_hosts,
+                "max_pages": 1,
+            },
+        })
+        registry_path.write_text(json.dumps(registry), encoding="utf-8")
+        self.batch.update({
+            "official_article_url": article_url,
+            "official_content_url": content_url,
+            "public_preview_url": content_url,
+            "public_preview_allowed_hosts": allowed_hosts,
+            "public_preview_method": "ordinary_public_page_ui",
+            "exam_specific_source_id": "PRC-TEST-PUBLIC-PAGE",
+            "official_content_mode": content_mode,
+        })
+        if content_mode == "public_preview_capture":
+            self.batch["capture_manifest"] = "capture/public-page-manifest.json"
+            (self.root / "capture/public-page-manifest.json").write_text(
+                json.dumps({"schema_version": 2}), encoding="utf-8"
+            )
+        else:
+            # Match the real orchestrator's Tier 3 batch: source_id is the
+            # exam-specific mapping, and no separate exam_specific_source_id is emitted.
+            self.batch["source_id"] = "PRC-TEST-PUBLIC-PAGE"
+            self.batch["official_source_url"] = article_url
+            self.batch.pop("exam_specific_source_id", None)
+            self.batch["tier_failure_evidence"] = "capture/tier-failures.json"
+            self.batch["static_png_ocr_mapping_key"] = "PRC-TEST:2026"
+            (self.root / "capture/tier-failures.json").write_text(
+                json.dumps({"synthetic": True}), encoding="utf-8"
+            )
+        return content_url, allowed_hosts
+
+    def test_public_page_capture_uses_owner_approved_public_content_verifier(self):
+        content_url, allowed_hosts = self._configure_public_page_batch()
+        batch_path = self.root / "batch.json"
+        batch_path.write_text(json.dumps(self.batch), encoding="utf-8")
+        records = [
+            {"sequence_number": "1", "name": "DOE, JANE A"},
+            {"sequence_number": "2", "name": "SMITH, JOHN B"},
+        ]
+        with (
+            patch("main.verify_official_public_content_link") as verify,
+            patch("main.load_public_preview_capture", return_value=(records, {"viewer_pages": 1})),
+        ):
+            result = process_batch("batch.json", root=self.root)
+        verify.assert_called_once()
+        self.assertEqual(verify.call_args.kwargs["content_url"], content_url)
+        self.assertEqual(verify.call_args.kwargs["allowed_hosts"], allowed_hosts)
+        self.assertEqual(result["report"]["greenlight_score"], 100)
+        self.assertEqual(result["manifest"]["record_count"], 2)
+
+    def test_public_page_capture_rejects_batch_host_allowlist_mismatch(self):
+        self._configure_public_page_batch()
+        self.batch["public_preview_allowed_hosts"] = ["unapproved.example"]
+        batch_path = self.root / "batch.json"
+        batch_path.write_text(json.dumps(self.batch), encoding="utf-8")
+        with (
+            patch("main.verify_official_public_content_link") as verify,
+            patch("main.load_public_preview_capture") as load_capture,
+        ):
+            with self.assertRaisesRegex(PipelineError, "host allowlist"):
+                process_batch("batch.json", root=self.root)
+        verify.assert_not_called()
+        load_capture.assert_not_called()
+
+    def test_public_page_static_ocr_uses_official_public_content_verifier(self):
+        content_url, allowed_hosts = self._configure_public_page_batch("static_png_ocr")
+        batch_path = self.root / "batch.json"
+        batch_path.write_text(json.dumps(self.batch), encoding="utf-8")
+        records = [
+            {"sequence_number": "1", "name": "DOE, JANE A"},
+            {"sequence_number": "2", "name": "SMITH, JOHN B"},
+        ]
+        with (
+            patch("main.verify_official_public_content_link") as verify,
+            patch("main.load_static_png_ocr_capture", return_value=(records, {"ocr_report": "synthetic"})),
+        ):
+            result = process_batch("batch.json", root=self.root)
+        verify.assert_called_once()
+        self.assertEqual(verify.call_args.kwargs["content_url"], content_url)
+        self.assertEqual(verify.call_args.kwargs["allowed_hosts"], allowed_hosts)
+        self.assertEqual(result["report"]["greenlight_score"], 100)
+        self.assertEqual(result["report"]["static_png_ocr"], {"ocr_report": "synthetic"})
+
+    def test_public_page_static_ocr_rejects_unapproved_source_identity(self):
+        self._configure_public_page_batch("static_png_ocr")
+        self.batch["source_id"] = "UNAPPROVED-SOURCE"
+        self.batch["official_source_url"] = "https://www.prc.gov.ph/article/result"
+        batch_path = self.root / "batch.json"
+        batch_path.write_text(json.dumps(self.batch), encoding="utf-8")
+        with patch("main.verify_official_public_content_link") as verify:
+            with self.assertRaisesRegex(PipelineError, "source_id must match exactly one approved registry entry"):
+                process_batch("batch.json", root=self.root)
+        verify.assert_not_called()
 
     def test_review_bundle_contains_candidate_records_and_hash_verified_screenshots(self):
         from create_review_bundle import create_review_bundle

@@ -148,6 +148,8 @@ def load_public_preview_capture(
         raise PublicPreviewCaptureError("Unsupported capture manifest schema or provenance.")
     if manifest.get("pdf_downloaded") is not False or manifest.get("access_controls_bypassed") is not False:
         raise PublicPreviewCaptureError("Capture must confirm no PDF download and no access-control bypass.")
+    if manifest.get("capture_method") not in {"ordinary_public_preview_ui", "ordinary_public_page_ui"}:
+        raise PublicPreviewCaptureError("Capture method is not an approved ordinary public UI route.")
     if manifest.get("public_preview_only") is not True:
         raise PublicPreviewCaptureError("Capture must explicitly identify the ordinary public-preview UI path.")
     if manifest.get("official_article_url") != batch.get("official_article_url"):
@@ -159,13 +161,29 @@ def load_public_preview_capture(
 
     content = urlsplit(str(batch.get("official_content_url", "")))
     preview = urlsplit(str(batch.get("public_preview_url", "")))
+    allowed_hosts = batch.get("public_preview_allowed_hosts")
     if (
-        content.scheme != "https" or content.hostname != "drive.google.com"
-        or preview.scheme != "https" or preview.hostname != "drive.google.com"
+        not isinstance(allowed_hosts, list)
+        or not allowed_hosts
+        or content.scheme != "https" or preview.scheme != "https"
+        or content.hostname not in allowed_hosts or preview.hostname not in allowed_hosts
+        or content.username or content.password or content.fragment
+        or preview.username or preview.password or preview.fragment
+    ):
+        raise PublicPreviewCaptureError("Content and preview URLs must use credential-free, approved HTTPS hosts.")
+    if batch.get("public_preview_method") == "ordinary_public_page_ui":
+        if batch.get("official_content_url") != batch.get("public_preview_url"):
+            raise PublicPreviewCaptureError("An ordinary public-page capture must use the exact official content URL.")
+        if manifest.get("capture_method") != "ordinary_public_page_ui":
+            raise PublicPreviewCaptureError("Public-page batch and capture method do not match.")
+    elif (
+        batch.get("public_preview_method") != "ordinary_public_preview_ui"
+        or content.hostname != "drive.google.com"
+        or preview.hostname != "drive.google.com"
         or not content.path.rstrip("/").endswith("/view")
         or preview.path != content.path.rsplit("/", 1)[0] + "/preview"
     ):
-        raise PublicPreviewCaptureError("Preview URL must be the ordinary public preview for the official linked Drive file.")
+        raise PublicPreviewCaptureError("Drive preview URL must be the ordinary preview for the exact official linked file.")
 
     page_count = manifest.get("viewer_pages_expected")
     if (
@@ -269,7 +287,7 @@ def _load_sharded_public_preview_capture(
     """Verify page screenshots, rendered text, mapping, and exact extracted pairs."""
     if (
         manifest.get("provenance") != "official_direct"
-        or manifest.get("capture_method") != "ordinary_public_preview_ui"
+        or manifest.get("capture_method") not in {"ordinary_public_preview_ui", "ordinary_public_page_ui"}
         or manifest.get("public_preview_only") is not True
         or manifest.get("pdf_downloaded") is not False
         or manifest.get("access_controls_bypassed") is not False
@@ -283,15 +301,31 @@ def _load_sharded_public_preview_capture(
 
     content = urlsplit(str(batch.get("official_content_url", "")))
     preview = urlsplit(str(batch.get("public_preview_url", "")))
+    allowed_hosts = batch.get("public_preview_allowed_hosts")
     if (
-        content.scheme != "https"
-        or content.hostname != "drive.google.com"
+        not isinstance(allowed_hosts, list)
+        or not allowed_hosts
+        or content.scheme != "https"
         or preview.scheme != "https"
+        or content.hostname not in allowed_hosts
+        or preview.hostname not in allowed_hosts
+        or content.username or content.password or content.fragment
+        or preview.username or preview.password or preview.fragment
+    ):
+        raise PublicPreviewCaptureError("Content and preview URLs must use credential-free, approved HTTPS hosts.")
+    if batch.get("public_preview_method") == "ordinary_public_page_ui":
+        if batch.get("official_content_url") != batch.get("public_preview_url"):
+            raise PublicPreviewCaptureError("An ordinary public-page capture must use the exact official content URL.")
+        if manifest.get("capture_method") != "ordinary_public_page_ui":
+            raise PublicPreviewCaptureError("Public-page batch and capture method do not match.")
+    elif (
+        batch.get("public_preview_method") != "ordinary_public_preview_ui"
+        or content.hostname != "drive.google.com"
         or preview.hostname != "drive.google.com"
         or not content.path.rstrip("/").endswith("/view")
         or preview.path != content.path.rsplit("/", 1)[0] + "/preview"
     ):
-        raise PublicPreviewCaptureError("Preview URL must be the ordinary preview for the official linked Drive file.")
+        raise PublicPreviewCaptureError("Drive preview URL must be the ordinary preview for the exact official linked file.")
 
     page_count = manifest.get("viewer_pages_expected")
     if (
@@ -324,7 +358,7 @@ def _load_sharded_public_preview_capture(
     capture = _read_json(resolved["viewer_capture_manifest"], "viewer capture manifest")
     if (
         capture.get("schema_version") != 1
-        or capture.get("capture_method") != "ordinary_public_preview_ui"
+        or capture.get("capture_method") not in {"ordinary_public_preview_ui", "ordinary_public_page_ui"}
         or capture.get("page_coverage_complete") is not True
         or capture.get("viewer_pages_expected") != page_count
         or capture.get("viewer_pages_captured") != page_count
