@@ -890,7 +890,7 @@ def run(
         "reason": "Every captured viewer page was inspected; snapshots contain only blank text or page counters.",
     }
     tier_failure_path = _write_tier_failure_evidence(
-        output=output, source_url=source["url"], tier1=tier1, tier2=tier2,
+        output=output, source_url=specific_source["url"], tier1=tier1, tier2=tier2,
     )
     try:
         mapping_key = _load_tier3_mapping_key(specific_source, event)
