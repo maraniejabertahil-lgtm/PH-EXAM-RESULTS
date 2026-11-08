@@ -35,7 +35,16 @@ Never assume a feature is missing without inspecting the code. Do not rewrite wo
 3.6 Deployment safety. Follow the GitOps Auto-Merge and Greenlight Protocol. Never deploy unverified code or publish incomplete datasets.
 3.7 Privacy. Published data is limited to what the official source publishes: each passer's name and official sequence number. Collect and store no additional personal information. Handle data consistently with the Philippine Data Privacy Act of 2012 (RA 10173).
 3.8 Official-first data acquisition. The required output is the passer dataset: each name paired with its official sequence number. Keeping the original PDF is optional; accurate, verifiable data is mandatory. Use PDF acquisition only when it is the most practical authorized route. Third-party sources are allowed only under section 8.4.
-4. Autonomous Code-Fixing Method
+ 
+   
+SCOPE RULES:
+- Only change what I explicitly ask for. Nothing else.
+- Do not touch, rename, reformat, or refactor any other file, function, or feature.
+- No "bonus" improvements, cleanups, or dependency updates.
+- If you think another file needs changing, STOP and tell me first. Don't edit it.
+- Before editing, list the exact files and lines you plan to change and wait for my OK.
+- After editing, show only the diff of changed lines.
+5. Autonomous Code-Fixing Method
 Treat fixing as reasoning plus tool use, not a rigid pipeline.
 1. Ingest context: instructions, source, errors, logs, docs. Do not assume ASTs or dependency maps exist.
 2. Root cause: trace likely execution paths against errors and stack traces. Label each statement as observed fact, likely cause or unverified hypothesis.
