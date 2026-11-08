@@ -369,6 +369,114 @@ def load_public_preview_mapping(
     return (key, mapping) if mapping is not None else None
 
 
+def _extract_pdf_text_evidence(raw: bytes, output: Path) -> tuple[dict, bool]:
+    """Preserve raw per-page PDF text/tables and report genuine text availability."""
+    extractor_dir = HERE / "extractor"
+    if str(extractor_dir) not in sys.path:
+        sys.path.insert(0, str(extractor_dir))
+    try:
+        from pdf_parser import extract_pdf
+        pdf_path = output / "official-source.pdf"
+        pdf_path.write_bytes(raw)
+        extraction = extract_pdf(pdf_path)
+    except Exception as exc:
+        raise NeedsReviewError(f"Tier 1 PDF text extraction failed; human review is required: {exc}") from exc
+
+    extraction_path = output / "pdf-text-extraction.json"
+    extraction_path.write_text(
+        json.dumps(extraction, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
+    has_text = False
+    for page in extraction.get("pages", []):
+        if isinstance(page.get("text"), str) and page["text"].strip():
+            has_text = True
+            break
+        for table in page.get("tables", []):
+            if any(
+                isinstance(cell, str) and cell.strip()
+                for row in (table or [])
+                for cell in (row or [])
+            ):
+                has_text = True
+                break
+        if has_text:
+            break
+    evidence = {
+        "status": "available" if has_text else "unavailable",
+        "reason": (
+            "PDF text or table-cell content was extracted."
+            if has_text else
+            "Every PDF page was inspected; no extractable text or table-cell content exists."
+        ),
+        "page_count": extraction.get("page_count"),
+        "extraction_path": extraction_path.as_posix(),
+        "extraction_sha256": hashlib.sha256(extraction_path.read_bytes()).hexdigest(),
+        "pdf_sha256": extraction.get("source_file_sha256"),
+    }
+    return evidence, has_text
+
+
+def _write_tier_failure_evidence(
+    *,
+    output: Path,
+    source_url: str,
+    tier1: dict,
+    tier2: dict,
+) -> Path:
+    evidence = {
+        "schema_version": 1,
+        "source_url": source_url,
+        "access_challenge_detected": False,
+        "tier1_direct_text": tier1,
+        "tier2_rendered_dom": tier2,
+    }
+    path = output / "tier-failures.json"
+    path.write_text(json.dumps(evidence, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    return path
+
+
+def _preview_has_rendered_text(snapshots: list[dict]) -> bool:
+    """Treat only blank snapshots/page counters as unavailable DOM text."""
+    for snapshot in snapshots:
+        value = snapshot.get("text")
+        if not isinstance(value, str):
+            continue
+        without_page_marker = re.sub(
+            r"(?im)^\s*page\s+\d+\s+of\s+\d+\s*$", "", value
+        )
+        if without_page_marker.strip():
+            return True
+    return False
+
+
+def _load_tier3_mapping_key(source: dict, event: dict) -> str | None:
+    path = HERE / "config" / "static_png_ocr_mappings.json"
+    try:
+        config = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+        raise NeedsReviewError(f"Unable to read Tier 3 OCR mapping registry: {exc}") from exc
+    mappings = config.get("mappings") if isinstance(config, dict) else None
+    if not isinstance(config, dict) or config.get("schema_version") != 1 or not isinstance(mappings, dict):
+        raise NeedsReviewError("Tier 3 OCR mapping registry has an invalid schema.")
+    exam = event["exam_code"] + (
+        f"-{event['result_level'].upper()}" if event.get("result_level") else ""
+    )
+    matches = [
+        key for key, mapping in mappings.items()
+        if isinstance(mapping, dict)
+        and mapping.get("enabled") is True
+        and mapping.get("source_id") == source.get("id")
+        and mapping.get("authority") == "PRC"
+        and mapping.get("exam") == exam
+        and mapping.get("year") == event["exam_year"]
+        and mapping.get("official_source_url") == source.get("url")
+    ]
+    if len(matches) > 1:
+        raise NeedsReviewError("Multiple Tier 3 OCR mappings match this source/exam; Owner review is required.")
+    return matches[0] if matches else None
+
+
 def _repository_relative(path: Path, repository_root: Path) -> str:
     try:
         return path.resolve().relative_to(repository_root.resolve()).as_posix()
@@ -536,114 +644,6 @@ def greenlight(records: list[tuple[int, str]], announced: int) -> tuple[int, lis
         seen_names.add(normalized)
     return (100 if not failures else 0), failures
 
-
-
-def _extract_pdf_text_evidence(raw: bytes, output: Path) -> tuple[dict, bool]:
-    """Preserve raw per-page PDF text/tables and report genuine text availability."""
-    extractor_dir = HERE / "extractor"
-    if str(extractor_dir) not in sys.path:
-        sys.path.insert(0, str(extractor_dir))
-    try:
-        from pdf_parser import extract_pdf
-        pdf_path = output / "official-source.pdf"
-        pdf_path.write_bytes(raw)
-        extraction = extract_pdf(pdf_path)
-    except Exception as exc:
-        raise NeedsReviewError(f"Tier 1 PDF text extraction failed; human review is required: {exc}") from exc
-
-    extraction_path = output / "pdf-text-extraction.json"
-    extraction_path.write_text(
-        json.dumps(extraction, ensure_ascii=False, indent=2) + "\n",
-        encoding="utf-8",
-    )
-    has_text = False
-    for page in extraction.get("pages", []):
-        if isinstance(page.get("text"), str) and page["text"].strip():
-            has_text = True
-            break
-        for table in page.get("tables", []):
-            if any(
-                isinstance(cell, str) and cell.strip()
-                for row in (table or [])
-                for cell in (row or [])
-            ):
-                has_text = True
-                break
-        if has_text:
-            break
-    evidence = {
-        "status": "available" if has_text else "unavailable",
-        "reason": (
-            "PDF text or table-cell content was extracted."
-            if has_text else
-            "Every PDF page was inspected; no extractable text or table-cell content exists."
-        ),
-        "page_count": extraction.get("page_count"),
-        "extraction_path": extraction_path.as_posix(),
-        "extraction_sha256": hashlib.sha256(extraction_path.read_bytes()).hexdigest(),
-        "pdf_sha256": extraction.get("source_file_sha256"),
-    }
-    return evidence, has_text
-
-
-def _write_tier_failure_evidence(
-    *,
-    output: Path,
-    source_url: str,
-    tier1: dict,
-    tier2: dict,
-) -> Path:
-    evidence = {
-        "schema_version": 1,
-        "source_url": source_url,
-        "access_challenge_detected": False,
-        "tier1_direct_text": tier1,
-        "tier2_rendered_dom": tier2,
-    }
-    path = output / "tier-failures.json"
-    path.write_text(json.dumps(evidence, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-    return path
-
-
-def _preview_has_rendered_text(snapshots: list[dict]) -> bool:
-    """Treat only blank snapshots/page counters as unavailable DOM text."""
-    for snapshot in snapshots:
-        value = snapshot.get("text")
-        if not isinstance(value, str):
-            continue
-        without_page_marker = re.sub(
-            r"(?im)^\s*page\s+\d+\s+of\s+\d+\s*$", "", value
-        )
-        if without_page_marker.strip():
-            return True
-    return False
-
-
-def _load_tier3_mapping_key(source: dict, event: dict) -> str | None:
-    path = HERE / "config" / "static_png_ocr_mappings.json"
-    try:
-        config = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
-        raise NeedsReviewError(f"Unable to read Tier 3 OCR mapping registry: {exc}") from exc
-    mappings = config.get("mappings") if isinstance(config, dict) else None
-    if not isinstance(config, dict) or config.get("schema_version") != 1 or not isinstance(mappings, dict):
-        raise NeedsReviewError("Tier 3 OCR mapping registry has an invalid schema.")
-    exam = event["exam_code"] + (
-        f"-{event['result_level'].upper()}" if event.get("result_level") else ""
-    )
-    matches = [
-        key for key, mapping in mappings.items()
-        if isinstance(mapping, dict)
-        and mapping.get("enabled") is True
-        and mapping.get("source_id") == source.get("id")
-        and mapping.get("authority") == "PRC"
-        and mapping.get("exam") == exam
-        and mapping.get("year") == event["exam_year"]
-        and mapping.get("official_source_url") == source.get("url")
-    ]
-    if len(matches) > 1:
-        raise NeedsReviewError("Multiple Tier 3 OCR mappings match this source/exam; Owner review is required.")
-    return matches[0] if matches else None
 
 
 def run(
