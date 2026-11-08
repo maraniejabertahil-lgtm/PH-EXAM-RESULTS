@@ -337,6 +337,6 @@ def verify_official_public_content_link(
     destination = Path(evidence_path).expanduser()
     destination.parent.mkdir(parents=True, exist_ok=True)
     temporary = destination.with_name(destination.name + ".tmp")
-    temporary.write_text(json.dumps(evidence, ensure_ascii=False, indent=2) + "\\n", encoding="utf-8")
+    temporary.write_text(json.dumps(evidence, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     temporary.replace(destination)
     return evidence
