@@ -149,6 +149,17 @@ class StaticPngOcrTests(unittest.TestCase):
                 load_static_png_ocr_capture(batch=self.batch, root=self.root)
         ocr.assert_not_called()
 
+    def test_tier3_rejects_tier2_readable_text(self):
+        evidence_path = self.root / "capture" / "tier-failures.json"
+        evidence = json.loads(evidence_path.read_text())
+        evidence["tier2_rendered_dom"]["status"] = "available"
+        evidence["tier2_rendered_dom"]["reason"] = "Rendered DOM text was present."
+        evidence_path.write_text(json.dumps(evidence))
+        with patch("acquisition.static_png_ocr._tesseract_tsv") as ocr:
+            with self.assertRaisesRegex(StaticPngOcrError, "tier2_rendered_dom unavailability"):
+                load_static_png_ocr_capture(batch=self.batch, root=self.root)
+        ocr.assert_not_called()
+
     def test_tier3_rejects_access_challenge(self):
         self.batch["access_challenge_detected"] = True
         with patch("acquisition.static_png_ocr._tesseract_tsv") as ocr:
