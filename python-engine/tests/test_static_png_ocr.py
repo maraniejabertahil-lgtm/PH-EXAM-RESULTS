@@ -48,6 +48,8 @@ class StaticPngOcrTests(unittest.TestCase):
             "static_png_ocr_manifest": "capture/manifest.json",
             "tier_failure_evidence": "capture/tier-failures.json",
             "access_challenge_detected": False,
+            "publicly_viewable": True,
+            "content_downloadable": True,
         }
         review = {
             "approved": True,
@@ -67,8 +69,9 @@ class StaticPngOcrTests(unittest.TestCase):
             "language": "eng",
             "page_segmentation_mode": 6,
             "mapping_review": review,
-            "access_directives_review": review,
-            "reuse_terms_review": review,
+            "public_viewability_review": review,
+            "access_compliance_review": review,
+            "public_viewability": {"publicly_viewable": True, "downloadable": True, "evidence_ref": "ordinary-public-viewer-evidence-001"},
         }
         (self.root / "python-engine" / "config" / "static_png_ocr_mappings.json").write_text(
             json.dumps({"schema_version": 1, "mappings": {"PRC-TEST:2026": mapping}}),
@@ -125,6 +128,38 @@ class StaticPngOcrTests(unittest.TestCase):
         self.assertEqual(report["screenshot_count"], 2)
         self.assertEqual(len(report["ocr_tokens"]), 8)
         self.assertEqual(len(report["screenshots"][0]["ocr_tsv_sha256"]), 64)
+
+    def test_non_downloadable_but_publicly_viewable_content_is_eligible(self):
+        self.batch["content_downloadable"] = False
+        config_path = self.root / "python-engine" / "config" / "static_png_ocr_mappings.json"
+        config = json.loads(config_path.read_text(encoding="utf-8"))
+        config["mappings"]["PRC-TEST:2026"]["public_viewability"]["downloadable"] = False
+        config_path.write_text(json.dumps(config), encoding="utf-8")
+        outputs = [
+            tsv_line(["1", "DOE,", "JANE", "A"]),
+            tsv_line(["2", "ROE,", "JOHN", "B"]),
+        ]
+        with patch("acquisition.static_png_ocr._tesseract_tsv", side_effect=outputs):
+            records, evidence = load_static_png_ocr_capture(batch=self.batch, root=self.root)
+        self.assertEqual(len(records), 2)
+        self.assertEqual(evidence["screenshot_count"], 2)
+
+    def test_content_not_publicly_viewable_is_rejected(self):
+        config_path = self.root / "python-engine" / "config" / "static_png_ocr_mappings.json"
+        config = json.loads(config_path.read_text(encoding="utf-8"))
+        config["mappings"]["PRC-TEST:2026"]["public_viewability"]["publicly_viewable"] = False
+        config_path.write_text(json.dumps(config), encoding="utf-8")
+        with patch("acquisition.static_png_ocr._tesseract_tsv") as ocr:
+            with self.assertRaisesRegex(StaticPngOcrError, "publicly viewable"):
+                load_static_png_ocr_capture(batch=self.batch, root=self.root)
+        ocr.assert_not_called()
+
+    def test_downloadability_must_match_owner_reviewed_evidence(self):
+        self.batch["content_downloadable"] = False
+        with patch("acquisition.static_png_ocr._tesseract_tsv") as ocr:
+            with self.assertRaisesRegex(StaticPngOcrError, "does not match"):
+                load_static_png_ocr_capture(batch=self.batch, root=self.root)
+        ocr.assert_not_called()
 
     def test_low_confidence_token_is_held_for_human_review(self):
         outputs = [
