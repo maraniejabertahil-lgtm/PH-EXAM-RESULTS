@@ -163,6 +163,11 @@ class PublicPreviewCaptureTests(unittest.TestCase):
                 json.dumps({"schema_version": 2}), encoding="utf-8"
             )
         else:
+            # Match the real orchestrator's Tier 3 batch: source_id is the
+            # exam-specific mapping, and no separate exam_specific_source_id is emitted.
+            self.batch["source_id"] = "PRC-TEST-PUBLIC-PAGE"
+            self.batch["official_source_url"] = article_url
+            self.batch.pop("exam_specific_source_id", None)
             self.batch["tier_failure_evidence"] = "capture/tier-failures.json"
             self.batch["static_png_ocr_mapping_key"] = "PRC-TEST:2026"
             (self.root / "capture/tier-failures.json").write_text(
@@ -221,6 +226,17 @@ class PublicPreviewCaptureTests(unittest.TestCase):
         self.assertEqual(verify.call_args.kwargs["allowed_hosts"], allowed_hosts)
         self.assertEqual(result["report"]["greenlight_score"], 100)
         self.assertEqual(result["report"]["static_png_ocr"], {"ocr_report": "synthetic"})
+
+    def test_public_page_static_ocr_rejects_unapproved_source_identity(self):
+        self._configure_public_page_batch("static_png_ocr")
+        self.batch["source_id"] = "UNAPPROVED-SOURCE"
+        self.batch["official_source_url"] = "https://www.prc.gov.ph/article/result"
+        batch_path = self.root / "batch.json"
+        batch_path.write_text(json.dumps(self.batch), encoding="utf-8")
+        with patch("main.verify_official_public_content_link") as verify:
+            with self.assertRaisesRegex(PipelineError, "source_id must match exactly one approved registry entry"):
+                process_batch("batch.json", root=self.root)
+        verify.assert_not_called()
 
     def test_review_bundle_contains_candidate_records_and_hash_verified_screenshots(self):
         from create_review_bundle import create_review_bundle
