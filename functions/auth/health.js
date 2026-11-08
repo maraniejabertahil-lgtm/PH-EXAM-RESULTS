@@ -3,6 +3,9 @@ const REQUIRED_SETTINGS = [
   "FIREBASE_API_KEY",
   "OWNER_EMAIL",
   "SESSION_SIGNING_KEY",
+  "CF_ACCOUNT_ID",
+  "CF_D1_DATABASE_ID",
+  "CF_D1_READ_API_TOKEN",
 ];
 
 export async function onRequestGet({ env }) {
