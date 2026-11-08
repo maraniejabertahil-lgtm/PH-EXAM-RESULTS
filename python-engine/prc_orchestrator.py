@@ -369,6 +369,114 @@ def load_public_preview_mapping(
     return (key, mapping) if mapping is not None else None
 
 
+def _extract_pdf_text_evidence(raw: bytes, output: Path) -> tuple[dict, bool]:
+    """Preserve raw per-page PDF text/tables and report genuine text availability."""
+    extractor_dir = HERE / "extractor"
+    if str(extractor_dir) not in sys.path:
+        sys.path.insert(0, str(extractor_dir))
+    try:
+        from pdf_parser import extract_pdf
+        pdf_path = output / "official-source.pdf"
+        pdf_path.write_bytes(raw)
+        extraction = extract_pdf(pdf_path)
+    except Exception as exc:
+        raise NeedsReviewError(f"PDF extraction failed during Tier 1 text inspection; human review is required: {exc}") from exc
+
+    extraction_path = output / "pdf-text-extraction.json"
+    extraction_path.write_text(
+        json.dumps(extraction, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
+    has_text = False
+    for page in extraction.get("pages", []):
+        if isinstance(page.get("text"), str) and page["text"].strip():
+            has_text = True
+            break
+        for table in page.get("tables", []):
+            if any(
+                isinstance(cell, str) and cell.strip()
+                for row in (table or [])
+                for cell in (row or [])
+            ):
+                has_text = True
+                break
+        if has_text:
+            break
+    evidence = {
+        "status": "available" if has_text else "unavailable",
+        "reason": (
+            "PDF text or table-cell content was extracted."
+            if has_text else
+            "Every PDF page was inspected; no extractable text or table-cell content exists."
+        ),
+        "page_count": extraction.get("page_count"),
+        "extraction_path": extraction_path.as_posix(),
+        "extraction_sha256": hashlib.sha256(extraction_path.read_bytes()).hexdigest(),
+        "pdf_sha256": extraction.get("source_file_sha256"),
+    }
+    return evidence, has_text
+
+
+def _write_tier_failure_evidence(
+    *,
+    output: Path,
+    source_url: str,
+    tier1: dict,
+    tier2: dict,
+) -> Path:
+    evidence = {
+        "schema_version": 1,
+        "source_url": source_url,
+        "access_challenge_detected": False,
+        "tier1_direct_text": tier1,
+        "tier2_rendered_dom": tier2,
+    }
+    path = output / "tier-failures.json"
+    path.write_text(json.dumps(evidence, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    return path
+
+
+def _preview_has_rendered_text(snapshots: list[dict]) -> bool:
+    """Treat only blank snapshots/page counters as unavailable DOM text."""
+    for snapshot in snapshots:
+        value = snapshot.get("text")
+        if not isinstance(value, str):
+            continue
+        without_page_marker = re.sub(
+            r"(?im)^\s*page\s+\d+\s+of\s+\d+\s*$", "", value
+        )
+        if without_page_marker.strip():
+            return True
+    return False
+
+
+def _load_tier3_mapping_key(source: dict, event: dict) -> str | None:
+    path = HERE / "config" / "static_png_ocr_mappings.json"
+    try:
+        config = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+        raise NeedsReviewError(f"Unable to read Tier 3 OCR mapping registry: {exc}") from exc
+    mappings = config.get("mappings") if isinstance(config, dict) else None
+    if not isinstance(config, dict) or config.get("schema_version") != 1 or not isinstance(mappings, dict):
+        raise NeedsReviewError("Tier 3 OCR mapping registry has an invalid schema.")
+    exam = event["exam_code"] + (
+        f"-{event['result_level'].upper()}" if event.get("result_level") else ""
+    )
+    matches = [
+        key for key, mapping in mappings.items()
+        if isinstance(mapping, dict)
+        and mapping.get("enabled") is True
+        and mapping.get("source_id") == source.get("id")
+        and mapping.get("authority") == "PRC"
+        and mapping.get("exam") == exam
+        and mapping.get("year") == event["exam_year"]
+        and mapping.get("official_source_url") == source.get("url")
+    ]
+    if len(matches) > 1:
+        raise NeedsReviewError("Multiple Tier 3 OCR mappings match this source/exam; Owner review is required.")
+    return matches[0] if matches else None
+
+
 def _repository_relative(path: Path, repository_root: Path) -> str:
     try:
         return path.resolve().relative_to(repository_root.resolve()).as_posix()
@@ -537,6 +645,7 @@ def greenlight(records: list[tuple[int, str]], announced: int) -> tuple[int, lis
     return (100 if not failures else 0), failures
 
 
+
 def run(
     event: object,
     output_dir: str | Path,
@@ -594,25 +703,17 @@ def run(
     if len(content_urls) != 1:
         return finish("needs_review", 3, reason="multiple official content links; automatic selection is not safe")
     content = content_urls[0]
+    if content["format"] != "pdf":
+        return finish("needs_review", 3, reason=f"the current three-tier PRC route accepts PDF sources only, not {content['format']}")
+
     try:
         preview_approval = _approved_public_preview(event, content["url"], registry_path)
     except (NeedsReviewError, ValueError) as exc:
         return finish("needs_review", 3, reason=str(exc), source=content["url"])
+
+    specific_source = preview_approval[0] if preview_approval is not None else None
+    settings = preview_approval[1] if preview_approval is not None else None
     if preview_approval is not None:
-        specific_source, settings = preview_approval
-        try:
-            mapping_result = load_public_preview_mapping(event, cfg_path)
-        except NeedsReviewError as exc:
-            return finish("needs_review", 3, reason=str(exc), source=content["url"])
-        if mapping_result is None:
-            return finish(
-                "needs_review", 3,
-                reason=f"no reviewed public-preview mapping for {event['exam_code']}/{event['exam_year']}",
-                source=content["url"],
-            )
-        mapping_key, mapping = mapping_result
-        if not isinstance(mapping, dict):
-            return finish("needs_review", 3, reason="reviewed public-preview mapping must be a JSON object")
         try:
             preview_verifier(
                 source=specific_source,
@@ -620,137 +721,241 @@ def run(
                 content_url=content["url"],
                 evidence_path=output / "official-content-evidence.json",
             )
-            preview_url = urlsplit(content["url"])._replace(
-                path=urlsplit(content["url"]).path.rsplit("/", 1)[0] + "/preview",
-                query="",
-                fragment="",
-            ).geturl()
-            capture_dir = output / "public-preview-capture"
-            capture_manifest = preview_capturer(
-                preview_url=preview_url,
-                output_dir=capture_dir,
-                settings=settings,
+        except (OfficialContentError, RuntimeError, OSError, ValueError) as exc:
+            return finish("needs_review", 3, reason=f"Official article/link verification stopped safely: {exc}", source=content["url"])
+
+    # Tier 1: acquire the official PDF and preserve raw text/table evidence.
+    try:
+        raw = fetcher(content["url"])
+        if not isinstance(raw, bytes):
+            raise NeedsReviewError("Content fetcher did not return bytes.")
+        _validate_content_format(raw, "pdf")
+        tier1, tier1_available = _extract_pdf_text_evidence(raw, output)
+    except NeedsReviewError as exc:
+        return finish("needs_review", 3, reason=str(exc), source=content["url"])
+    except (HTTPError, URLError, TimeoutError, OSError, ValueError) as exc:
+        return finish("needs_review", 3, reason=f"Tier 1 official PDF acquisition failed safely: {exc}", source=content["url"])
+
+    if tier1_available:
+        # Readable PDF content is not an extraction failure. Missing mappings or
+        # parser/integrity errors stop here rather than activating Tier 2/OCR.
+        try:
+            mapping = load_mapping(event, "pdf", cfg_path)
+        except NeedsReviewError as exc:
+            return finish("needs_review", 3, reason=str(exc), source=content["url"], tier1=tier1)
+        if mapping is None:
+            return finish(
+                "needs_review", 3,
+                reason=f"Tier 1 extracted readable PDF content, but no reviewed PDF mapping exists for {event['exam_code']}/{event.get('result_level') or '*'}. Tier 2 is not a parser-error fallback.",
+                source=content["url"], tier1=tier1,
             )
+        if not isinstance(mapping, dict):
+            return finish("needs_review", 3, reason="reviewed PDF mapping must be a JSON object", source=content["url"], tier1=tier1)
+        try:
+            records = REGISTRY["pdf"](raw, mapping)
+        except NeedsReview as exc:
+            return finish("needs_review", 3, reason=f"Tier 1 PDF mapping/parser requires human review: {exc}", source=content["url"], tier1=tier1)
+        except (UnicodeError, ValueError, TypeError, KeyError) as exc:
+            return finish("needs_review", 3, reason=f"Tier 1 PDF parsing stopped safely: {exc}", source=content["url"], tier1=tier1)
+
+        score, failures = greenlight(records, event["announced_count"])
+        if score != 100:
+            return finish("needs_review", 3, reason="Tier 1 PDF Greenlight failed; later tiers are not parser-error fallbacks.", failures=failures, source=content["url"], tier1=tier1)
+
+        pdf_path = output / "official-source.pdf"
+        batch = {
+            "authority": "PRC",
+            "exam": event["exam_code"] + (
+                f"-{event['result_level'].upper()}" if event.get("result_level") else ""
+            ),
+            "level": event.get("result_level"),
+            "year": event["exam_year"],
+            "source_id": source["id"],
+            "official_source_url": source["url"],
+            "official_article_url": event["article_url"],
+            "official_document_url": content["url"],
+            "announced_count": event["announced_count"],
+            "publicly_released": True,
+            "provenance": "official_direct",
+            "official_content_mode": "pdf_text_extraction",
+            "source_pdf": pdf_path.as_posix(),
+            "source_pdf_sha256": hashlib.sha256(raw).hexdigest(),
+            "records": [
+                {"sequence_number": str(sequence), "name": name}
+                for sequence, name in records
+            ],
+            "record_mapping_reviewed": True,
+        }
+        batch_path = output / "release-batch.json"
+        batch_path.write_text(json.dumps(batch, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+        return finish(
+            "ready_for_greenlight_pipeline", 0,
+            batch=batch_path.as_posix(), records=len(records), greenlight=score,
+            mapping_reviewed=True, acquisition_method="official_pdf_text",
+            tier1=tier1,
+        )
+
+    # Tier 2 is eligible only after every PDF page has been inspected and no
+    # extractable text or table-cell content was found.
+    if preview_approval is None:
+        return finish(
+            "needs_review", 3,
+            reason="Tier 1 PDF text is genuinely unavailable, but no approved ordinary public-preview route exists for Tier 2.",
+            source=content["url"], tier1=tier1,
+        )
+
+    preview_url = urlsplit(content["url"])._replace(
+        path=urlsplit(content["url"]).path.rsplit("/", 1)[0] + "/preview",
+        query="", fragment="",
+    ).geturl()
+    capture_dir = output / "public-preview-capture"
+    try:
+        capture_manifest = preview_capturer(
+            preview_url=preview_url, output_dir=capture_dir, settings=settings,
+        )
+        snapshots = [
+            json.loads(line)
+            for line in (capture_dir / "page-text-snapshots.jsonl").read_text(encoding="utf-8").splitlines()
+            if line.strip()
+        ]
+    except (PublicPreviewCaptureError, NeedsReviewError, RuntimeError, OSError, ValueError, json.JSONDecodeError) as exc:
+        return finish("needs_review", 3, reason=f"Tier 2 ordinary public-preview capture stopped safely: {exc}", source=content["url"], tier1=tier1)
+
+    if (
+        capture_manifest.get("viewer_pages_captured") != capture_manifest.get("viewer_pages_expected")
+        or capture_manifest.get("page_coverage_complete") is not True
+        or not snapshots
+        or len(snapshots) != capture_manifest.get("viewer_pages_expected")
+    ):
+        return finish("needs_review", 3, reason="Tier 2 capture lacks complete page coverage; OCR is not authorized.", source=content["url"], tier1=tier1)
+
+    tier2_available = _preview_has_rendered_text(snapshots)
+    if tier2_available:
+        try:
+            mapping_result = load_public_preview_mapping(event, cfg_path)
+        except NeedsReviewError as exc:
+            return finish("needs_review", 3, reason=str(exc), source=content["url"], tier1=tier1, tier2={"status": "available"})
+        if mapping_result is None:
+            return finish(
+                "needs_review", 3,
+                reason=f"Tier 2 rendered readable DOM text, but no reviewed public-preview mapping exists for {event['exam_code']}/{event['exam_year']}. OCR is not a mapping-error fallback.",
+                source=content["url"], tier1=tier1, tier2={"status": "available"},
+            )
+        mapping_key, mapping = mapping_result
+        if not isinstance(mapping, dict):
+            return finish("needs_review", 3, reason="reviewed public-preview mapping must be a JSON object", source=content["url"], tier1=tier1, tier2={"status": "available"})
+        try:
             manifest_path, extracted = _write_public_preview_bundle(
-                event=event,
-                content_url=content["url"],
-                preview_url=preview_url,
-                source=specific_source,
-                mapping_key=mapping_key,
-                mapping=mapping,
-                capture_dir=capture_dir,
-                capture_manifest=capture_manifest,
+                event=event, content_url=content["url"], preview_url=preview_url,
+                source=specific_source, mapping_key=mapping_key, mapping=mapping,
+                capture_dir=capture_dir, capture_manifest=capture_manifest,
                 repository_root=repo_root,
             )
-        except (OfficialContentError, PublicPreviewCaptureError, NeedsReviewError, RuntimeError, OSError, ValueError) as exc:
-            return finish("needs_review", 3, reason=f"Official public-preview acquisition stopped safely: {exc}")
+        except (PublicPreviewCaptureError, NeedsReviewError, RuntimeError, OSError, ValueError) as exc:
+            return finish(
+                "needs_review", 3,
+                reason=f"Tier 2 readable DOM text could not be parsed/validated; later OCR fallback is forbidden: {exc}",
+                source=content["url"], tier1=tier1, tier2={"status": "available"},
+            )
 
         exam_identity = event["exam_code"] + (
             f"-{event['result_level'].upper()}" if event.get("result_level") else ""
         )
         batch = {
-            "authority": "PRC",
-            "exam": exam_identity,
-            "level": event.get("result_level"),
-            "year": event["exam_year"],
-            "source_id": source["id"],
-            "exam_specific_source_id": specific_source["id"],
-            "official_source_url": source["url"],
-            "official_article_url": event["article_url"],
-            "official_content_url": content["url"],
-            "public_preview_url": preview_url,
+            "authority": "PRC", "exam": exam_identity,
+            "level": event.get("result_level"), "year": event["exam_year"],
+            "source_id": source["id"], "exam_specific_source_id": specific_source["id"],
+            "official_source_url": source["url"], "official_article_url": event["article_url"],
+            "official_content_url": content["url"], "public_preview_url": preview_url,
             "official_content_mode": "public_preview_capture",
             "capture_manifest": _repository_relative(manifest_path, repo_root),
             "public_preview_mapping_key": mapping_key,
             "announced_count": event["announced_count"],
-            "publicly_released": True,
-            "provenance": "official_direct",
+            "publicly_released": True, "provenance": "official_direct",
         }
         batch_path = output / "release-batch.json"
         batch_path.write_text(json.dumps(batch, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
         return finish(
-            "ready_for_greenlight_pipeline",
-            0,
-            batch=batch_path.as_posix(),
-            records=len(extracted["records"]),
-            greenlight=extracted["greenlight"],
-            mapping_reviewed=True,
+            "ready_for_greenlight_pipeline", 0,
+            batch=batch_path.as_posix(), records=len(extracted["records"]),
+            greenlight=extracted["greenlight"], mapping_reviewed=True,
             acquisition_method="ordinary_public_preview_ui",
             viewer_pages=extracted["viewer_pages"],
             capture_manifest=_repository_relative(manifest_path, repo_root),
+            tier1=tier1, tier2={"status": "available"},
         )
-    if content["format"] != "pdf":
-        return finish("needs_review", 3, reason=f"the Greenlight/GitOps pipeline currently accepts PDF sources only, not {content['format']}")
-    try:
-        raw = fetcher(content["url"])
-        if not isinstance(raw, bytes):
-            raise NeedsReviewError("Content fetcher did not return bytes.")
-        _validate_content_format(raw, content["format"])
-    except NeedsReviewError as exc:
-        return finish("needs_review", 3, reason=str(exc), source=content["url"])
-    except (HTTPError, URLError, TimeoutError, OSError, ValueError) as exc:
-        return finish("needs_review", 3, reason=f"Official content request failed: {exc}", source=content["url"])
 
+    tier2 = {
+        "status": "unavailable",
+        "reason": "Every captured viewer page was inspected; snapshots contain only blank text or page counters.",
+    }
+    tier_failure_path = _write_tier_failure_evidence(
+        output=output, source_url=specific_source["url"], tier1=tier1, tier2=tier2,
+    )
     try:
-        mapping = load_mapping(event, content["format"], cfg_path)
+        mapping_key = _load_tier3_mapping_key(specific_source, event)
     except NeedsReviewError as exc:
-        return finish("needs_review", 3, reason=str(exc), source=content["url"])
-    if mapping is None:
+        return finish("needs_review", 3, reason=str(exc), source=content["url"], tier1=tier1, tier2=tier2)
+    if mapping_key is None:
         return finish(
             "needs_review", 3,
-            reason=f"no reviewed mapping for {event['exam_code']}/{event.get('result_level') or '*'}/{content['format']}",
-            source=content["url"],
+            reason="Tier 1 and Tier 2 text are genuinely unavailable, but Tier 3 remains disabled: no Owner-reviewed source/exam OCR mapping with access-directives and reuse-terms reviews exists.",
+            source=content["url"], tier1=tier1, tier2=tier2,
+            tier_failure_evidence=_repository_relative(tier_failure_path, repo_root),
         )
-    if not isinstance(mapping, dict):
-        return finish("needs_review", 3, reason="reviewed format mapping must be a JSON object", source=content["url"])
+
+    raw_capture_manifest_path = capture_dir / "capture-manifest.json"
     try:
-        records = REGISTRY[content["format"]](raw, mapping)
-    except NeedsReview as exc:
-        return finish("needs_review", 3, reason=str(exc), source=content["url"])
-    except (UnicodeError, ValueError, TypeError, KeyError) as exc:
-        return finish("needs_review", 3, reason=f"Content could not be parsed safely: {exc}", source=content["url"])
+        raw_capture_manifest = json.loads(raw_capture_manifest_path.read_text(encoding="utf-8"))
+        screenshot_entries = raw_capture_manifest.get("files", {}).get("screenshots")
+        if not isinstance(screenshot_entries, list) or len(screenshot_entries) != capture_manifest.get("viewer_pages_expected"):
+            raise NeedsReviewError("Tier 2 capture did not retain one screenshot for every viewer page.")
+        ocr_manifest = {
+            "schema_version": 1,
+            "capture_method": "ordinary_public_preview_ui",
+            "source_url": preview_url,
+            "official_content_url": content["url"],
+            "public_preview_url": preview_url,
+            "stable_viewport": True,
+            "lossless_png": True,
+            "access_challenge_detected": False,
+            "screenshots": [
+                {
+                    "page": item["viewer_page"],
+                    "path": _repository_relative(capture_dir / item["path"], repo_root),
+                    "sha256": item["sha256"],
+                }
+                for item in screenshot_entries
+            ],
+        }
+        ocr_manifest_path = capture_dir / "static-png-ocr-manifest.json"
+        ocr_manifest_path.write_text(json.dumps(ocr_manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    except (OSError, UnicodeError, json.JSONDecodeError, KeyError, TypeError, NeedsReviewError) as exc:
+        return finish("needs_review", 3, reason=f"Tier 3 screenshot evidence could not be prepared safely: {exc}", source=content["url"], tier1=tier1, tier2=tier2)
 
-    score, failures = greenlight(records, event["announced_count"])
-    if score != 100:
-        return finish("needs_review", 3, reason="Greenlight failed", failures=failures, source=content["url"])
-
-    if content["format"] != "pdf":
-        return finish("needs_review", 3, reason="Only PDF records can enter the current publication pipeline.")
-    pdf_path = output / "official-source.pdf"
-    pdf_path.write_bytes(raw)
+    exam_identity = event["exam_code"] + (
+        f"-{event['result_level'].upper()}" if event.get("result_level") else ""
+    )
     batch = {
-        "authority": "PRC",
-        "exam": event["exam_code"] + (
-            f"-{event['result_level'].upper()}" if event.get("result_level") else ""
-        ),
-        "level": event.get("result_level"),
-        "year": event["exam_year"],
-        "source_id": source["id"],
-        "official_source_url": source["url"],
-        "official_article_url": event["article_url"],
-        "official_document_url": content["url"],
-        "announced_count": event["announced_count"],
-        "publicly_released": True,
-        "provenance": "official_direct",
-        "source_pdf": pdf_path.as_posix(),
-        "source_pdf_sha256": hashlib.sha256(raw).hexdigest(),
-        "records": [
-            {"sequence_number": str(sequence), "name": name}
-            for sequence, name in records
-        ],
-        "record_mapping_reviewed": True,
+        "authority": "PRC", "exam": exam_identity,
+        "level": event.get("result_level"), "year": event["exam_year"],
+        "source_id": specific_source["id"], "official_source_url": specific_source["url"],
+        "official_article_url": event["article_url"], "official_content_url": content["url"],
+        "public_preview_url": preview_url, "official_content_mode": "static_png_ocr",
+        "static_png_ocr_mapping_key": mapping_key,
+        "static_png_ocr_manifest": _repository_relative(ocr_manifest_path, repo_root),
+        "tier_failure_evidence": _repository_relative(tier_failure_path, repo_root),
+        "announced_count": event["announced_count"], "publicly_released": True,
+        "provenance": "official_direct", "access_challenge_detected": False,
     }
     batch_path = output / "release-batch.json"
     batch_path.write_text(json.dumps(batch, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
     return finish(
-        "ready_for_greenlight_pipeline",
-        0,
-        batch=batch_path.as_posix(),
-        records=len(records),
-        greenlight=score,
-        mapping_reviewed=True,
+        "ready_for_greenlight_pipeline", 0, batch=batch_path.as_posix(),
+        acquisition_method="reviewed_static_png_ocr",
+        tier1=tier1, tier2=tier2,
+        tier_failure_evidence=_repository_relative(tier_failure_path, repo_root),
     )
-
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Acquire and validate a detected official PRC result.")

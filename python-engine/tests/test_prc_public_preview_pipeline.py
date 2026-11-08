@@ -98,7 +98,7 @@ def write_fake_capture(preview_url: str, output_dir: Path, settings: dict) -> di
         ),
         encoding="utf-8",
     )
-    return {
+    manifest = {
         "schema_version": 1,
         "capture_method": "ordinary_public_preview_ui",
         "viewer_pages_expected": 2,
@@ -108,6 +108,10 @@ def write_fake_capture(preview_url: str, output_dir: Path, settings: dict) -> di
         "access_controls_bypassed": False,
         "files": {"screenshots": screenshots},
     }
+    (output_dir / "capture-manifest.json").write_text(
+        json.dumps(manifest), encoding="utf-8"
+    )
+    return manifest
 
 
 class PRCPublicPreviewPipelineTests(unittest.TestCase):
@@ -225,29 +229,34 @@ class PRCPublicPreviewPipelineTests(unittest.TestCase):
                 MAPPING,
             )
 
-    def run_capture(self, *, content_url=CONTENT_URL, capturer=write_fake_capture):
-        self.event["content_urls"][0]["url"] = content_url
-        return run(
-            self.event,
-            self.root / "output",
-            preview_verifier=lambda **_kwargs: {},
-            preview_capturer=capturer,
-            registry_path=self.root / "python-engine/config/sources.json",
-            cfg_path=self.root / "python-engine/config/adapter_mappings.json",
-            repository_root=self.root,
-        )
+    def run_capture(
+        self, *, content_url=CONTENT_URL, capturer=write_fake_capture,
+        pdf_extraction=None, cfg_path=None, fetcher=None,
+    ):
+        import sys
 
-    def test_public_preview_capture_parses_all_pages_and_creates_batch(self):
-        self.assertEqual(self.run_capture(), 0)
-        report = json.loads((self.root / "output/report.json").read_text(encoding="utf-8"))
-        batch = json.loads((self.root / "output/release-batch.json").read_text(encoding="utf-8"))
-        self.assertEqual(report["records"], 2)
-        self.assertEqual(report["greenlight"], 100)
-        self.assertEqual(report["viewer_pages"], 2)
-        self.assertEqual(batch["official_content_mode"], "public_preview_capture")
-        self.assertEqual(batch["exam_specific_source_id"], EXAM_SOURCE["id"])
-        self.assertEqual(batch["public_preview_mapping_key"], MAPPING_KEY)
-        self.assertFalse(batch.get("records"))
+        extractor_dir = Path(__file__).resolve().parents[1] / "extractor"
+        if str(extractor_dir) not in sys.path:
+            sys.path.insert(0, str(extractor_dir))
+        import pdf_parser
+
+        self.event["content_urls"][0]["url"] = content_url
+        extraction = pdf_extraction or {
+            "page_count": 1,
+            "pages": [{"page_number": 1, "text": "", "tables": []}],
+            "source_file_sha256": "a" * 64,
+        }
+        with patch.object(pdf_parser, "extract_pdf", return_value=extraction):
+            return run(
+                self.event,
+                self.root / "output",
+                fetcher=fetcher or (lambda _url: b"%PDF-1.4\nsynthetic"),
+                preview_verifier=lambda **_kwargs: {},
+                preview_capturer=capturer,
+                registry_path=self.root / "python-engine/config/sources.json",
+                cfg_path=cfg_path or self.root / "python-engine/config/adapter_mappings.json",
+                repository_root=self.root,
+            )
 
     def test_unapproved_drive_file_id_stops_before_capture(self):
         capturer = Mock()
@@ -289,6 +298,79 @@ class PRCPublicPreviewPipelineTests(unittest.TestCase):
         with patch("main.verify_official_preview_link"):
             with self.assertRaises(PipelineError):
                 process_batch("output/release-batch.json", root=self.root)
+
+    def test_tier1_readable_pdf_without_reviewed_mapping_stops_before_preview(self):
+        capturer = Mock()
+        result = self.run_capture(
+            capturer=capturer,
+            pdf_extraction={
+                "page_count": 1,
+                "pages": [{"page_number": 1, "text": "Official result text", "tables": []}],
+                "source_file_sha256": "b" * 64,
+            },
+        )
+        report = json.loads((self.root / "output/report.json").read_text(encoding="utf-8"))
+        self.assertEqual(result, 3)
+        self.assertIn("readable PDF content", report["reason"])
+        self.assertEqual(report["tier1"]["status"], "available")
+        capturer.assert_not_called()
+        self.assertFalse((self.root / "output/release-batch.json").exists())
+
+    def test_tier1_reviewed_pdf_mapping_takes_priority_over_preview(self):
+        config_path = self.root / "python-engine/config/adapter_mappings.json"
+        config = json.loads(config_path.read_text(encoding="utf-8"))
+        config["CPALE:*:pdf"] = {"seq_idx": 0, "name_idx": 1}
+        config_path.write_text(json.dumps(config), encoding="utf-8")
+        capturer = Mock()
+        with patch.dict(
+            "prc_orchestrator.REGISTRY",
+            {"pdf": Mock(return_value=[(1, "DOE, JANE"), (2, "ROE, JOHN")])},
+        ):
+            result = self.run_capture(
+                capturer=capturer,
+                pdf_extraction={
+                    "page_count": 1,
+                    "pages": [{"page_number": 1, "text": "1 DOE, JANE", "tables": []}],
+                    "source_file_sha256": "c" * 64,
+                },
+            )
+        batch = json.loads((self.root / "output/release-batch.json").read_text(encoding="utf-8"))
+        self.assertEqual(result, 0)
+        self.assertEqual(batch["official_content_mode"], "pdf_text_extraction")
+        capturer.assert_not_called()
+
+    def test_tier2_readable_text_without_mapping_stops_without_ocr(self):
+        config_path = self.root / "python-engine/config/adapter_mappings.json"
+        config_path.write_text("{}", encoding="utf-8")
+        result = self.run_capture()
+        report = json.loads((self.root / "output/report.json").read_text(encoding="utf-8"))
+        self.assertEqual(result, 3)
+        self.assertIn("rendered readable DOM text", report["reason"])
+        self.assertEqual(report["tier2"]["status"], "available")
+        self.assertFalse((self.root / "output/release-batch.json").exists())
+
+    def test_tier3_is_not_enabled_without_owner_reviewed_mapping(self):
+        def blank_preview(**kwargs):
+            manifest = write_fake_capture(**kwargs)
+            capture_dir = kwargs["output_dir"]
+            snapshots = [
+                {"viewer_page": 1, "text": "Page 1 of 2"},
+                {"viewer_page": 2, "text": "Page 2 of 2"},
+            ]
+            (capture_dir / "page-text-snapshots.jsonl").write_text(
+                "".join(json.dumps(item) + "\n" for item in snapshots),
+                encoding="utf-8",
+            )
+            return manifest
+
+        result = self.run_capture(capturer=blank_preview)
+        report = json.loads((self.root / "output/report.json").read_text(encoding="utf-8"))
+        evidence = json.loads((self.root / "output/tier-failures.json").read_text(encoding="utf-8"))
+        self.assertEqual(result, 3)
+        self.assertEqual(evidence["tier1_direct_text"]["status"], "unavailable")
+        self.assertEqual(evidence["tier2_rendered_dom"]["status"], "unavailable")
+        self.assertIn("Tier 3 remains disabled", report["reason"])
+        self.assertFalse((self.root / "output/release-batch.json").exists())
 
     def test_preview_source_verifier_requires_robot_permission_and_exact_article_link(self):
         evidence_path = self.root / "preview-evidence.json"
