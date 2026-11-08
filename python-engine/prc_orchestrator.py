@@ -285,8 +285,6 @@ def _approved_public_preview(
         or source.get("url") != event["article_url"]
     ):
         raise NeedsReviewError("Exam-specific public-preview source identity or approval does not match the event.")
-    if settings.get("method") != "ordinary_public_preview_ui":
-        raise NeedsReviewError("Configured public-preview acquisition method is not approved.")
     method = settings.get("method")
     parsed_content = urlsplit(content_url)
     if method == "ordinary_public_preview_ui":
