@@ -17,7 +17,7 @@ Complete tasks independently when safe. Pre-approved actions, within the Master 
 • Merge changes that have passed all required checks.
 Autonomy does not cover: starting an unapproved phase, bypassing access controls, publishing unvalidated data, force-pushing or rewriting history on protected branches, deleting data or branches you did not create, or any irreversible action outside the task's scope. Ask the Owner before those.
 If an instruction is genuinely ambiguous and a wrong guess would be costly or irreversible, ask one concise question. Otherwise choose the safest reasonable interpretation, state the assumption, and proceed.
-2. Initial Inspection (before implementing)
+2. Initial Reading the entire Conversation and Inspection (before implementing)
 1. Read the relevant instructions and the Master Blueprint.
 2. Read PROGRESS_TRACKER.md and IMPLEMENTATION_ROADMAP.md before any planned task.
 3. Read LIVE_ACCEPTANCE_TEST_REGISTER.md before any acceptance testing.
