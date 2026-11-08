@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { establishFirebaseProof, firebasePreflight } from "../lib/firebase.js";
+import { onRequestGet as firebaseReadiness } from "../auth/firebase.js";
 import { onRequestPost as completeFirebaseProof } from "../auth/firebase/complete.js";
 import { readSession } from "../lib/access.js";
 
@@ -58,6 +59,22 @@ function mockFetch(token,{role="owner",active=true,email="owner@example.com",ide
   };
 }
 const ownerCredentials={email:"owner@example.com",password:"correct-test-password"};
+
+test("private Firebase endpoint exposes only non-secret readiness status", async () => {
+  const response = await firebaseReadiness({ env });
+  assert.equal(response.status, 200);
+  assert.deepEqual(await response.json(), { ready: true });
+  assert.equal(response.headers.get("Cache-Control"), "no-store");
+
+  const missing = await firebaseReadiness({
+    env: { ...env, FIREBASE_API_KEY: "", SESSION_SIGNING_KEY: "short" },
+  });
+  assert.equal(missing.status, 503);
+  const payload = await missing.json();
+  assert.equal(payload.ready, false);
+  assert.deepEqual(payload.missing.sort(), ["FIREBASE_API_KEY", "SESSION_SIGNING_KEY"]);
+  assert.equal(JSON.stringify(payload).includes(env.FIREBASE_API_KEY), false);
+});
 test("accepts Firebase password sign-in and active Firestore Owner profile, returning a short-lived signed proof only",async()=>{
   const token=await createToken();
   await withFetch(mockFetch(token),async()=>{

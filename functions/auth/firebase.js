@@ -56,9 +56,26 @@ export async function onRequestPost({ request }) {
       signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
     });
 
-    const payload = await upstream.json().catch(() => null);
+    const rawPayload = await upstream.text();
+    const upstreamContentType = upstream.headers.get("Content-Type") || "";
+    const mediaTypeCandidate = upstreamContentType.split(";")[0].trim().toLowerCase();
+    const knownMediaTypes = ["application/json", "text/html", "text/plain"];
+    const mediaType = knownMediaTypes.includes(mediaTypeCandidate)
+      ? mediaTypeCandidate
+      : mediaTypeCandidate ? "other" : "missing";
+    let payload = null;
+    try {
+      payload = rawPayload ? JSON.parse(rawPayload) : null;
+    } catch {
+      // Upstream HTML/error bodies are intentionally never reflected to the browser.
+    }
     if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
-      return json({ error: "The Owner sign-in service returned an invalid response." }, 502);
+      const routeHint = upstream.status === 404
+        ? "Verify that CF_OWNER_PAGES_PROJECT_NAME is ph-exam-results-owner and that /auth/firebase is deployed."
+        : "Check the private Owner Pages deployment and its /auth/firebase route.";
+      return json({
+        error: `The Owner sign-in service returned a non-JSON response (HTTP ${upstream.status}; content-type ${mediaType}). ${routeHint}`,
+      }, 502);
     }
 
     // Return only the two response shapes the browser needs. Never forward

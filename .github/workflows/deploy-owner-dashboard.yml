@@ -106,6 +106,10 @@ jobs:
           test -n "$CLOUDFLARE_API_TOKEN" || { echo "::error::Missing CF_PAGES_API_TOKEN."; exit 1; }
           test -n "$CLOUDFLARE_ACCOUNT_ID" || { echo "::error::Missing CF_ACCOUNT_ID."; exit 1; }
           test -n "$PROJECT_NAME" || { echo "::error::Missing CF_OWNER_PAGES_PROJECT_NAME."; exit 1; }
+          test "$PROJECT_NAME" = "ph-exam-results-owner" || {
+            echo "::error::CF_OWNER_PAGES_PROJECT_NAME must be ph-exam-results-owner because the public Owner auth proxy targets that exact hostname."
+            exit 1
+          }
           test -n "$CF_D1_API_TOKEN" || { echo "::error::Missing CF_D1_API_TOKEN."; exit 1; }
           test -n "$CF_D1_DATABASE_ID" || { echo "::error::Missing CF_D1_DATABASE_ID."; exit 1; }
           echo "Private Pages and D1 deployment settings are present."
@@ -360,6 +364,13 @@ jobs:
           check_public_asset "/continue"
           check_public_asset "/continue.js"
           check_public_asset "/continue.css"
+          auth_status=$(curl --connect-timeout 5 --max-time 10 -sS -o /tmp/owner-firebase-readiness.json -w "%{http_code}" "$base/auth/firebase")
+          if test "$auth_status" != "200"; then
+            echo "::error::Private Firebase auth readiness route failed (HTTP $auth_status)."
+            cat /tmp/owner-firebase-readiness.json || true
+            exit 1
+          fi
+          python -c 'import json; assert json.load(open("/tmp/owner-firebase-readiness.json")) == {"ready": True}'
           curl --connect-timeout 5 --max-time 10 -fsS "$base/auth/session" -o /tmp/owner-session.json
           python -c 'import json; assert json.load(open("/tmp/owner-session.json")) == {"authenticated": False}'
           check_redirect "/auth/login" "https://ph-exam-results.pages.dev/?owner=login"

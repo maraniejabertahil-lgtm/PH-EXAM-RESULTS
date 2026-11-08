@@ -55,6 +55,7 @@ jobs:
           test -f public/assets/js/search-worker.mjs
           test -f public/assets/js/review.mjs
           test -f functions/auth/firebase.js
+          test -f functions/auth/health.js
       - name: Validate JavaScript module syntax
         run: |
           node --check public/assets/js/storage.mjs
@@ -63,6 +64,7 @@ jobs:
           node --check public/assets/js/review-logic.mjs
           node --check public/assets/js/review.mjs
           node --check functions/auth/firebase.js
+          node --check functions/auth/health.js
       - name: Test same-origin Owner authentication proxy
         run: node --test functions/tests/*.test.mjs
       - name: Run browser-side module tests
@@ -115,3 +117,32 @@ jobs:
           npx --yes wrangler@4.156.2 pages deploy public \
             --project-name "$PROJECT_NAME" \
             --branch main
+
+      - name: Verify public Owner auth proxy reaches the private dashboard
+        env:
+          PROJECT_NAME: ${{ secrets.CF_PAGES_PROJECT_NAME }}
+        run: |
+          set -euo pipefail
+          test "$PROJECT_NAME" = "ph-exam-results" || {
+            echo "::error::CF_PAGES_PROJECT_NAME must be ph-exam-results because the configured public origin is https://ph-exam-results.pages.dev."
+            exit 1
+          }
+          base="https://${PROJECT_NAME}.pages.dev"
+          ready="false"
+          status="000"
+          for attempt in $(seq 1 18); do
+            status=$(curl --connect-timeout 5 --max-time 10 -sS \
+              -o /tmp/public-owner-auth-health.json -w "%{http_code}" \
+              "$base/auth/health" || true)
+            if test "$status" = "200" && python -c 'import json; assert json.load(open("/tmp/public-owner-auth-health.json")) == {"ready": True}' 2>/dev/null; then
+              ready="true"
+              echo "Public Cloudflare Pages proxy reached the private Firebase auth endpoint successfully."
+              break
+            fi
+            sleep 5
+          done
+          test "$ready" = "true" || {
+            echo "::error::Public-to-private Owner auth health check failed (HTTP $status)."
+            cat /tmp/public-owner-auth-health.json 2>/dev/null || true
+            exit 1
+          }
