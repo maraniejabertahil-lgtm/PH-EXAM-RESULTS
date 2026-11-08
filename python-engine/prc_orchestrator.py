@@ -450,7 +450,7 @@ def _preview_has_rendered_text(snapshots: list[dict]) -> bool:
     return False
 
 
-def _load_tier3_mapping_key(source: dict, event: dict) -> str | None:
+def _load_tier3_mapping_key(source: dict, event: dict, *, downloadable: bool) -> str | None:
     path = HERE / "config" / "static_png_ocr_mappings.json"
     try:
         config = json.loads(path.read_text(encoding="utf-8"))
