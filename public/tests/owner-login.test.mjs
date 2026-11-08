@@ -33,6 +33,10 @@ test("public header contains only the accessible Log in icon", () => {
   assert.match(css, /\.owner-login-button\{[^}]*border-radius:50%/);
 });
 
+test("public HTML cache-busts the immutable login module", () => {
+  assert.ok(html.includes("/assets/js/app.mjs?v=20261108-owner-login-proxy1"));
+});
+
 test("Log in icon uses the same-origin proxy before opening the private dashboard", () => {
   assert.ok(app.includes('ownerLogin.open?.addEventListener("click", showOwnerLogin)'));
   assert.ok(!app.includes("ownerLogin.open.hidden ="), "runtime status must never hide the permanent Log in icon");
