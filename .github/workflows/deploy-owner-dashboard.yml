@@ -385,4 +385,23 @@ jobs:
           grep -Fqi "access-control-allow-origin: https://ph-exam-results.pages.dev" /tmp/owner-trusted-cors-headers || {
             echo "::error::Firebase CORS did not return the exact public site origin."; cat /tmp/owner-trusted-cors-headers; exit 1;
           }
-          echo "Live signed-out route, private asset/API, Firebase handoff, trusted/untrusted CORS, and session checks passed."
+
+          # Exercise the real cross-origin POST route without contacting Firebase or using Owner credentials.
+          # Empty fields must be rejected by the endpoint itself, with a readable CORS response for the browser.
+          status=$(curl --connect-timeout 5 --max-time 10 -sS -D /tmp/owner-trusted-post-headers -o /tmp/owner-trusted-post.json -w "%{http_code}" \
+            -X POST "$base/auth/firebase" \
+            -H "Origin: https://ph-exam-results.pages.dev" \
+            -H "Content-Type: application/json" \
+            --data '{"email":"","password":""}')
+          if test "$status" != "400"; then
+            echo "::error::Trusted cross-origin Firebase POST did not reach the expected validation response (HTTP $status)."
+            cat /tmp/owner-trusted-post-headers /tmp/owner-trusted-post.json
+            exit 1
+          fi
+          grep -Fqi "access-control-allow-origin: https://ph-exam-results.pages.dev" /tmp/owner-trusted-post-headers || {
+            echo "::error::Firebase POST response omitted the exact public-site CORS origin."
+            cat /tmp/owner-trusted-post-headers /tmp/owner-trusted-post.json
+            exit 1
+          }
+          python -c 'import json; assert json.load(open("/tmp/owner-trusted-post.json"))["error"] == "Enter a valid Owner email and password."'
+          echo "Live signed-out route, private asset/API, Firebase preflight and POST CORS, and session checks passed."
