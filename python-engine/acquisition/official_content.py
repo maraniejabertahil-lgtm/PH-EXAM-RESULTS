@@ -244,3 +244,99 @@ def verify_official_preview_link(
     temporary.write_text(json.dumps(evidence, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     temporary.replace(destination)
     return evidence
+
+
+def verify_official_public_content_link(
+    *,
+    source: dict[str, Any],
+    article_url: str,
+    content_url: str,
+    allowed_hosts: list[str],
+    evidence_path: str | Path,
+    timeout: int = 20,
+) -> dict[str, Any]:
+    """Verify an ordinary public HTML/content link on an explicitly approved host."""
+    if (
+        not isinstance(source, dict)
+        or source.get("source_type") != "official"
+        or source.get("authorized") is not True
+        or source.get("enabled") is not True
+    ):
+        raise OfficialContentError("Source is not enabled and owner-authorized.")
+    _https_url(article_url, "Official article URL")
+    _https_url(content_url, "Official content URL")
+    if _origin(article_url) != _origin(source.get("url", "")):
+        raise OfficialContentError("Official article is outside the approved source origin.")
+    content = urlsplit(content_url)
+    if (
+        not isinstance(allowed_hosts, list)
+        or not allowed_hosts
+        or any(not isinstance(host, str) or not host for host in allowed_hosts)
+        or (content.hostname or "").lower() not in {host.lower() for host in allowed_hosts}
+    ):
+        raise OfficialContentError("Official public-content host is not explicitly allowlisted.")
+    approved_urls = source.get("public_content_urls")
+    if not isinstance(approved_urls, list) or content_url not in approved_urls:
+        raise OfficialContentError("Official content URL is not explicitly approved for this examination.")
+    robots_url = source.get("robots_policy_url")
+    if source.get("robots_policy_verified") is not True or not isinstance(robots_url, str):
+        raise OfficialContentError("A verified official robots.txt policy is required.")
+    if _origin(robots_url) != _origin(source["url"]):
+        raise OfficialContentError("robots_policy_url must use the approved official origin.")
+    if not _robots_allowed(robots_url, article_url, timeout):
+        raise OfficialContentError("robots.txt disallows the official article.")
+    if _origin(content_url) == _origin(article_url):
+        if not _robots_allowed(robots_url, content_url, timeout):
+            raise OfficialContentError("robots.txt disallows the official content URL.")
+    else:
+        content_robots = source.get("public_content_robots_policy_url")
+        if (
+            source.get("public_content_robots_policy_verified") is not True
+            or not isinstance(content_robots, str)
+            or _origin(content_robots) != _origin(content_url)
+        ):
+            raise OfficialContentError("A separately verified robots policy is required for the external content host.")
+        if not _robots_allowed(content_robots, content_url, timeout):
+            raise OfficialContentError("The external content host robots policy disallows this URL.")
+
+    status, headers, final_url, body = _request(article_url, timeout, MAX_ARTICLE_BYTES)
+    if status != 200:
+        raise OfficialContentError(f"Official article returned HTTP {status}.")
+    if len(body) > MAX_ARTICLE_BYTES:
+        raise OfficialContentError("Official article exceeded the configured size limit.")
+    content_type = (headers.get("Content-Type") or "").split(";", 1)[0].strip().lower()
+    if content_type not in {"text/html", "application/xhtml+xml"}:
+        raise OfficialContentError("Official article response was not HTML.")
+    if _origin(final_url) != _origin(source["url"]):
+        raise OfficialContentError("Official article redirected outside the approved source origin.")
+    parser = _AnchorParser()
+    parser.feed(body.decode("utf-8", errors="replace"))
+    if not any(
+        _canonical_link(linked) == _canonical_link(content_url)
+        for linked in (urljoin(final_url, href) for href in parser.hrefs)
+        if urlsplit(linked).scheme.lower() == "https"
+    ):
+        raise OfficialContentError("The supplied content URL is not linked from the official article.")
+
+    evidence = {
+        "schema_version": 1,
+        "source_id": source["id"],
+        "authority": source["authority"],
+        "provenance": "official_direct",
+        "acquisition_method": "ordinary_public_content_link",
+        "official_source_url": source["url"],
+        "official_article_url": article_url,
+        "official_content_url": content_url,
+        "official_article_link_verified": True,
+        "content_host_allowlisted": True,
+        "robots_policy_verified": True,
+        "access_controls_bypassed": False,
+        "verified_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+        "retrieval_user_agent": USER_AGENT,
+    }
+    destination = Path(evidence_path).expanduser()
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    temporary = destination.with_name(destination.name + ".tmp")
+    temporary.write_text(json.dumps(evidence, ensure_ascii=False, indent=2) + "\\n", encoding="utf-8")
+    temporary.replace(destination)
+    return evidence
