@@ -308,10 +308,10 @@ def capture_static_public_page(
         "viewer_page": 1,
         "sha256": text_hash,
         "screenshot_sha256": screenshot_hash,
-    }], ensure_ascii=False, indent=2) + "\\n", encoding="utf-8")
+    }], ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     snapshots_path = output_dir / "page-text-snapshots.jsonl"
     snapshots_path.write_text(
-        json.dumps({"viewer_page": 1, "text": visible}, ensure_ascii=False) + "\\n",
+        json.dumps({"viewer_page": 1, "text": visible}, ensure_ascii=False) + "\n",
         encoding="utf-8",
     )
     manifest = {
@@ -341,7 +341,7 @@ def capture_static_public_page(
         },
     }
     (output_dir / "capture-manifest.json").write_text(
-        json.dumps(manifest, ensure_ascii=False, indent=2) + "\\n",
+        json.dumps(manifest, ensure_ascii=False, indent=2) + "\n",
         encoding="utf-8",
     )
     return manifest
