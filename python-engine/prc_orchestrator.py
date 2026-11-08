@@ -471,6 +471,10 @@ def _load_tier3_mapping_key(source: dict, event: dict, *, downloadable: bool) ->
         and mapping.get("exam") == exam
         and mapping.get("year") == event["exam_year"]
         and mapping.get("official_source_url") == source.get("url")
+        and isinstance(mapping.get("public_viewability"), dict)
+        and mapping["public_viewability"].get("publicly_viewable") is True
+        and isinstance(mapping["public_viewability"].get("downloadable"), bool)
+        and mapping["public_viewability"].get("downloadable") is downloadable
     ]
     if len(matches) > 1:
         raise NeedsReviewError("Multiple Tier 3 OCR mappings match this source/exam; Owner review is required.")
@@ -724,7 +728,11 @@ def run(
         except (OfficialContentError, RuntimeError, OSError, ValueError) as exc:
             return finish("needs_review", 3, reason=f"Official article/link verification stopped safely: {exc}", source=content["url"])
 
-    # Tier 1: acquire the official PDF and preserve raw text/table evidence.
+    # Tier 1: attempt the official PDF download first. A 403 is not proof that
+    # the content is private: the ordinary public viewer is checked independently
+    # in Tier 2. No credentials, alternate endpoints, or access-control bypasses
+    # are attempted. Every other acquisition failure remains a safe stop.
+    downloadable = True
     try:
         raw = fetcher(content["url"])
         if not isinstance(raw, bytes):
@@ -732,7 +740,15 @@ def run(
         _validate_content_format(raw, "pdf")
         tier1, tier1_available = _extract_pdf_text_evidence(raw, output)
     except NeedsReviewError as exc:
-        return finish("needs_review", 3, reason=str(exc), source=content["url"])
+        if preview_approval is None or "HTTP 403" not in str(exc):
+            return finish("needs_review", 3, reason=str(exc), source=content["url"])
+        downloadable = False
+        tier1_available = False
+        tier1 = {
+            "status": "unavailable",
+            "reason": "The official file request returned HTTP 403; no download workaround was attempted. Tier 2 must independently prove ordinary public viewability.",
+            "downloadable": False,
+        }
     except (HTTPError, URLError, TimeoutError, OSError, ValueError) as exc:
         return finish("needs_review", 3, reason=f"Tier 1 official PDF acquisition failed safely: {exc}", source=content["url"])
 
@@ -893,13 +909,13 @@ def run(
         output=output, source_url=specific_source["url"], tier1=tier1, tier2=tier2,
     )
     try:
-        mapping_key = _load_tier3_mapping_key(specific_source, event)
+        mapping_key = _load_tier3_mapping_key(specific_source, event, downloadable=downloadable)
     except NeedsReviewError as exc:
         return finish("needs_review", 3, reason=str(exc), source=content["url"], tier1=tier1, tier2=tier2)
     if mapping_key is None:
         return finish(
             "needs_review", 3,
-            reason="Tier 1 and Tier 2 text are genuinely unavailable, but Tier 3 remains disabled: no Owner-reviewed source/exam OCR mapping with access-directives and reuse-terms reviews exists.",
+            reason="Tier 1 and Tier 2 text are unavailable, but Tier 3 remains disabled: no enabled Owner-reviewed source/exam mapping proves ordinary public viewability and records the matching downloadability state.",
             source=content["url"], tier1=tier1, tier2=tier2,
             tier_failure_evidence=_repository_relative(tier_failure_path, repo_root),
         )
@@ -947,6 +963,7 @@ def run(
         "tier_failure_evidence": _repository_relative(tier_failure_path, repo_root),
         "announced_count": event["announced_count"], "publicly_released": True,
         "provenance": "official_direct", "access_challenge_detected": False,
+        "publicly_viewable": True, "content_downloadable": downloadable,
     }
     batch_path = output / "release-batch.json"
     batch_path.write_text(json.dumps(batch, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
