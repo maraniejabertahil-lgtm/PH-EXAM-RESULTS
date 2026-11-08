@@ -18,9 +18,9 @@ test("public header contains only the accessible Log in icon", () => {
   assert.match(header, /title="Log in"/);
   assert.doesNotMatch(header, /search|release\s*status|menu|ellipsis/i, "Search, Release Status, and overflow controls must not appear in the header");
   assert.match(html, /id="owner-login-dialog"/);
-  const loginDisplay = html.match(/<dialog id="owner-login-dialog"[\\s\\S]*?<\\/dialog>/)?.[0] || "";
-  assert.doesNotMatch(loginDisplay, /[\\u0600-\\u06FF]/, "the login display must contain English only");
-  assert.doesNotMatch(header, /[\\u0600-\\u06FF]/, "the login icon must contain English only");
+  const loginDisplay = html.match(/<dialog id="owner-login-dialog"[\s\S]*?<\/dialog>/)?.[0] || "";
+  assert.doesNotMatch(loginDisplay, /[\u0600-\u06FF]/, "the login display must contain English only");
+  assert.doesNotMatch(header, /[\u0600-\u06FF]/, "the login icon must contain English only");
   assert.doesNotMatch(header, /class="header-note"/);
   assert.match(css, /\.header-actions\{[^}]*margin-left:auto/);
   assert.match(css, /\.owner-login-button\{[^}]*border-radius:50%/);
