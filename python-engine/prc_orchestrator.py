@@ -612,7 +612,7 @@ def _preview_has_rendered_text(snapshots: list[dict]) -> bool:
         if not isinstance(value, str):
             continue
         without_page_marker = re.sub(
-            r"(?im)^\\s*page\\s+\\d+\\s+of\\s+\\d+\\s*$", "", value
+            r"(?im)^\s*page\s+\d+\s+of\s+\d+\s*$", "", value
         )
         if without_page_marker.strip():
             return True
