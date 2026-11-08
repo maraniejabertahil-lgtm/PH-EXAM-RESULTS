@@ -626,7 +626,7 @@ def _load_tier3_mapping_key(source: dict, event: dict) -> str | None:
     except (OSError, UnicodeError, json.JSONDecodeError) as exc:
         raise NeedsReviewError(f"Unable to read Tier 3 OCR mapping registry: {exc}") from exc
     mappings = config.get("mappings") if isinstance(config, dict) else None
-    if config.get("schema_version") != 1 or not isinstance(mappings, dict):
+    if not isinstance(config, dict) or config.get("schema_version") != 1 or not isinstance(mappings, dict):
         raise NeedsReviewError("Tier 3 OCR mapping registry has an invalid schema.")
     exam = event["exam_code"] + (
         f"-{event['result_level'].upper()}" if event.get("result_level") else ""
