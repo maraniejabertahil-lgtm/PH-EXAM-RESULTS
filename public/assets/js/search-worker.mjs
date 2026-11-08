@@ -11,9 +11,7 @@ export function searchRecords(rows, query, limit = 100) {
       if (results.length < limit) {
         results.push({
           name: row[0],
-          rating: row[1],
-          region: row[2],
-          sequence_number: row[3],
+          sequence_number: row[1],
         });
       }
     }
