@@ -46,7 +46,7 @@ function readyDb() {
           };
         },
         async all() {
-          const table = sql.match(/PRAGMA table_info\\(([^)]+)\\)/)?.[1];
+          const table = sql.match(/PRAGMA table_info\(([^)]+)\)/)?.[1];
           return { results: (schemas[table]?.columns || []).map((name) => ({ name })) };
         },
       };
