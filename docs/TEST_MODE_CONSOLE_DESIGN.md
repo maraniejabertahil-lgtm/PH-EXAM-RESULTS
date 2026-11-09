@@ -18,8 +18,8 @@ The page should present:
 3. Overall progress, such as `0 / 10`, calculated from the selected run only.
 4. Ten ordered stage cards, each with a stage number, concise purpose, latest status, last-run time/duration, **Test** action, and a detail/report expander.
 5. **Run All Tests**, **View Test Report**, and a run-history list.
-6. A visible environment banner on every screen and report. Staging and Production Read-only must require an explicit mode selection; Simulation is the default.
-7. A confirmation step before any staging action that creates a branch, pull request, or deployment preview. Simulation actions need no repeated confirmation.
+6. A visible **REAL-WORLD TEST MODE** banner on every screen and report, including the exact source release and run ID.
+7. Explicit Owner confirmation at each publication boundary: one Publication button before merge/publication, and a separate Publication button before production deployment.
 
 Suggested stage-card content:
 
@@ -29,18 +29,18 @@ Suggested stage-card content:
 | 2 | Webhook Dispatch | Test workflow name, dispatch response, Actions run ID |
 | 3 | Event Verification | Accepted/rejected case matrix and validation reasons |
 | 4 | Content Acquisition | Fixture/source identifier, retrieval mode, HTTP metadata if applicable, SHA-256 |
-| 5 | Data Extraction | Extractor version, expected/actual record counts, synthetic fixture comparison |
+| 5 | Data Extraction | Extractor version, real source record counts, source/output hashes and reconciliation |
 | 6 | Data Normalization | Exact name/sequence preservation assertions, Unicode and whitespace cases |
 | 7 | Greenlight Validation | Score, individual checks, issue codes, publication gate decision |
 | 8 | Dataset & GitOps PR | Test-only manifest/shard hashes, branch, PR URL/number |
 | 9 | CI Verification & Merge | Exact tested commit SHA, required check results, test-branch merge result |
-| 10 | Website Deployment | Staging deployment URL, synthetic search verification, production isolation assertions |
+| 10 | Website Deployment | Owner-approved production deployment ID/URL, live search verification and deployed commit SHA |
 
 Use the exact status vocabulary:
 
 - `PASS`: defined assertions passed and evidence was saved.
 - `FAIL`: test executed and one or more assertions failed.
-- `BLOCKED`: a dependency, permission, configuration, or unavailable external service prevented a valid test.
+- `BLOCKED`: a dependency, permission, configuration, or unavailable real release/external service prevented a valid test.
 - `NOT RUN`: no test result exists.
 - `SKIPPED`: an upstream dependency failed or was blocked in a sequential run.
 
@@ -71,41 +71,41 @@ Implement the following boundaries before enabling any test action:
 5. Use distinct Test Mode configuration and least-privilege credentials where feasible. Where real production integrations or credentials are required to verify the actual production path, expose them only to the server/workflow, scope them to the exact permitted action, and require explicit Owner approval. Missing required configuration returns BLOCKED; never silently fall back to a different environment.
 6. Use a separate test D1 database for `test_runs` and `test_run_steps`. Do not create or write test tables in production D1 as a convenience. Production read-only checks may record their sanitized test evidence in the test D1 store.
 7. Use unique run IDs, per-stage attempt IDs, idempotency keys, and a server-side state machine. Duplicate requests return the existing operation/result or a safe conflict; they must not start duplicate Actions runs or PRs.
-8. Enforce server-side allowlists for mode, stage, fixture, branch, workflow, and deployment target. Reject arbitrary URLs, arbitrary Git refs, arbitrary workflow names, and caller-supplied commands.
-9. Set explicit least-privilege workflow permissions per job. Test workflows must have no production deploy credentials, no social credentials, and no ability to change production data.
+8. Enforce server-side allowlists for stage, official source, branch, workflow, and deployment target. Reject arbitrary URLs, arbitrary Git refs, arbitrary workflow names, and caller-supplied commands.
+9. Set explicit least-privilege workflow permissions per job. Production publication/deployment credentials must be unavailable until the corresponding Owner approval is validated server-side. Social credentials remain unavailable to Test Mode.
 10. Preserve a durable audit trail with redacted errors. Never log Owner cookies, CSRF tokens, Firebase proofs, GitHub tokens, or examinee names.
 
-**Fail-closed rule:** If the system cannot prove the environment boundary, the action does not run and is recorded as BLOCKED.
+**Fail-closed rule:** If the system cannot prove the run identity, source identity, exact approved commit/artifact, Owner authorization, or deployment target, the action does not run and is recorded as BLOCKED.
 
 ## 4. Proposed backend contract and persistence
 
 Suggested same-origin endpoints (final names may be adjusted to match repository conventions):
 
-- `GET /api/test-mode/config` — return allowed modes, stages, and safe readiness flags; Owner session required.
+- `GET /api/test-mode/config` — return Test Mode availability, stages, publication-gate state, and safe readiness flags; Owner session required.
 - `GET /api/test-runs?limit=...` — list the Owner's recent test runs from the test D1 database.
-- `POST /api/test-runs` — create a run with explicit mode and requested stage(s); Owner session + CSRF required.
+- `POST /api/test-runs` — create a real-world Test Mode run bound to a specific official release; Owner session + CSRF required.
 - `GET /api/test-runs/:runId` — return run summary and step evidence; Owner session required.
 - `POST /api/test-runs/:runId/stages/:stageId` — start/retry one allowlisted stage; Owner session + CSRF required.
-- `POST /api/test-runs/:runId/run-all` — start the ordered pipeline; Owner session + CSRF required.
+- `POST /api/test-runs/:runId/run-all` — start/resume the ordered pipeline up to the next publication gate; Owner session + CSRF required.
 - `GET /api/test-runs/:runId/report` — return the sanitized report; Owner session required.
 - `GET /api/test-runs/:runId/report/download` — download the same report as JSON; Owner session required.
+- `POST /api/test-runs/:runId/publication-approvals/:action` — authorize one exact merge or deployment action; Owner session + CSRF required; server revalidates run state, commit/artifact hash, CI, target, and approval scope.
 
 Proposed isolated test D1 tables:
 
-- `test_runs`: `run_id`, `environment`, `status`, `requested_by_owner_uid` (opaque UID only), `started_at`, `completed_at`, `duration_ms`, `fixture_id`, `workflow_run_id`, `test_branch`, `staging_url`, `report_sha256`, `created_at`, `updated_at`.
-- `test_run_steps`: `step_id`, `run_id`, `stage_number`, `attempt`, `status`, `started_at`, `completed_at`, `duration_ms`, `expected_summary`, `actual_summary`, `evidence_json`, `failure_code`, `failure_message_redacted`, `idempotency_key`.
+- `test_runs`: `run_id`, `mode`, `status`, `requested_by_owner_uid` (opaque UID only), `source_release_id`, `source_url`, `started_at`, `completed_at`, `duration_ms`, `workflow_run_id`, `pull_request_number`, `head_sha`, `merge_sha`, `deployment_id`, `deployment_url`, `report_sha256`, `created_at`, `updated_at`.
+- `test_run_steps`: `step_id`, `run_id`, `stage_number`, `attempt`, `status`, `started_at`, `completed_at`, `duration_ms`, `expected_summary`, `actual_summary`, `evidence_json`, `failure_code`, `failure_message_redacted`, `idempotency_key`, `approval_state`, `approved_by_owner_uid`, `approved_at`, `approved_action_sha`.
 
-Use a unique constraint on `run_id` and on `(run_id, stage_number, attempt)`; add indexes for recent runs and run-step ordering. Keep evidence compact and sanitized. Synthetic record content may exist only in dedicated test fixtures/artifacts; operational metadata should contain counts and hashes, not names.
+Use a unique constraint on `run_id` and on `(run_id, stage_number, attempt)`; add indexes for recent runs and run-step ordering. Keep evidence compact and sanitized. Do not duplicate examinee names or raw result rows in the test audit database or reports; use counts, hashes, and restricted evidence references.
 
 ## 5. Definition of the ten tests
 
 ### 1 — Release Detection
 
-- Feed a saved synthetic PRC article/HTML fixture into the actual Watcher release-event builder/detection logic.
-- Positive cases: supported PRC exam, unambiguous year and level, approved official-host URL, supported result-content link.
-- Negative cases: missing/ambiguous exam, ambiguous year, wrong host, unsupported URL, no linked content.
-- PASS only when the fixture's expected detection/review decision matches the actual result and the event is marked test-only. Record fixture ID, detector version, decision, event fingerprint, and timestamp.
-- Do not mutate the live Watcher schedule/KV or create a production release event.
+- Observe an actual official PRC release notice through the real Watcher detection path.
+- Verify the actual exam identity, year/level, official-host URL, linked result content, detector decision, and event fingerprint.
+- PASS only when the real release is correctly detected and correlated to the Test Mode run without creating a duplicate or bypassing the normal release safeguards.
+- Record source/release identity, detector version, decision, event fingerprint, and timestamp.
 
 ### 2 — Webhook Dispatch
 
@@ -115,9 +115,9 @@ Use a unique constraint on `run_id` and on `(run_id, stage_number, attempt)`; ad
 
 ### 3 — Event Verification
 
-- Exercise the existing validation rules where reusable, plus the test-only envelope validator, against valid, malformed, unauthorized, duplicate, expired/stale, and mismatched events.
-- Assert that valid test envelopes are accepted only for the test workflow; production event types, unknown schemas, mismatched run IDs, unknown fixtures, and disallowed branches are rejected.
-- Preserve sanitized case outcomes and rejection codes. Never include credentials or raw sensitive payloads in evidence.
+- Verify the actual event generated for the detected PRC release against the production event contract and Test Mode run correlation.
+- Confirm source identity, release identity, event schema, signature/authentication where applicable, freshness, and duplicate/idempotency handling.
+- Run existing automated negative/security regression tests as supplemental evidence, but do not present their synthetic cases as the real-world run result.
 
 ### 4 — Content Acquisition
 
@@ -127,22 +127,22 @@ Use a unique constraint on `run_id` and on `(run_id, stage_number, attempt)`; ad
 
 ### 5 — Data Extraction
 
-- Run the real extraction/parser path against a synthetic PDF/HTML/image fixture selected for that test.
-- Compare output with expected synthetic records, including count, sequence values, and a deterministic records hash.
-- Keep extraction output in temporary test storage. A fixture mismatch is FAIL; unavailable optional parser dependencies are BLOCKED.
+- Run the actual extraction/parser path against the acquired official PRC result file.
+- Reconcile extracted record counts and source structure against the real document and record parser version, confidence/quality indicators, and deterministic output hashes.
+- Any mismatch or unresolved OCR uncertainty must be reported for review and must not be silently repaired.
 
 ### 6 — Data Normalization
 
-- Exercise the actual `normalize_extracted_tables` and relevant normalization path.
-- Assert preservation of exact source names and sequence strings (including leading zeroes), Unicode letters/marks, punctuation, unusual whitespace, and duplicate rows for downstream detection; normalization must not silently repair, renumber, fuzzy-match, or discard source values.
-- Record assertion results and hashes, not record names.
+- Run the actual `normalize_extracted_tables` and relevant production normalization path on the records extracted from the real PRC result.
+- Reconcile normalized output against the extracted source values, preserving exact names and sequence strings (including leading zeroes), Unicode, punctuation, and meaningful whitespace. Do not silently repair, renumber, fuzzy-match, or discard source values.
+- Record aggregate assertion results and hashes; keep personal data out of routine logs and reports.
 
 ### 7 — Greenlight Validation
 
-- Exercise the actual `validate_records` implementation and existing regression suite. Do not duplicate the missing-sequence regression already present in `python-engine/tests/test_pipeline.py` and `test_greenlight.py`; expose its existing test result as evidence.
-- Include clean 100/100 positive data and deliberate negative fixtures for missing sequence numbers, duplicate names, duplicate sequence numbers, blank names, incorrect announced counts, anomalies/unexpected characters, and low-confidence OCR.
-- Verify only a complete 100/100 report with all required checks true can be publication-eligible. In Test Mode, publication remains disabled even after 100/100.
-- Record score, check booleans, issue codes, record count, and records hash only.
+- Run the actual `validate_records` implementation on the real release dataset and preserve its full machine-readable validation evidence in access-controlled storage.
+- Verify the announced count, extracted count, sequence integrity, duplicate checks, name checks, anomalies, OCR confidence, and all other required Greenlight criteria.
+- A complete 100/100 result with every required check true is necessary but does not itself authorize publication. The Test Mode publication approval buttons remain mandatory.
+- Run the existing automated regression suite separately as supplemental software-quality evidence; it does not replace the real release validation.
 
 ### 8 — Dataset & GitOps PR
 
@@ -155,12 +155,12 @@ Use a unique constraint on `run_id` and on `(run_id, stage_number, attempt)`; ad
 - Run CI against the exact head SHA from the test PR; record required checks and exact commit SHA.
 - Test both successful and failing check outcomes. A deliberately failed required check must prevent merge.
 - If branch protection/rulesets are configured for the test integration branch, verify the merge is blocked until required checks pass. If enforcement cannot be verified, mark BLOCKED rather than claiming protection.
-- After required CI checks pass, pause and present an explicit **Approve Publication / Merge** button. The button must show the PR number, exact head SHA, target branch, dataset manifest hash, Greenlight result, and source release. Only the Owner's click may authorize merging that exact reviewed PR. Revalidate all values and required checks server-side at click time; if anything changed, invalidate the approval and require a fresh review.
+- After required CI checks pass, pause and present an explicit **Publication — Approve Merge** button. Show the PR number, exact head SHA, target branch, dataset manifest hash, Greenlight result, and official source release. Only the Owner's click may authorize merging that exact reviewed PR. Revalidate all values and required checks server-side at click time; if anything changed, invalidate the approval and require a fresh review.
 - Record the merge commit SHA and checks. Do not merge automatically in Test Mode.
 
 ### 10 — Website Deployment
 
-- After the approved merge, pause and present a separate **Approve Production Publication / Deploy** button before the production website deployment or other production publication action. Show the exact merge SHA, dataset/manifest hash, deployment target, and expected public effect. Only the Owner's click may authorize that specific deployment. Revalidate the merge SHA, CI status, and target server-side at click time; changed inputs invalidate approval.
+- After the merge, pause and present a separate **Publication — Approve Production Deployment** button before the production website deployment. Show the exact merge SHA, dataset/manifest hash, production deployment target, and expected public effect. Only the Owner's click may authorize that specific deployment. Revalidate the merge SHA, CI status, and target server-side at click time; changed inputs invalidate approval.
 - After approval, run the actual production deployment and verify the deployed site and real search behavior against the published release. Record deployment ID/URL, commit SHA, and post-deployment checks.
 - If the Owner does not click, keep the run paused and do not publish or deploy.
 
@@ -172,7 +172,7 @@ Run stages in strict order: 1 through 10. Each stage must publish a terminal sta
 - Mark later dependent stages SKIPPED, preserving all earlier evidence.
 - A stage can be rerun independently after the cause is addressed; create a new attempt and preserve the prior attempt.
 - Do not silently restart earlier PASS stages unless their input fixture/version changed or the Owner explicitly requests a full fresh run.
-- Stages 8–10 use the real repository, CI, merge, and production deployment integrations. Test Mode pauses for explicit Owner Publication-button approval before merge/publication and again before production deployment. No simulated or mocked substitute counts as a real-world PASS.
+- All ten stages use real-world source data and actual integrations. Test Mode pauses for explicit Owner Publication-button approval before merge/publication and again before production deployment. No simulated or mocked substitute counts as a real-world PASS.
 
 ## 7. Report format
 
@@ -202,7 +202,7 @@ Test Console outcomes and live acceptance remain independent:
 | Test stages 8–9 | Real GitOps PR and CI, followed by Owner-clicked publication approval | Normal unattended automated merge behavior outside Test Mode |
 | Test stage 10 | Owner-approved real production deployment and post-deployment verification | Normal unattended automated deployment behavior outside Test Mode |
 | Owner dashboard sign-in/API/CSRF checks | P4-15, P4-16, P4-17 | These are still live Owner acceptance procedures and must be run separately |
-| Staging isolation and deployment checks | P4-18 supporting evidence | Desktop/mobile walkthrough and rollback execution remain separate |
+| Test Mode publication/deployment evidence | P4-18 supporting evidence | Desktop/mobile walkthrough and rollback execution remain separate |
 
 A Test Mode PASS or Owner-clicked publication approval must never automatically change P4-15, P4-16, P4-17, or P4-18 to PASS.
 
@@ -213,8 +213,8 @@ Implement in this order:
 1. **Foundation:** threat model, dedicated Test Mode workflow, test-run audit store, server-side allowlists, Owner + CSRF enforcement, idempotency, publication approval state machine, and tests proving no publication occurs without the relevant Owner click.
 2. **Stages 1–3:** Watcher fixture detection, dedicated workflow dispatch, event verification matrix.
 3. **Stages 4–7:** fixture acquisition, real extraction/normalization, Greenlight positive and negative matrix.
-4. **Stages 8–9:** isolated dataset generation, test PR, exact-SHA CI and protected test-branch merge.
-5. **Stage 10 and orchestration:** staging deployment, Run All, report view/download, run history, final isolation verification.
+4. **Stages 8–9:** real dataset generation, real PR to the normal publication branch, exact-SHA CI, and Owner-approved merge.
+5. **Stage 10 and orchestration:** Owner-approved production deployment, Run All pause/resume, report view/download, run history, and post-deployment verification.
 
 A phase is not accepted because its UI exists or its workflow starts. It must pass its own automated tests, demonstrate expected evidence, and prove the relevant production-isolation assertions.
 
@@ -225,7 +225,7 @@ A phase is not accepted because its UI exists or its workflow starts. It must pa
 - No production merge, publication, or deployment in Test Mode without the specific Owner-clicked Publication approval.
 - No social notifications.
 - No new public dashboard or authentication system.
-- No automatic promotion of synthetic/staging results into the live acceptance register.
+- No automatic promotion of Test Mode results into the live acceptance register.
 
 ## 10. Decisions requested before implementation
 
