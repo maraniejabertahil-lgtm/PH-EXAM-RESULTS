@@ -57,7 +57,7 @@ export function validateTestModeSource(input, env) {
   if (!parsed || parsed.protocol !== "https:" || !officialHost ||
       parsed.username || parsed.password || parsed.port && parsed.port !== "443" ||
       parsed.hash) {
-    reasons.push("SOURCE_URL_NOT_APPROVED_PRCC_HOST");
+    reasons.push("SOURCE_URL_NOT_APPROVED_PRC_HOST");
   }
 
   return { valid: reasons.length === 0, reasons };
@@ -68,7 +68,7 @@ export async function getTestModeReadiness(env) {
   if (env.TEST_MODE_ENABLED !== "true") reasons.push("TEST_MODE_NOT_ENABLED");
 
   const sourceIds = allowedSourceIds(env);
-  if (sourceIds.length === 0) reasons.push("NO_PR C_SOURCE_ALLOWLIST".replace(" ", ""));
+  if (sourceIds.length === 0) reasons.push("NO_PRC_SOURCE_ALLOWLIST");
 
   const db = env.TEST_MODE_DB;
   if (!db || typeof db.prepare !== "function") {
