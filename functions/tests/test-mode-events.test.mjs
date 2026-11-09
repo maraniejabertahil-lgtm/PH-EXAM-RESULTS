@@ -35,9 +35,13 @@ function makeDb() {
       async run() {
         if (sql.includes("INSERT OR IGNORE INTO test_mode_release_events")) {
           const event = { event_id: values[0], authority: "PRC", source_id: values[1], release_id: values[2], source_url: values[3], exam_code: values[4], exam_title: values[5], exam_year: values[6], event_fingerprint: values[7], payload_sha256: values[8], detected_at: values[9], verified_at: values[10], verification_status: "VERIFIED", verification_method: values[11] };
-          if (!events.some((item) => item.event_fingerprint === event.event_fingerprint)) events.push(event);
+          if (!events.some((item) => item.event_fingerprint === event.event_fingerprint)) {
+            events.push(event);
+            return { success: true, meta: { changes: 1 } };
+          }
+          return { success: true, meta: { changes: 0 } };
         }
-        return { success: true };
+        return { success: true, meta: { changes: 0 } };
       },
     };
     return statement;
