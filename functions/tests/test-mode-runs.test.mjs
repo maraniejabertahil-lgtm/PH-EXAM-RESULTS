@@ -258,6 +258,13 @@ test("run history and detail are scoped to the authenticated Owner UID", async (
   assert.equal(detail.status, 404);
 });
 
+test("transient batch storage failures return a retryable server error", async () => {
+  const { env, cookie } = await ownerEnv();
+  env.TEST_MODE_DB.batch = async () => { throw new Error("temporary D1 outage"); };
+  const response = await createRun({ request: postRequest(cookie), env });
+  assert.equal(response.status, 503);
+});
+
 test("invalid idempotency keys and unknown events fail closed", async () => {
   const { env, cookie } = await ownerEnv();
   const invalidKey = await createRun({ request: postRequest(cookie, { key: "x" }), env });

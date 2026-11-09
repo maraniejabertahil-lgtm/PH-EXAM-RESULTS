@@ -143,7 +143,7 @@ export async function onRequestPost({ request, env }) {
         return json({ run: raced, replayed: true }, 200);
       }
       if (raced) return json({ error: "Idempotency-Key was already used for a different release event." }, 409);
-      return json({ error: "The Test Mode run could not be created safely." }, 409);
+      return json({ error: "Test Mode run storage is temporarily unavailable." }, 503);
     }
 
     return json({
