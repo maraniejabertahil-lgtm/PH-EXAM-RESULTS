@@ -511,6 +511,37 @@ async function fetchOfficialArticleMetadata(articleUrl, fetchImpl) {
   return { title, url: finalUrl, text, links };
 }
 
+async function recordTestModeReleaseEvent(env, source, event, fetchImpl) {
+  const endpoint = env.TEST_MODE_EVENT_INGEST_URL;
+  const token = env.TEST_MODE_EVENT_INGEST_TOKEN;
+  if (typeof endpoint !== "string" || !endpoint || typeof token !== "string" || token.length < 32) {
+    return { status: "not_configured" };
+  }
+  try {
+    const target = new URL(endpoint);
+    if (target.protocol !== "https:" || target.username || target.password || target.hash) {
+      return { status: "invalid_endpoint_configuration" };
+    }
+    const response = await fetchImpl(target.href, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json", "User-Agent": USER_AGENT },
+      body: JSON.stringify({
+        authority: "PRC", source_id: source.id, article_url: event.article_url,
+        exam_code: event.exam_code, exam_title: event.exam_title,
+        exam_year: event.exam_year, detected_at: event.detected_at
+      }),
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS)
+    });
+    if (response.status !== 200 && response.status !== 201) {
+      return { status: "ingest_rejected", http_status: response.status };
+    }
+    const result = await response.json().catch(() => ({}));
+    return { status: result.duplicate ? "already_recorded" : "recorded", event_id: result.event_id || null };
+  } catch (error) {
+    return { status: "ingest_unavailable", error: String(error.message || error).slice(0, 160) };
+  }
+}
+
 async function dispatchPrReleaseEvent(env, source, article, fetchImpl, now) {
   const built = buildReleaseEvent(source, article);
   if (!built.ok) return { status: "needs_human_review_no_dispatch", reason: built.reason };
@@ -532,8 +563,11 @@ async function dispatchPrReleaseEvent(env, source, article, fetchImpl, now) {
     const detail = await response.text().catch(() => "");
     throw new Error(`PRC release-event dispatch failed (HTTP ${response.status})${detail ? `: ${detail.slice(0, 200)}` : ""}.`);
   }
+  const testModeEvent = source.authority === "PRC"
+    ? await recordTestModeReleaseEvent(env, source, built.event, fetchImpl)
+    : { status: "not_applicable" };
   await env.PEAK_WEEK.put(key, isoNow(now), { expirationTtl: DISPATCH_TTL_SECONDS });
-  return { status: "prc-release-event-dispatched", article_url: article.url };
+  return { status: "prc-release-event-dispatched", article_url: article.url, test_mode_event: testModeEvent };
 }
 
 async function scanApprovedDocuments(source, pageUrl, env, fetchImpl, now, allowArticleDiscovery = true) {
