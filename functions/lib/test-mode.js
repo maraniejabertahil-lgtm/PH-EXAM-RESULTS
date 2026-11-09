@@ -155,3 +155,18 @@ export function createTestRunStepRows(runId) {
     idempotency_key: runId + ":" + stage.number + ":1",
   }));
 }
+
+
+function constantTimeEqual(left, right) {
+  if (typeof left !== "string" || typeof right !== "string" || left.length !== right.length) return false;
+  let difference = 0;
+  for (let index = 0; index < left.length; index += 1) difference |= left.charCodeAt(index) ^ right.charCodeAt(index);
+  return difference === 0;
+}
+
+export function isTestModeEventIngestAuthorized(request, env) {
+  const expected = env.TEST_MODE_EVENT_INGEST_TOKEN;
+  const authorization = request.headers.get("Authorization") || "";
+  if (typeof expected !== "string" || expected.length < 32 || !authorization.startsWith("Bearer ")) return false;
+  return constantTimeEqual(authorization.slice(7), expected);
+}
