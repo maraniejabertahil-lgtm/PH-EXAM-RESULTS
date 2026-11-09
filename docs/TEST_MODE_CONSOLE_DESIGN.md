@@ -1,6 +1,6 @@
 # PH-EXAM-RESULTS — Owner Test Mode Console Design
 
-- **Status:** Owner-approved design (2026-11-09); Step 3A merged and deployed; Step 3B run-lifecycle foundation in review on `feat/test-mode-run-lifecycle`
+- **Status:** Owner-approved design (2026-11-09); Steps 3A and 3B merged; Step 3C real PRC event ingestion in implementation
 - **Scope:** PRC only; CSC testing remains excluded under Owner decision D-003
 - **Owner UI:** Existing same-origin Owner Dashboard at `/owner/`
 - **Baseline:** PR #160 merged at `9687aec521667f87c23a09d3d0dead1bf3624f0f`; current Owner live-acceptance items P4-15–P4-18 remain as recorded in `LIVE_ACCEPTANCE_TEST_REGISTER.md`
@@ -250,3 +250,10 @@ The Owner approved the following decisions on 2026-11-09. Implementation remains
 6. Preserve the existing Owner authentication, CSRF, audit, and production-isolation protections. Do not let Test Mode approval become a general authorization for unrelated runs or later changed commits.
 
 **Step 3A boundary:** the approved first implementation slice adds an Owner-authenticated readiness endpoint, fail-closed PRC source validation, isolated Test Mode audit schema, focused security tests, and aligned project records. It does not enable run creation, workflow dispatch, production publication, deployment, social notifications, or any Test Mode action. No production workflow, normal PRC automation, production D1 binding, or production configuration is changed. The dedicated `TEST_MODE_DB` binding and explicit enable/source allowlist configuration are prerequisites; without them the endpoint reports `BLOCKED` and never falls back to production storage. The normal production pipeline retains its existing behavior.
+
+
+### Step 3C — genuine PRC event ingestion
+
+The Watcher may optionally forward metadata for a genuine official PRC release to `/api/test-mode/events`. This separate HTTPS request uses a dedicated shared token. The Pages endpoint checks Test Mode readiness, the PRC source allowlist, official PRC hostname, release metadata, and content hashes before inserting a VERIFIED event into the dedicated `TEST_MODE_DB`. Duplicate fingerprints are idempotent. The existing production `prc-release-detected` repository dispatch remains unchanged. The endpoint does not create a Test Mode run, dispatch a Test Mode workflow, merge code, or deploy anything.
+
+Required runtime configuration is not committed: Pages must have its dedicated `TEST_MODE_DB`, `TEST_MODE_ENABLED=true`, `TEST_MODE_ALLOWED_SOURCE_IDS`, and the matching `TEST_MODE_EVENT_INGEST_TOKEN`; the Watcher must have `TEST_MODE_EVENT_INGEST_URL` and the same token stored as a Worker secret. Until configured, the handoff is inactive and cannot produce a real-world PASS.
