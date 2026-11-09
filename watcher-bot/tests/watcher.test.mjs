@@ -670,12 +670,12 @@ test("opt-in PRC listing discovery scans only same-origin result articles and ve
   const articleHtml =
     '<h1>October 2026 Certified Public Accountants Licensure Examination Results Released</h1>' +
     '<a href="https://drive.google.com/file/d/' + discoveredId + '/view?usp=sharing">List of Successful Examinees</a>';
-  const ingestUrl = "https://example.pages.dev/api/test-mode/events";
+  const ingestUrl = "https://ph-exam-results.pages.dev/api/test-mode/events";
   let ingestRequest = null;
   const { fetchImpl, dispatches } = githubFetch([source], async (url, init) => {
     if (url === ingestUrl) {
       ingestRequest = { headers: init.headers, body: JSON.parse(init.body) };
-      return new Response(JSON.stringify({ event_id: "prc_test_event_1", duplicate: false }), { status: 201 });
+      return new Response(JSON.stringify({ event_id: "prc_0123456789abcdef0123456789abcdef", duplicate: false }), { status: 201 });
     }
     if (url === listingUrl && init.method === "HEAD") {
       return new Response(null, { status: 200, headers: { etag: '"listing-v1"', "content-type": "text/html" } });
