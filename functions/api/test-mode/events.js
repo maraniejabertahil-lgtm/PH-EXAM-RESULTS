@@ -45,7 +45,7 @@ export async function onRequestPost({ request, env }) {
   }, env);
   if (!sourceCheck.valid) return json({ error: "The PRC source is not approved for Test Mode.", reasons: sourceCheck.reasons }, 403);
   const detectedAt = Date.parse(body.detected_at);
-  if (detectedAt > Date.now() + 5 * 60 * 1000) return json({ error: "The detection timestamp is in the future." }, 400);
+  if (detectedAt > Date.now()) return json({ error: "The detection timestamp is in the future." }, 400);
   try {
     const articleUrl = new URL(body.article_url).href;
     const canonical = JSON.stringify({
