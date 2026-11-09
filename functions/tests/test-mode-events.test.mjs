@@ -67,7 +67,8 @@ test("event ingestion rejects non-PRC, unapproved sources and non-official URLs"
 test("genuine PRC metadata is stored with hashes and duplicate protection", async () => {
   const environment = env();
   const first = await onRequestPost({ request: request(), env: environment });
-  const second = await onRequestPost({ request: request(), env: environment });
+  const retry = { ...SOURCE, detected_at: new Date(Date.now() - 30_000).toISOString() };
+  const second = await onRequestPost({ request: request(retry), env: environment });
   assert.equal(first.status, 201);
   assert.equal(second.status, 200);
   assert.equal(environment.TEST_MODE_DB._events.length, 1);
