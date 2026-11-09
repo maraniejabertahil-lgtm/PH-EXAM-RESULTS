@@ -1,6 +1,6 @@
 # PH-EXAM-RESULTS — Owner Test Mode Console Design
 
-- **Status:** Revised design proposal — awaiting Owner approval before implementation
+- **Status:** Owner-approved design (2026-11-09); Step 3A safety foundation implemented on `feat/test-mode-safety-foundation`, pending CI verification
 - **Scope:** PRC only; CSC testing remains excluded under Owner decision D-003
 - **Owner UI:** Existing same-origin Owner Dashboard at `/owner/`
 - **Baseline:** PR #160 merged at `9687aec521667f87c23a09d3d0dead1bf3624f0f`; current Owner live-acceptance items P4-15–P4-18 remain as recorded in `LIVE_ACCEPTANCE_TEST_REGISTER.md`
@@ -226,9 +226,9 @@ A phase is not accepted because its UI exists or its workflow starts. It must pa
 - No new public dashboard or authentication system.
 - No automatic promotion of Test Mode results into the live acceptance register.
 
-## 10. Decisions requested before implementation
+## 10. Owner-approved implementation decisions
 
-The following design choices are recommended and require Owner confirmation:
+The Owner approved the following decisions on 2026-11-09. Implementation remains phase-gated; this approval covers the safety foundation only.
 
 1. Keep the console inside `/owner/` — recommended.
 2. Use a separate test-run audit store where practical, while the tested release content, GitHub PR/CI, publication target, and deployment path are the real production resources. Never isolate the test by replacing real-world behavior with synthetic data.
@@ -237,4 +237,4 @@ The following design choices are recommended and require Owner confirmation:
 5. After merge, Test Mode must pause again for a separate Owner click before production deployment. These manual gates apply only to Test Mode; ordinary automated production processing keeps its existing behavior.
 6. Preserve the existing Owner authentication, CSRF, audit, and production-isolation protections. Do not let Test Mode approval become a general authorization for unrelated runs or later changed commits.
 
-**No application code, workflow, database, branch, deployment, or production configuration is changed by this design document. Implementation begins only after Owner approval of this design and the required environment/credential prerequisites.**
+**Step 3A boundary:** the approved first implementation slice adds an Owner-authenticated readiness endpoint, fail-closed PRC source validation, isolated Test Mode audit schema, focused security tests, and aligned project records. It does not enable run creation, workflow dispatch, production publication, deployment, social notifications, or any Test Mode action. No production workflow, normal PRC automation, production D1 binding, or production configuration is changed. The dedicated `TEST_MODE_DB` binding and explicit enable/source allowlist configuration are prerequisites; without them the endpoint reports `BLOCKED` and never falls back to production storage. The normal production pipeline retains its existing behavior.
