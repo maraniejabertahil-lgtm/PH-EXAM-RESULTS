@@ -32,7 +32,7 @@ Suggested stage-card content:
 | 5 | Data Extraction | Extractor version, real source record counts, source/output hashes and reconciliation |
 | 6 | Data Normalization | Exact name/sequence preservation assertions, Unicode and whitespace cases |
 | 7 | Greenlight Validation | Score, individual checks, issue codes, publication gate decision |
-| 8 | Dataset & GitOps PR | Test-only manifest/shard hashes, branch, PR URL/number |
+| 8 | Dataset & GitOps PR | Real-release manifest/shard hashes, branch, PR URL/number |
 | 9 | CI Verification & Merge | Exact tested commit SHA, required check results, test-branch merge result |
 | 10 | Website Deployment | Owner-approved production deployment ID/URL, live search verification and deployed commit SHA |
 
@@ -121,9 +121,8 @@ Use a unique constraint on `run_id` and on `(run_id, stage_number, attempt)`; ad
 
 ### 4 — Content Acquisition
 
-- Default to a saved fixture, loaded from a test-only fixture directory with a known SHA-256.
-- Acquire the actual official PRC release content using the same approved source and retrieval method as the real pipeline. Record source URL, retrieval method, response metadata, retrieval timestamp, and content hash. Respect source access rules and existing acquisition limits.
-- Record fixture/source ID, retrieval method, response classification, retrieval timestamp, and content hash. Treat external source unavailability as BLOCKED, not PASS.
+- Acquire the actual official PRC result content through the real acquisition path and approved source access method.
+- Record source URL, retrieval method, response metadata, retrieval timestamp, and content hash. Respect source access rules and existing acquisition limits. Treat source unavailability as BLOCKED, not PASS.
 
 ### 5 — Data Extraction
 
