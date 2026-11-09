@@ -86,7 +86,7 @@ These documents are connected by references, not synchronized copies. Each has a
 
 ## Owner Test Mode Console — Step 3B secure run lifecycle
 
-**Status:** Approved for implementation on `feat/test-mode-run-lifecycle`; verification pending CI. Step 3B creates the secure run ledger and Owner-only run history APIs only.
+**Status:** Complete. PR #168 merged; run-lifecycle API and dedicated event ledger schema are in main. Step 3C genuine PRC event ingestion is under implementation.
 
 - [ ] Add a dedicated verified PRC Watcher release-event ledger and migration 0002.
 - [ ] Require an authenticated Owner session, same-origin CSRF validation, and an Owner-scoped idempotency key for run creation.
@@ -96,3 +96,15 @@ These documents are connected by references, not synchronized copies. Each has a
 - [ ] Pass Pages Functions CI and review before merge.
 
 **Explicit exclusions:** No Watcher event writer, workflow dispatch, stage execution, publication approval action, production deployment, or change to the normal PRC production event/workflow.
+
+
+## Owner Test Mode Console — Step 3C genuine PRC event ingestion
+
+**Status:** Implementation branch `feat/test-mode-real-prc-event-ingest`; validation pending.
+
+- Adds an opt-in server-to-server handoff for metadata from genuine official PRC release detections.
+- Keeps the normal production `prc-release-detected` repository dispatch unchanged.
+- Stores only approved release metadata and hashes in the dedicated `TEST_MODE_DB`; no examinee names or credentials are included.
+- Requires a dedicated shared token on both the Watcher and Pages endpoint, plus existing Test Mode readiness configuration.
+- Does not create runs, dispatch test workflows, merge, or deploy.
+- No real PRC event has been fabricated; no real-world PASS is claimed.
