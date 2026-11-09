@@ -11,11 +11,28 @@ export const TEST_MODE_STAGES = Object.freeze([
   { number: 10, id: "website-deployment", name: "Website Deployment" },
 ]);
 
-const REQUIRED_AUDIT_TABLES = [
-  "test_runs",
-  "test_run_steps",
-  "test_mode_publication_approvals",
-];
+const REQUIRED_AUDIT_SCHEMA = {
+  test_runs: {
+    columns: ["run_id", "mode", "status", "requested_by_owner_uid", "source_release_id",
+      "source_id", "source_url", "started_at", "completed_at", "duration_ms",
+      "workflow_run_id", "pull_request_number", "head_sha", "merge_sha",
+      "deployment_id", "deployment_url", "report_sha256", "created_at", "updated_at"],
+    sql: ["CHECK (mode = 'REAL_WORLD')", "CHECK (status IN ('RUNNING','PASS','FAIL','BLOCKED','COMPLETED'))"],
+  },
+  test_run_steps: {
+    columns: ["step_id", "run_id", "stage_number", "attempt", "status", "started_at",
+      "completed_at", "duration_ms", "expected_summary", "actual_summary", "evidence_json",
+      "failure_code", "failure_message_redacted", "idempotency_key", "created_at"],
+    sql: ["REFERENCES test_runs(run_id)", "CHECK (stage_number BETWEEN 1 AND 10)",
+      "UNIQUE (run_id, stage_number, attempt)", "UNIQUE (run_id, idempotency_key)"],
+  },
+  test_mode_publication_approvals: {
+    columns: ["approval_id", "run_id", "action", "status", "approved_by_owner_uid",
+      "approved_at", "approved_action_sha", "artifact_manifest_sha256", "target_ref", "created_at"],
+    sql: ["REFERENCES test_runs(run_id)", "CHECK (action IN ('MERGE','PRODUCTION_DEPLOYMENT'))",
+      "CHECK (status IN ('PENDING','APPROVED','INVALIDATED','CONSUMED'))"],
+  },
+};
 
 function allowedSourceIds(env) {
   if (typeof env.TEST_MODE_ALLOWED_SOURCE_IDS !== "string") return [];
@@ -75,11 +92,24 @@ export async function getTestModeReadiness(env) {
     reasons.push("TEST_MODE_DATABASE_NOT_BOUND");
   } else {
     try {
-      for (const table of REQUIRED_AUDIT_TABLES) {
+      for (const [table, expected] of Object.entries(REQUIRED_AUDIT_SCHEMA)) {
         const row = await db.prepare(
-          "SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?"
+          "SELECT name, sql FROM sqlite_master WHERE type = 'table' AND name = ?"
         ).bind(table).first();
-        if (!row || row.name !== table) reasons.push("TEST_MODE_SCHEMA_INCOMPLETE");
+        if (!row || row.name !== table || typeof row.sql !== "string") {
+          reasons.push("TEST_MODE_SCHEMA_INCOMPLETE");
+          continue;
+        }
+        const definition = row.sql.replace(/\\s+/g, " ").toLowerCase();
+        if (!expected.sql.every((fragment) => definition.includes(fragment.toLowerCase()))) {
+          reasons.push("TEST_MODE_SCHEMA_INCOMPLETE");
+          continue;
+        }
+        const columns = await db.prepare("PRAGMA table_info(" + table + ")").all();
+        const names = columns?.results?.map((column) => column.name) || [];
+        if (!expected.columns.every((column) => names.includes(column))) {
+          reasons.push("TEST_MODE_SCHEMA_INCOMPLETE");
+        }
       }
     } catch {
       reasons.push("TEST_MODE_DATABASE_UNAVAILABLE");
