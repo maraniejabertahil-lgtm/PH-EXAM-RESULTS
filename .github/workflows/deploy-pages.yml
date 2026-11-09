@@ -291,5 +291,6 @@ jobs:
             echo "::error::Unauthenticated /owner/ must redirect to login (expected HTTP 302, got $status)."
             exit 1
           }
-          location=$(curl --connect-timeout 5 --max-time 10 -sS -D - -o /dev/null "$base/owner/" | tr -d '\r' | awk 'tolower($1)=="location:" {print $2; exit}')
+          curl --connect-timeout 5 --max-time 10 -sS -D /tmp/owner-dashboard-headers.txt -o /dev/null "$base/owner/"
+          location=$(awk 'tolower($1)=="location:" && !found {sub(/\r$/, "", $2); print $2; found=1}' /tmp/owner-dashboard-headers.txt)
           case "$location" in *"?owner=login"*) echo "Unauthenticated Owner route is protected." ;; *) echo "::error::Owner route redirect did not target login."; exit 1 ;; esac
