@@ -51,7 +51,7 @@ export async function onRequestPost({ request, env }) {
     const canonical = JSON.stringify({
       authority: "PRC", source_id: body.source_id, article_url: articleUrl,
       exam_code: body.exam_code, exam_title: body.exam_title.trim(),
-      exam_year: body.exam_year, detected_at: new Date(detectedAt).toISOString(),
+      exam_year: body.exam_year,
     });
     const fingerprint = await sha256Hex(canonical);
     const payloadHash = await sha256Hex(raw);
