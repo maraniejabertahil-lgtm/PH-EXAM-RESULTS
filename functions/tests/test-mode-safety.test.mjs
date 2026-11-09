@@ -84,7 +84,7 @@ test("source validation rejects non-PRC authorities, unknown sources and arbitra
   assert.equal(result.valid, false);
   assert.ok(result.reasons.includes("SOURCE_NOT_ALLOWLISTED"));
   assert.ok(result.reasons.includes("AUTHORITY_NOT_ALLOWED"));
-  assert.ok(result.reasons.includes("SOURCE_URL_NOT_APPROVED_PRCC_HOST"));
+  assert.ok(result.reasons.includes("SOURCE_URL_NOT_APPROVED_PRC_HOST"));
 });
 
 test("source validation rejects insecure URLs and credential-bearing URLs", () => {
