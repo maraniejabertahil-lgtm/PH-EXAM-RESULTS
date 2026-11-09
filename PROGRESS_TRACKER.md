@@ -78,7 +78,21 @@ These documents are connected by references, not synchronized copies. Each has a
 - [x] Create the Owner-authenticated, read-only `GET /api/test-mode/config` readiness endpoint; return BLOCKED when Test Mode is disabled, the dedicated `TEST_MODE_DB` binding is missing, its audit schema is incomplete, or no explicit PRC source allowlist is configured.
 - [x] Add fail-closed PRC source descriptor validation; reject unknown source IDs, non-PRC authority, non-HTTPS URLs, non-PRC hosts, and credential-bearing URLs.
 - [x] Add the isolated Test Mode audit migration for runs, stage attempts, and exact-action publication approvals. Never bind it to production monitoring D1.
-- [ ] Verify focused authentication, isolation, schema-readiness, and source-validation tests in the Pages Functions CI workflow.
-- [ ] Verify the PR change triggers validation only; do not deploy, dispatch a release, merge a publication PR, or change production configuration in Step 3A.
+- [x] Verify focused authentication, isolation, schema-readiness, and source-validation tests in the Pages Functions CI workflow (PR #167 validation passed).
+- [x] Verify the PR change triggers validation only; no release dispatch, publication merge, or production configuration change occurred in Step 3A. The main Pages Functions deployment after the merge completed successfully.
 
 **Step 3A files:** `functions/lib/test-mode.js`, `functions/api/test-mode/config.js`, `functions/tests/test-mode-safety.test.mjs`, `test-mode/migrations/0001_test_mode.sql`, `docs/TEST_MODE_CONSOLE_DESIGN.md`, `IMPLEMENTATION_ROADMAP.md`, and `PROGRESS_TRACKER.md`.
+
+
+## Owner Test Mode Console — Step 3B secure run lifecycle
+
+**Status:** Approved for implementation on `feat/test-mode-run-lifecycle`; verification pending CI. Step 3B creates the secure run ledger and Owner-only run history APIs only.
+
+- [ ] Add a dedicated verified PRC Watcher release-event ledger and migration 0002.
+- [ ] Require an authenticated Owner session, same-origin CSRF validation, and an Owner-scoped idempotency key for run creation.
+- [ ] Create one run record and exactly ten ordered `NOT RUN` stage rows atomically from a verified, allowlisted event.
+- [ ] Add Owner-scoped run list and detail endpoints; protect both routes in Pages middleware.
+- [ ] Test authentication, CSRF, verified-event gating, source allowlist, idempotency, ownership, and privacy.
+- [ ] Pass Pages Functions CI and review before merge.
+
+**Explicit exclusions:** No Watcher event writer, workflow dispatch, stage execution, publication approval action, production deployment, or change to the normal PRC production event/workflow.

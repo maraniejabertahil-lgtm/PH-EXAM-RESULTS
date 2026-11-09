@@ -19,8 +19,14 @@ function readyDb() {
       columns: ["run_id", "mode", "status", "requested_by_owner_uid", "source_release_id",
         "source_id", "source_url", "started_at", "completed_at", "duration_ms",
         "workflow_run_id", "pull_request_number", "head_sha", "merge_sha",
-        "deployment_id", "deployment_url", "report_sha256", "created_at", "updated_at"],
+        "deployment_id", "deployment_url", "report_sha256", "source_event_id", "idempotency_key", "created_at", "updated_at"],
       sql: "CHECK (mode = 'REAL_WORLD') CHECK (status IN ('RUNNING','PASS','FAIL','BLOCKED','COMPLETED'))",
+    },
+    test_mode_release_events: {
+      columns: ["event_id", "authority", "source_id", "release_id", "source_url", "exam_code",
+        "exam_title", "exam_year", "event_fingerprint", "payload_sha256", "detected_at",
+        "verified_at", "verification_status", "verification_method", "created_at"],
+      sql: "CHECK (authority = 'PRC') CHECK (verification_status IN ('VERIFIED','REJECTED')) UNIQUE (event_fingerprint)",
     },
     test_run_steps: {
       columns: ["step_id", "run_id", "stage_number", "attempt", "status", "started_at",

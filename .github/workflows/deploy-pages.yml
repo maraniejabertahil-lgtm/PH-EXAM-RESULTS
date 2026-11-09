@@ -64,6 +64,8 @@ jobs:
           test -f functions/auth/logout.js
           test -f functions/api/activity.js
           test -f functions/api/analytics.js
+          test -f functions/api/test-runs.js
+          test -f functions/api/test-runs/[runId].js
           test -f public/owner/index.html
           test -f public/owner/activity.js
           test -f public/owner/owner.css
@@ -84,6 +86,8 @@ jobs:
           node --check functions/auth/logout.js
           node --check functions/api/activity.js
           node --check functions/api/analytics.js
+          node --check functions/api/test-runs.js
+          node --check 'functions/api/test-runs/[runId].js'
           node --check public/owner/activity.js
       - name: Test same-origin Firebase Owner authentication and authorization
         run: node --test functions/tests/*.test.mjs
