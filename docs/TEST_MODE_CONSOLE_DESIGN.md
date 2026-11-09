@@ -153,8 +153,8 @@ Use a unique constraint on `run_id` and on `(run_id, stage_number, attempt)`; ad
 ### 9 — CI Verification & Merge
 
 - Run CI against the exact head SHA from the test PR; record required checks and exact commit SHA.
-- Test both successful and failing check outcomes. A deliberately failed required check must prevent merge.
-- If branch protection/rulesets are configured for the test integration branch, verify the merge is blocked until required checks pass. If enforcement cannot be verified, mark BLOCKED rather than claiming protection.
+- Verify the actual required CI checks for the real release PR. A failed or missing required check must prevent the Owner publication button from becoming available. Use separate automated regression tests for deliberately failing CI scenarios.
+- Verify the normal publication branch's actual branch protection/ruleset and required checks. If enforcement cannot be verified, mark BLOCKED rather than claiming the merge is protected.
 - After required CI checks pass, pause and present an explicit **Publication — Approve Merge** button. Show the PR number, exact head SHA, target branch, dataset manifest hash, Greenlight result, and official source release. Only the Owner's click may authorize merging that exact reviewed PR. Revalidate all values and required checks server-side at click time; if anything changed, invalidate the approval and require a fresh review.
 - Record the merge commit SHA and checks. Do not merge automatically in Test Mode.
 
@@ -170,7 +170,7 @@ Run stages in strict order: 1 through 10. Each stage must publish a terminal sta
 
 - Stop on the first FAIL or BLOCKED stage that is a required dependency.
 - Mark later dependent stages SKIPPED, preserving all earlier evidence.
-- A stage can be rerun independently after the cause is addressed; create a new attempt and preserve the prior attempt.
+- A stage can be rerun independently after the cause is addressed; create a new attempt and preserve the prior attempt. A new source release or changed artifact must invalidate downstream approvals.
 - Do not silently restart earlier PASS stages unless the official source release, processing version, or input content changed, or the Owner explicitly requests a full fresh run.
 - All ten stages use real-world source data and actual integrations. Test Mode pauses for explicit Owner Publication-button approval before merge/publication and again before production deployment. No simulated or mocked substitute counts as a real-world PASS.
 
@@ -211,8 +211,8 @@ A Test Mode PASS or Owner-clicked publication approval must never automatically 
 Implement in this order:
 
 1. **Foundation:** threat model, dedicated Test Mode workflow, test-run audit store, server-side allowlists, Owner + CSRF enforcement, idempotency, publication approval state machine, and tests proving no publication occurs without the relevant Owner click.
-2. **Stages 1–3:** Watcher fixture detection, dedicated workflow dispatch, event verification matrix.
-3. **Stages 4–7:** fixture acquisition, real extraction/normalization, Greenlight positive and negative matrix.
+2. **Stages 1–3:** real Watcher detection, dedicated Test Mode workflow dispatch, and verification of the actual release event.
+3. **Stages 4–7:** actual official-source acquisition, extraction, normalization, and Greenlight validation on the real release.
 4. **Stages 8–9:** real dataset generation, real PR to the normal publication branch, exact-SHA CI, and Owner-approved merge.
 5. **Stage 10 and orchestration:** Owner-approved production deployment, Run All pause/resume, report view/download, run history, and post-deployment verification.
 
