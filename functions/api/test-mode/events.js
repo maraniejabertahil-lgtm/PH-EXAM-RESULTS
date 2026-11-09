@@ -59,7 +59,7 @@ export async function onRequestPost({ request, env }) {
     const releaseId = body.source_id + ":" + body.exam_code + ":" + body.exam_year + ":" + fingerprint.slice(0, 16);
     const verifiedAt = new Date().toISOString();
     const db = env.TEST_MODE_DB;
-    await db.prepare(
+    const inserted = await db.prepare(
       "INSERT OR IGNORE INTO test_mode_release_events " +
       "(event_id, authority, source_id, release_id, source_url, exam_code, exam_title, exam_year, " +
       "event_fingerprint, payload_sha256, detected_at, verified_at, verification_status, verification_method) " +
@@ -71,7 +71,7 @@ export async function onRequestPost({ request, env }) {
       "SELECT event_id FROM test_mode_release_events WHERE event_fingerprint = ?"
     ).bind(fingerprint).first();
     if (!saved) return json({ error: "The Test Mode event could not be confirmed in storage." }, 503);
-    const duplicate = saved.event_id !== eventId;
+    const duplicate = inserted?.meta?.changes === 0;
     return json({ event_id: saved.event_id, duplicate }, duplicate ? 200 : 201);
   } catch { return json({ error: "Test Mode event storage is temporarily unavailable." }, 503); }
 }
