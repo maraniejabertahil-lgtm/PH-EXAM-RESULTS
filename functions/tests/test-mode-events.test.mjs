@@ -8,7 +8,7 @@ const SOURCE = {
   article_url: "https://www.prc.gov.ph/article/october-2026-exam-results",
   exam_code: "CPALE",
   exam_title: "October 2026 Certified Public Accountants Licensure Examination Results",
-  exam_year: 2026, detected_at: "2026-11-09T10:00:00.000Z",
+  exam_year: 2026, detected_at: new Date(Date.now() - 60_000).toISOString(),
 };
 const schemas = {
   test_runs: { columns: ["run_id","mode","status","requested_by_owner_uid","source_release_id","source_id","source_url","started_at","completed_at","duration_ms","workflow_run_id","pull_request_number","head_sha","merge_sha","deployment_id","deployment_url","report_sha256","source_event_id","idempotency_key","created_at","updated_at"], sql: "CHECK (mode = 'REAL_WORLD') CHECK (status IN ('RUNNING','PASS','FAIL','BLOCKED','COMPLETED'))" },
@@ -69,7 +69,7 @@ test("genuine PRC metadata is stored with hashes and duplicate protection", asyn
   const first = await onRequestPost({ request: request(), env: environment });
   const second = await onRequestPost({ request: request(), env: environment });
   assert.equal(first.status, 201);
-  assert.equal(second.status, 201);
+  assert.equal(second.status, 200);
   assert.equal(environment.TEST_MODE_DB._events.length, 1);
   const saved = environment.TEST_MODE_DB._events[0];
   assert.equal(saved.authority, "PRC");
