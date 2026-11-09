@@ -46,6 +46,7 @@ function readyDb() {
         bind(name) {
           return {
             async first() {
+              if (sql.includes("type = 'index'")) return { name, sql: "CREATE UNIQUE INDEX " + name };
               const schema = schemas[name];
               return schema ? { name, sql: schema.sql } : null;
             },

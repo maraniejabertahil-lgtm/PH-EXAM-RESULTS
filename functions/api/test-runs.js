@@ -78,15 +78,20 @@ export async function onRequestPost({ request, env }) {
 
   try {
     const existing = await db.prepare(
-      "SELECT run_id, status, source_release_id, source_id, source_url, started_at " +
+      "SELECT run_id, status, source_release_id, source_id, source_url, source_event_id, started_at " +
       "FROM test_runs WHERE requested_by_owner_uid = ? AND idempotency_key = ?"
     ).bind(session.firebase_uid, idempotencyKey).first();
-    if (existing) return json({ run: existing, replayed: true }, 200);
+    if (existing) {
+      if (existing.source_event_id !== body.event_id) {
+        return json({ error: "Idempotency-Key was already used for a different release event." }, 409);
+      }
+      return json({ run: existing, replayed: true }, 200);
+    }
 
     const event = await db.prepare(
       "SELECT event_id, authority, source_id, release_id, source_url, exam_code, exam_title, " +
       "exam_year, event_fingerprint, payload_sha256, detected_at, verified_at, " +
-      "verification_status FROM test_mode_release_events WHERE event_id = ?"
+      "verification_status, verification_method FROM test_mode_release_events WHERE event_id = ?"
     ).bind(body.event_id).first();
 
     if (!event || event.verification_status !== "VERIFIED") {
@@ -100,8 +105,14 @@ export async function onRequestPost({ request, env }) {
       source_url: event.source_url,
     }, env);
     if (!sourceCheck.valid || event.authority !== "PRC" ||
-        !event.event_fingerprint || !event.payload_sha256 ||
-        !event.detected_at || !event.verified_at) {
+        !event.event_fingerprint || !/^[a-f0-9]{64}$/i.test(event.payload_sha256 || "") ||
+        !event.detected_at || !event.verified_at || !event.verification_method ||
+        !event.exam_code || !event.exam_title ||
+        !Number.isInteger(Number(event.exam_year)) ||
+        Number(event.exam_year) < 2000 || Number(event.exam_year) > 2100 ||
+        !Number.isFinite(Date.parse(event.detected_at)) ||
+        !Number.isFinite(Date.parse(event.verified_at)) ||
+        Date.parse(event.verified_at) < Date.parse(event.detected_at)) {
       return json({ error: "The release event failed Test Mode source verification." }, 409);
     }
 
@@ -125,10 +136,13 @@ export async function onRequestPost({ request, env }) {
       await db.batch(statements);
     } catch {
       const raced = await db.prepare(
-        "SELECT run_id, status, source_release_id, source_id, source_url, started_at " +
+        "SELECT run_id, status, source_release_id, source_id, source_url, source_event_id, started_at " +
         "FROM test_runs WHERE requested_by_owner_uid = ? AND idempotency_key = ?"
       ).bind(session.firebase_uid, idempotencyKey).first();
-      if (raced) return json({ run: raced, replayed: true }, 200);
+      if (raced && raced.source_event_id === body.event_id) {
+        return json({ run: raced, replayed: true }, 200);
+      }
+      if (raced) return json({ error: "Idempotency-Key was already used for a different release event." }, 409);
       return json({ error: "The Test Mode run could not be created safely." }, 409);
     }
 

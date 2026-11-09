@@ -16,11 +16,12 @@ const SOURCE_EVENT = {
   exam_code: "LEPT",
   exam_title: "Licensure Examination for Professional Teachers",
   exam_year: 2026,
-  event_fingerprint: "fingerprint-001",
+  event_fingerprint: "b".repeat(64),
   payload_sha256: "a".repeat(64),
   detected_at: "2026-11-09T00:00:00.000Z",
   verified_at: "2026-11-09T00:01:00.000Z",
   verification_status: "VERIFIED",
+  verification_method: "watcher-contract-v1",
 };
 
 const tableSchemas = {
@@ -207,6 +208,19 @@ test("same Owner idempotency key returns the existing run without creating dupli
   assert.equal(secondPayload.run.run_id, firstPayload.run.run_id);
   assert.equal(env.TEST_MODE_DB._runs.length, 1);
   assert.equal(env.TEST_MODE_DB._steps.length, 10);
+});
+
+test("same idempotency key cannot be replayed for a different event", async () => {
+  const { env, cookie } = await ownerEnv();
+  await createRun({ request: postRequest(cookie), env });
+  const replay = await createRun({
+    request: postRequest(cookie, {
+      key: "test-run-key-0001",
+      body: { event_id: "different-watcher-event" },
+    }),
+    env,
+  });
+  assert.equal(replay.status, 409);
 });
 
 test("browser cannot provide arbitrary source URLs or release metadata", async () => {

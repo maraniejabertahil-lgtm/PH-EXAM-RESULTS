@@ -1,6 +1,6 @@
 # PH-EXAM-RESULTS — Owner Test Mode Console Design
 
-- **Status:** Owner-approved design (2026-11-09); Step 3A safety foundation implemented on `feat/test-mode-safety-foundation`, pending CI verification
+- **Status:** Owner-approved design (2026-11-09); Step 3A merged and deployed; Step 3B run-lifecycle foundation in review on `feat/test-mode-run-lifecycle`
 - **Scope:** PRC only; CSC testing remains excluded under Owner decision D-003
 - **Owner UI:** Existing same-origin Owner Dashboard at `/owner/`
 - **Baseline:** PR #160 merged at `9687aec521667f87c23a09d3d0dead1bf3624f0f`; current Owner live-acceptance items P4-15–P4-18 remain as recorded in `LIVE_ACCEPTANCE_TEST_REGISTER.md`
