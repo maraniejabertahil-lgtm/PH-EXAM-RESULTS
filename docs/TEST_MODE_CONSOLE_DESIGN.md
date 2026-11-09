@@ -1,6 +1,6 @@
 # PH-EXAM-RESULTS — Owner Test Mode Console Design
 
-- **Status:** Owner-approved design (2026-11-09); Steps 3A and 3B merged; Step 3C real PRC event ingestion in implementation
+- **Status:** Owner-approved design (2026-11-09); Steps 3A, 3B and 3C code merged; runtime configuration and genuine PRC event verification remain pending
 - **Scope:** PRC only; CSC testing remains excluded under Owner decision D-003
 - **Owner UI:** Existing same-origin Owner Dashboard at `/owner/`
 - **Baseline:** PR #160 merged at `9687aec521667f87c23a09d3d0dead1bf3624f0f`; current Owner live-acceptance items P4-15–P4-18 remain as recorded in `LIVE_ACCEPTANCE_TEST_REGISTER.md`
