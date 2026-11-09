@@ -29,3 +29,8 @@ GITHUB_EVENT_TYPE = "staging-source-detected"
 [[previews.kv_namespaces]]
 binding = "PEAK_WEEK"
 id = "cc91a5e8fdfa426f9f9f3b19218e232b"
+
+# Test Mode event ingestion is opt-in and separate from production dispatch.
+# Configure TEST_MODE_EVENT_INGEST_URL as a non-secret Worker variable and
+# TEST_MODE_EVENT_INGEST_TOKEN as a Worker secret only after the Pages endpoint
+# and dedicated Test Mode D1 binding are ready. Never commit the token.
