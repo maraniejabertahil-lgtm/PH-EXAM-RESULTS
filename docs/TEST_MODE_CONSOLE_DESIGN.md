@@ -1,6 +1,6 @@
 # PH-EXAM-RESULTS — Owner Test Mode Console Design
 
-- **Status:** Owner-approved design (2026-11-09); Step 3A safety foundation implemented on `feat/test-mode-safety-foundation`, pending CI verification
+- **Status:** Owner-approved design (2026-11-09); Step 3A merged and deployed; Step 3B run-lifecycle foundation in review on `feat/test-mode-run-lifecycle`
 - **Scope:** PRC only; CSC testing remains excluded under Owner decision D-003
 - **Owner UI:** Existing same-origin Owner Dashboard at `/owner/`
 - **Baseline:** PR #160 merged at `9687aec521667f87c23a09d3d0dead1bf3624f0f`; current Owner live-acceptance items P4-15–P4-18 remain as recorded in `LIVE_ACCEPTANCE_TEST_REGISTER.md`
@@ -85,6 +85,10 @@ Suggested same-origin endpoints (final names may be adjusted to match repository
 - `GET /api/test-runs?limit=...` — list the Owner's recent Test Mode runs from the test audit database.
 - `POST /api/test-runs` — create a real-world Test Mode run bound to a specific official release; Owner session + CSRF required.
 - `GET /api/test-runs/:runId` — return run summary and step evidence; Owner session required.
+- Run creation accepts only a server-verified Watcher event ID; the browser cannot submit source URLs, release metadata, Git refs, or workflow names.
+- Each run requires an `Idempotency-Key` header. The server binds the key to the authenticated Owner UID and returns the existing run on a replay.
+- A new run stores the verified event reference and creates exactly ten stage rows in `NOT RUN` state, attempt 1. Run creation does not dispatch a workflow or start stage execution.
+- Run history and detail reads are scoped to the authenticated Owner UID. Missing Test Mode configuration, missing verified events, invalid source metadata, and storage errors fail closed.
 - `POST /api/test-runs/:runId/stages/:stageId` — start/retry one allowlisted stage; Owner session + CSRF required.
 - `POST /api/test-runs/:runId/run-all` — start/resume the ordered pipeline up to the next publication gate; Owner session + CSRF required.
 - `GET /api/test-runs/:runId/report` — return the sanitized report; Owner session required.
@@ -97,6 +101,14 @@ Proposed isolated test D1 tables:
 - `test_run_steps`: `step_id`, `run_id`, `stage_number`, `attempt`, `status`, `started_at`, `completed_at`, `duration_ms`, `expected_summary`, `actual_summary`, `evidence_json`, `failure_code`, `failure_message_redacted`, `idempotency_key`, `approval_state`, `approved_by_owner_uid`, `approved_at`, `approved_action_sha`.
 
 Use a unique constraint on `run_id` and on `(run_id, stage_number, attempt)`; add indexes for recent runs and run-step ordering. Keep evidence compact and sanitized. Do not duplicate examinee names or raw result rows in the test audit database or reports; use counts, hashes, and restricted evidence references.
+
+## 4A. Run lifecycle foundation (Step 3B)
+
+The dedicated Test Mode database contains a verified release-event ledger. Only events marked `VERIFIED` and carrying a PRC source ID in the explicit Test Mode allowlist can be used to create a run. The event must have a stable fingerprint, payload hash, detection time, and verification time. The browser supplies only the event ID; all source and release fields are read from the ledger and revalidated on the server.
+
+Run creation is atomic: one run row and ten ordered `NOT RUN` stage rows are inserted together. A unique Owner-scoped idempotency index prevents duplicate runs when a request is retried. Existing runs and stage history are retained. The run status `RUNNING` means the run record is open; it does not mean a stage or workflow has started.
+
+This foundation deliberately does not create or populate verified Watcher events, dispatch a workflow, execute a stage, or authorize publication. Until a trusted Watcher-to-Test-Mode event writer is implemented and a real event is verified, run creation remains unavailable.
 
 ## 5. Definition of the ten tests
 

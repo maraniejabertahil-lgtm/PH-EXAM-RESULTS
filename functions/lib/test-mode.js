@@ -16,7 +16,7 @@ const REQUIRED_AUDIT_SCHEMA = {
     columns: ["run_id", "mode", "status", "requested_by_owner_uid", "source_release_id",
       "source_id", "source_url", "started_at", "completed_at", "duration_ms",
       "workflow_run_id", "pull_request_number", "head_sha", "merge_sha",
-      "deployment_id", "deployment_url", "report_sha256", "created_at", "updated_at"],
+      "deployment_id", "deployment_url", "report_sha256", "source_event_id", "idempotency_key", "created_at", "updated_at"],
     sql: ["CHECK (mode = 'REAL_WORLD')", "CHECK (status IN ('RUNNING','PASS','FAIL','BLOCKED','COMPLETED'))"],
   },
   test_run_steps: {
@@ -25,6 +25,10 @@ const REQUIRED_AUDIT_SCHEMA = {
       "failure_code", "failure_message_redacted", "idempotency_key", "created_at"],
     sql: ["REFERENCES test_runs(run_id)", "CHECK (stage_number BETWEEN 1 AND 10)",
       "UNIQUE (run_id, stage_number, attempt)", "UNIQUE (run_id, idempotency_key)"],
+  },
+  test_mode_release_events: {
+    columns: ["event_id", "authority", "source_id", "release_id", "source_url", "exam_code", "exam_title", "exam_year", "event_fingerprint", "payload_sha256", "detected_at", "verified_at", "verification_status", "verification_method", "created_at"],
+    sql: ["CHECK (authority = 'PRC')", "CHECK (verification_status IN ('VERIFIED','REJECTED'))", "UNIQUE (event_fingerprint)", "CHECK (length(event_fingerprint) = 64)", "CHECK (length(payload_sha256) = 64)"],
   },
   test_mode_publication_approvals: {
     columns: ["approval_id", "run_id", "action", "status", "approved_by_owner_uid",
@@ -111,6 +115,13 @@ export async function getTestModeReadiness(env) {
           reasons.push("TEST_MODE_SCHEMA_INCOMPLETE");
         }
       }
+      const idempotencyIndex = await db.prepare(
+        "SELECT name, sql FROM sqlite_master WHERE type = 'index' AND name = ?"
+      ).bind("idx_test_runs_owner_idempotency").first();
+      if (!idempotencyIndex || typeof idempotencyIndex.sql !== "string" ||
+          !idempotencyIndex.sql.toLowerCase().includes("unique")) {
+        reasons.push("TEST_MODE_SCHEMA_INCOMPLETE");
+      }
     } catch {
       reasons.push("TEST_MODE_DATABASE_UNAVAILABLE");
     }
@@ -127,4 +138,20 @@ export async function getTestModeReadiness(env) {
       production_deployment_requires_separate_owner_approval: true,
     },
   };
+}
+
+
+export function createTestRunId() {
+  return "tmr_" + crypto.randomUUID();
+}
+
+export function createTestRunStepRows(runId) {
+  return TEST_MODE_STAGES.map((stage) => ({
+    step_id: runId + ":stage:" + stage.number + ":attempt:1",
+    run_id: runId,
+    stage_number: stage.number,
+    attempt: 1,
+    status: "NOT RUN",
+    idempotency_key: runId + ":" + stage.number + ":1",
+  }));
 }

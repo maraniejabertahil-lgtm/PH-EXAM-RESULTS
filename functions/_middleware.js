@@ -4,11 +4,13 @@ const OWNER_PROTECTED_PATHS = new Set([
   "/owner",
   "/api/activity",
   "/api/analytics",
+  "/api/test-runs",
 ]);
 
 export async function onRequest({ request, env, next }) {
   const { pathname } = new URL(request.url);
-  const protectedPath = OWNER_PROTECTED_PATHS.has(pathname) || pathname.startsWith("/owner/");
+  const protectedPath = OWNER_PROTECTED_PATHS.has(pathname) ||
+    pathname.startsWith("/owner/") || pathname.startsWith("/api/test-runs/");
   if (!protectedPath) return next();
 
   const session = await readSession(request, env);
