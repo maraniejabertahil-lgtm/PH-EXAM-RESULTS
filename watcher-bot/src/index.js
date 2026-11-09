@@ -521,7 +521,9 @@ async function recordTestModeReleaseEvent(env, source, event, fetchImpl, now) {
     const dedupeKey = await kvKey("test-mode-prc-release-event", source.id, event.article_url);
     if (await env.PEAK_WEEK.get(dedupeKey)) return { status: "already_recorded" };
     const target = new URL(endpoint);
-    if (target.protocol !== "https:" || target.username || target.password || target.hash) {
+    if (target.origin !== "https://ph-exam-results.pages.dev" ||
+        target.pathname !== "/api/test-mode/events" ||
+        target.search || target.hash || target.username || target.password) {
       return { status: "invalid_endpoint_configuration" };
     }
     const response = await fetchImpl(target.href, {
@@ -538,8 +540,11 @@ async function recordTestModeReleaseEvent(env, source, event, fetchImpl, now) {
       return { status: "ingest_rejected", http_status: response.status };
     }
     const result = await response.json().catch(() => ({}));
+    if (typeof result.event_id !== "string" || !/^prc_[a-f0-9]{32}$/.test(result.event_id)) {
+      return { status: "ingest_invalid_response" };
+    }
     await env.PEAK_WEEK.put(dedupeKey, isoNow(now), { expirationTtl: DISPATCH_TTL_SECONDS });
-    return { status: result.duplicate ? "already_recorded" : "recorded", event_id: result.event_id || null };
+    return { status: result.duplicate ? "already_recorded" : "recorded", event_id: result.event_id };
   } catch (error) {
     return { status: "ingest_unavailable", error: String(error.message || error).slice(0, 160) };
   }
