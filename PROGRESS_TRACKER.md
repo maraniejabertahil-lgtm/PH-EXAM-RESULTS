@@ -100,7 +100,7 @@ These documents are connected by references, not synchronized copies. Each has a
 
 ## Owner Test Mode Console — Step 3C genuine PRC event ingestion
 
-**Status:** Implementation branch `feat/test-mode-real-prc-event-ingest`; validation pending.
+**Status:** Code complete and merged. PR #170 added the genuine PRC event-ingestion bridge; PR #171 pinned the Watcher token to the approved Pages endpoint and validated the response. Production Pages deployment #42616578464 and Watcher deployment #42617077779 succeeded. Runtime secrets and Test Mode D1 configuration remain prerequisites; no real release event or Test Mode run has yet been recorded.
 
 - Adds an opt-in server-to-server handoff for metadata from genuine official PRC release detections.
 - Keeps the normal production `prc-release-detected` repository dispatch unchanged.
