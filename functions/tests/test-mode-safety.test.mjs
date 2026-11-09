@@ -14,20 +14,40 @@ const baseEnv = {
 };
 
 function readyDb() {
-  const tables = new Set([
-    "test_runs",
-    "test_run_steps",
-    "test_mode_publication_approvals",
-  ]);
+  const schemas = {
+    test_runs: {
+      columns: ["run_id", "mode", "status", "requested_by_owner_uid", "source_release_id",
+        "source_id", "source_url", "started_at", "completed_at", "duration_ms",
+        "workflow_run_id", "pull_request_number", "head_sha", "merge_sha",
+        "deployment_id", "deployment_url", "report_sha256", "created_at", "updated_at"],
+      sql: "CHECK (mode = 'REAL_WORLD') CHECK (status IN ('RUNNING','PASS','FAIL','BLOCKED','COMPLETED'))",
+    },
+    test_run_steps: {
+      columns: ["step_id", "run_id", "stage_number", "attempt", "status", "started_at",
+        "completed_at", "duration_ms", "expected_summary", "actual_summary", "evidence_json",
+        "failure_code", "failure_message_redacted", "idempotency_key", "created_at"],
+      sql: "REFERENCES test_runs(run_id) CHECK (stage_number BETWEEN 1 AND 10) UNIQUE (run_id, stage_number, attempt) UNIQUE (run_id, idempotency_key)",
+    },
+    test_mode_publication_approvals: {
+      columns: ["approval_id", "run_id", "action", "status", "approved_by_owner_uid",
+        "approved_at", "approved_action_sha", "artifact_manifest_sha256", "target_ref", "created_at"],
+      sql: "REFERENCES test_runs(run_id) CHECK (action IN ('MERGE','PRODUCTION_DEPLOYMENT')) CHECK (status IN ('PENDING','APPROVED','INVALIDATED','CONSUMED'))",
+    },
+  };
   return {
     prepare(sql) {
       return {
         bind(name) {
           return {
             async first() {
-              return tables.has(name) ? { name } : null;
+              const schema = schemas[name];
+              return schema ? { name, sql: schema.sql } : null;
             },
           };
+        },
+        async all() {
+          const table = sql.match(/PRAGMA table_info\\(([^)]+)\\)/)?.[1];
+          return { results: (schemas[table]?.columns || []).map((name) => ({ name })) };
         },
       };
     },
@@ -117,14 +137,20 @@ test("readiness fails closed when Test Mode is disabled or its isolated DB is mi
   assert.ok(noDb.reasons.includes("TEST_MODE_DATABASE_NOT_BOUND"));
 });
 
-test("readiness fails closed when the isolated audit schema is incomplete", async () => {
+test("readiness fails closed when an audit table is missing required columns or constraints", async () => {
+  const incompleteDb = {
+    prepare(sql) {
+      return {
+        bind(name) {
+          return { first: async () => ({ name, sql: "CREATE TABLE " + name + " (id TEXT)" }) };
+        },
+        all: async () => ({ results: [{ name: "id" }] }),
+      };
+    },
+  };
   const readiness = await getTestModeReadiness({
     ...baseEnv,
-    TEST_MODE_DB: {
-      prepare() {
-        return { bind: () => ({ first: async () => null }) };
-      },
-    },
+    TEST_MODE_DB: incompleteDb,
   });
   assert.equal(readiness.available, false);
   assert.ok(readiness.reasons.includes("TEST_MODE_SCHEMA_INCOMPLETE"));
