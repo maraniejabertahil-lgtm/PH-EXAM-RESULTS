@@ -69,3 +69,16 @@ These documents are connected by references, not synchronized copies. Each has a
 - [ ] Verify no secrets are exposed in public code or frontend
 - [ ] Test the `/manual-drop/` GitHub override workflow
 - [ ] Conduct comprehensive cross-phase Live Acceptance covering monitoring, extraction, Greenlight, GitOps, Pages deployment, search, broadcasting, failure handling, and rollback
+
+
+## Owner Test Mode Console — Step 3A safety foundation
+
+**Related Owner decision:** D-014. **Scope:** PRC only; CSC remains excluded by D-003. This is a real-world-only test path: no fixture/mock result can count as a real-world PASS. Normal production automation is unchanged.
+
+- [x] Create the Owner-authenticated, read-only `GET /api/test-mode/config` readiness endpoint; return BLOCKED when Test Mode is disabled, the dedicated `TEST_MODE_DB` binding is missing, its audit schema is incomplete, or no explicit PRC source allowlist is configured.
+- [x] Add fail-closed PRC source descriptor validation; reject unknown source IDs, non-PRC authority, non-HTTPS URLs, non-PRC hosts, and credential-bearing URLs.
+- [x] Add the isolated Test Mode audit migration for runs, stage attempts, and exact-action publication approvals. Never bind it to production monitoring D1.
+- [ ] Verify focused authentication, isolation, schema-readiness, and source-validation tests in the Pages Functions CI workflow.
+- [ ] Verify the PR change triggers validation only; do not deploy, dispatch a release, merge a publication PR, or change production configuration in Step 3A.
+
+**Step 3A files:** `functions/lib/test-mode.js`, `functions/api/test-mode/config.js`, `functions/tests/test-mode-safety.test.mjs`, `test-mode/migrations/0001_test_mode.sql`, `docs/TEST_MODE_CONSOLE_DESIGN.md`, `IMPLEMENTATION_ROADMAP.md`, and `PROGRESS_TRACKER.md`.
