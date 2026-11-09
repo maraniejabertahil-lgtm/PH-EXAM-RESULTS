@@ -100,7 +100,7 @@ export async function getTestModeReadiness(env) {
           reasons.push("TEST_MODE_SCHEMA_INCOMPLETE");
           continue;
         }
-        const definition = row.sql.replace(/\\s+/g, " ").toLowerCase();
+        const definition = row.sql.replace(/\s+/g, " ").toLowerCase();
         if (!expected.sql.every((fragment) => definition.includes(fragment.toLowerCase()))) {
           reasons.push("TEST_MODE_SCHEMA_INCOMPLETE");
           continue;
