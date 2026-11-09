@@ -1,10 +1,11 @@
 # PH-EXAM-RESULTS — Owner Test Mode Console Design
 
-- **Status:** Design proposal — awaiting Owner approval before implementation
+- **Status:** Revised design proposal — awaiting Owner approval before implementation
 - **Scope:** PRC only; CSC testing remains excluded under Owner decision D-003
 - **Owner UI:** Existing same-origin Owner Dashboard at `/owner/`
 - **Baseline:** PR #160 merged at `9687aec521667f87c23a09d3d0dead1bf3624f0f`; current Owner live-acceptance items P4-15–P4-18 remain as recorded in `LIVE_ACCEPTANCE_TEST_REGISTER.md`
-- **Safety rule:** Test Mode must never invoke the production `repository_dispatch: prc-release-detected` event, publish to `public/data/` on `main`, alter production D1 data, deploy the production Pages project, or send Facebook/Telegram notifications.
+- **Operating principle:** Test Mode uses 100% real-world PRC source material and real integrations. It must not use synthetic fixtures, mocked service responses, or simulated success as evidence of a real-world test.
+- **Publication control:** Test Mode pauses at each production-publication boundary and requires the Owner to click the relevant explicit Publication button(s). This manual approval behavior applies only to Test Mode. The normal automated production pipeline retains its existing independent behavior and is not changed by this design.
 
 ## 1. Product design
 
@@ -13,7 +14,7 @@ Add a new **Automation Test Console** section inside the authenticated Owner Das
 The page should present:
 
 1. A clear **OWNER ONLY · TEST ENVIRONMENT** label.
-2. An environment selector with three explicit modes: Simulation / Fixtures (default), Staging, and Production Read-only.
+2. A clearly marked **Real-world Test Mode**. It uses live official PRC source material and actual integrations; there is no Simulation / Fixtures mode.
 3. Overall progress, such as `0 / 10`, calculated from the selected run only.
 4. Ten ordered stage cards, each with a stage number, concise purpose, latest status, last-run time/duration, **Test** action, and a detail/report expander.
 5. **Run All Tests**, **View Test Report**, and a run-history list.
@@ -47,28 +48,15 @@ A missing report, unverified external action, or incomplete assertion must never
 
 ## 2. Environment boundaries
 
-### Mode A — Simulation / Fixtures (default)
+### One mode — Real-world Test Mode
 
-- Use committed synthetic fixtures and deterministic expected outputs.
-- Exercise the real Watcher event builder, Python extraction/normalization/Greenlight functions, dataset builder, and validation code wherever practical.
-- External network access, production D1, GitHub write operations, Pages deployment, and social notifications are disabled.
-- Use temporary directories and test-only artifacts. Do not write into `public/data/`, `manual-drop/`, or production artifact paths.
-- A simulation PASS proves the tested code path against the named fixture and version only; it does not prove a live PRC release was detected.
-
-### Mode B — Staging
-
-- Use a dedicated test-only GitHub Actions workflow and an allowlisted branch namespace such as `test-mode/run-<run-id>` plus a protected `test-mode/integration` branch.
-- Use a dedicated non-production Pages project/environment and a dedicated test D1 database. Do not point staging writes at the production D1 database.
-- Use synthetic records only. Never copy live examinee records into test fixtures, reports, logs, or artifacts.
-- External services must be limited to the GitHub Actions and staging deployment functions explicitly required by the test. Facebook and Telegram are always disabled.
-- Staging deployment and test-branch merge must be distinguishable from production merge/deployment in UI, logs, and reports.
-
-### Mode C — Production Read-only
-
-- Only run named health checks that are explicitly allowlisted: production Owner-auth readiness, unauthenticated route protection, public search availability, approved PRC source reachability/robots policy metadata, and read-only service status.
-- No fake release event, repository dispatch, acquisition pipeline, D1 write, branch/PR, merge, production deploy, or notification is permitted.
-- Any check requiring a production write or synthetic production event is unavailable in this mode and must return BLOCKED with a clear reason.
-- Production read-only PASS is not equivalent to live Owner acceptance P4-15–P4-18 unless the corresponding acceptance procedure and evidence are explicitly completed.
+- Use actual official PRC source pages, real release notices, real result files, and real source content. Do not substitute synthetic fixtures or fabricated records for any stage's real-world evidence.
+- Exercise the actual Watcher detection and event creation, the dedicated Test Mode dispatch, real event verification, actual bounded source acquisition, the real extraction and normalization pipeline, the real Greenlight validator, actual dataset generation, the real GitHub PR and CI checks, and the real publication/deployment path.
+- Test Mode must be visibly and technically tagged throughout the run so that its events, logs, branches, PRs, and audit records can be distinguished from ordinary automated production runs.
+- Use a dedicated Test Mode workflow and separate test-run audit metadata. Real source content and production integration behavior must not be replaced with mocks. Any temporary storage must be access-controlled and must follow the repository's data-retention and privacy requirements.
+- Test Mode must pause before every irreversible production publication action. The Owner must click the specific Publication button for that action. A click authorizes only the named action for the displayed run and exact commit/artifact; it is not blanket approval for later actions.
+- Do not send Facebook/Telegram notifications from Test Mode unless the Owner explicitly authorizes a separately presented notification action. Normal automated production behavior remains independent and unchanged.
+- If a real official release or required external service is unavailable, mark the relevant stage BLOCKED. Never manufacture a PASS using fixtures or mocks.
 
 ## 3. Non-negotiable safety architecture
 
@@ -76,11 +64,11 @@ The current `.github/workflows/process-import.yml` contains a `repository_dispat
 
 Implement the following boundaries before enabling any test action:
 
-1. Create a separate `.github/workflows/test-mode.yml`; its only accepted trigger should be a dedicated test-only `workflow_dispatch` (or another separately named test event with equivalent strict isolation). It must not invoke `process-import.yml` or dispatch `prc-release-detected`.
+1. Create a separate `.github/workflows/test-mode.yml` with a dedicated Test Mode trigger and an explicit test-run ID. It must not impersonate an ordinary automated production run. It may call shared production processing code through a deliberately designed, audited interface, but must not silently trigger the normal production workflow or bypass Test Mode's Owner publication gates.
 2. The test workflow must require a validated test-run ID, explicit environment, fixture identifier, and allowed test branch. Reject `main`, production deployment environments, unknown fixture IDs, and any payload requesting publication or broadcasting.
 3. The Owner browser must call same-origin protected Pages Functions endpoints. Every mutating request requires a valid Owner session, exact same-origin Origin check, and CSRF token. Authentication and CSRF must be checked again server-side for every action; hiding buttons is not security.
 4. GitHub credentials stay server-side. Prefer a narrowly scoped GitHub App installation token or an equivalently restricted credential that can dispatch only the test workflow and manage only the dedicated test branch/PR scope. Never expose a credential to JavaScript, HTML, reports, or browser responses.
-5. Use distinct `TEST_*` secrets and configuration. No test action may fall back to production secrets when test configuration is missing; missing configuration returns BLOCKED.
+5. Use distinct Test Mode configuration and least-privilege credentials where feasible. Where real production integrations or credentials are required to verify the actual production path, expose them only to the server/workflow, scope them to the exact permitted action, and require explicit Owner approval. Missing required configuration returns BLOCKED; never silently fall back to a different environment.
 6. Use a separate test D1 database for `test_runs` and `test_run_steps`. Do not create or write test tables in production D1 as a convenience. Production read-only checks may record their sanitized test evidence in the test D1 store.
 7. Use unique run IDs, per-stage attempt IDs, idempotency keys, and a server-side state machine. Duplicate requests return the existing operation/result or a safe conflict; they must not start duplicate Actions runs or PRs.
 8. Enforce server-side allowlists for mode, stage, fixture, branch, workflow, and deployment target. Reject arbitrary URLs, arbitrary Git refs, arbitrary workflow names, and caller-supplied commands.
@@ -134,7 +122,7 @@ Use a unique constraint on `run_id` and on `(run_id, stage_number, attempt)`; ad
 ### 4 — Content Acquisition
 
 - Default to a saved fixture, loaded from a test-only fixture directory with a known SHA-256.
-- Optional staging/production read-only check may make an explicitly authorized bounded GET to an approved official PRC URL; it must not download result files unless the source/method is separately approved, and must not write to production storage.
+- Acquire the actual official PRC release content using the same approved source and retrieval method as the real pipeline. Record source URL, retrieval method, response metadata, retrieval timestamp, and content hash. Respect source access rules and existing acquisition limits.
 - Record fixture/source ID, retrieval method, response classification, retrieval timestamp, and content hash. Treat external source unavailability as BLOCKED, not PASS.
 
 ### 5 — Data Extraction
@@ -158,25 +146,23 @@ Use a unique constraint on `run_id` and on `(run_id, stage_number, attempt)`; ad
 
 ### 8 — Dataset & GitOps PR
 
-- Generate JSON shards, manifest, and hashes with the real dataset builder, writing only to a test workspace.
-- Open a PR only from an ephemeral `test-mode/run-<run-id>` branch into a dedicated staging integration branch. PR content must be synthetic and test-only.
+- Generate the actual JSON shards, manifest, and hashes with the production dataset builder for the real release. Create a clearly labelled Test Mode branch and a real PR targeting the normal publication branch. The PR must identify the exact real source release and Test Mode run.
 - Verify expected files, manifest integrity, shard hashes, catalog references, and PR metadata.
-- Do not modify production `public/data/` on `main`, the production catalog, or production data.
+- Do not merge or publish until the Owner clicks the corresponding Publication button after reviewing the exact diff, source release, Greenlight report, and target branch.
 
 ### 9 — CI Verification & Merge
 
 - Run CI against the exact head SHA from the test PR; record required checks and exact commit SHA.
 - Test both successful and failing check outcomes. A deliberately failed required check must prevent merge.
 - If branch protection/rulesets are configured for the test integration branch, verify the merge is blocked until required checks pass. If enforcement cannot be verified, mark BLOCKED rather than claiming protection.
-- A successful simulated merge may target only `test-mode/integration`; never merge test content to `main`.
-- Record merged commit SHA and checks. If test branch merge is not authorized/configured, leave the PR open and report BLOCKED.
+- After required CI checks pass, pause and present an explicit **Approve Publication / Merge** button. The button must show the PR number, exact head SHA, target branch, dataset manifest hash, Greenlight result, and source release. Only the Owner's click may authorize merging that exact reviewed PR. Revalidate all values and required checks server-side at click time; if anything changed, invalidate the approval and require a fresh review.
+- Record the merge commit SHA and checks. Do not merge automatically in Test Mode.
 
 ### 10 — Website Deployment
 
-- Deploy the test-only dataset to a dedicated staging Pages project/environment, never the production Pages project.
-- Verify the staging URL loads and the synthetic dataset can be searched using the public site's real search UI.
-- Assert the production site URL, production `main` SHA, production D1, and production dataset hashes are unchanged before and after the test.
-- Production deployment is never an allowed target. Missing staging project credentials or target confirmation is BLOCKED.
+- After the approved merge, pause and present a separate **Approve Production Publication / Deploy** button before the production website deployment or other production publication action. Show the exact merge SHA, dataset/manifest hash, deployment target, and expected public effect. Only the Owner's click may authorize that specific deployment. Revalidate the merge SHA, CI status, and target server-side at click time; changed inputs invalidate approval.
+- After approval, run the actual production deployment and verify the deployed site and real search behavior against the published release. Record deployment ID/URL, commit SHA, and post-deployment checks.
+- If the Owner does not click, keep the run paused and do not publish or deploy.
 
 ## 6. Run All orchestration
 
@@ -186,8 +172,7 @@ Run stages in strict order: 1 through 10. Each stage must publish a terminal sta
 - Mark later dependent stages SKIPPED, preserving all earlier evidence.
 - A stage can be rerun independently after the cause is addressed; create a new attempt and preserve the prior attempt.
 - Do not silently restart earlier PASS stages unless their input fixture/version changed or the Owner explicitly requests a full fresh run.
-- Stage 8–10 require Staging mode. Simulation may run local equivalents for stages 8–10 (manifest generation, mocked PR/CI/deploy assertions) but must label them as simulated, not as actual GitHub or deployment integration.
-- Production Read-only is a separate set of allowlisted health checks; it cannot execute the ten-stage publication path or Run All.
+- Stages 8–10 use the real repository, CI, merge, and production deployment integrations. Test Mode pauses for explicit Owner Publication-button approval before merge/publication and again before production deployment. No simulated or mocked substitute counts as a real-world PASS.
 
 ## 7. Report format
 
@@ -212,20 +197,20 @@ Test Console outcomes and live acceptance remain independent:
 
 | Test evidence | Related live acceptance | What it does not prove |
 |---|---|---|
-| Test stages 1–3 | Watcher/event contract checks | Genuine official PRC release detection in production |
-| Test stages 4–7 | Acquisition/extraction/Greenlight regression | Correctness of a real release's source content or OCR review |
-| Test stages 8–9 | GitOps/CI branch isolation | Production-main merge authorization or live publication |
-| Test stage 10 | Staging deployment | Production Pages deployment |
+| Test stages 1–3 | Real Watcher detection and event processing | Normal unattended automated operation outside Test Mode |
+| Test stages 4–7 | Actual acquisition/extraction/normalization/Greenlight on a real release | Normal unattended automated operation outside Test Mode |
+| Test stages 8–9 | Real GitOps PR and CI, followed by Owner-clicked publication approval | Normal unattended automated merge behavior outside Test Mode |
+| Test stage 10 | Owner-approved real production deployment and post-deployment verification | Normal unattended automated deployment behavior outside Test Mode |
 | Owner dashboard sign-in/API/CSRF checks | P4-15, P4-16, P4-17 | These are still live Owner acceptance procedures and must be run separately |
 | Staging isolation and deployment checks | P4-18 supporting evidence | Desktop/mobile walkthrough and rollback execution remain separate |
 
-A synthetic/staging PASS must never automatically change P4-15, P4-16, P4-17, or P4-18 to PASS.
+A Test Mode PASS or Owner-clicked publication approval must never automatically change P4-15, P4-16, P4-17, or P4-18 to PASS.
 
 ## 9. Implementation gates and acceptance criteria
 
 Implement in this order:
 
-1. **Foundation:** threat model, test-only workflow, test D1 database, server-side mode/branch/fixture allowlists, Owner + CSRF enforcement, idempotency, no-production-side-effects tests.
+1. **Foundation:** threat model, dedicated Test Mode workflow, test-run audit store, server-side allowlists, Owner + CSRF enforcement, idempotency, publication approval state machine, and tests proving no publication occurs without the relevant Owner click.
 2. **Stages 1–3:** Watcher fixture detection, dedicated workflow dispatch, event verification matrix.
 3. **Stages 4–7:** fixture acquisition, real extraction/normalization, Greenlight positive and negative matrix.
 4. **Stages 8–9:** isolated dataset generation, test PR, exact-SHA CI and protected test-branch merge.
@@ -236,8 +221,8 @@ A phase is not accepted because its UI exists or its workflow starts. It must pa
 ### Explicit non-goals
 
 - No CSC testing.
-- No production release simulation.
-- No production publication, merge, or deployment.
+- No synthetic or mocked data as evidence of real-world Test Mode execution.
+- No production merge, publication, or deployment in Test Mode without the specific Owner-clicked Publication approval.
 - No social notifications.
 - No new public dashboard or authentication system.
 - No automatic promotion of synthetic/staging results into the live acceptance register.
@@ -247,9 +232,10 @@ A phase is not accepted because its UI exists or its workflow starts. It must pa
 The following design choices are recommended and require Owner confirmation:
 
 1. Keep the console inside `/owner/` — recommended.
-2. Use a separate test D1 database and dedicated staging Pages project — recommended; do not reuse production D1 or production Pages.
-3. Use GitHub App installation credentials restricted to test workflow/branch operations — recommended over a broad personal access token.
-4. Permit successful stage 9 merge only into `test-mode/integration`, never `main` — recommended.
-5. Keep Mode C strictly read-only and separate from the ten-stage Run All sequence — required safety boundary.
+2. Use a separate test-run audit store where practical, while the tested release content, GitHub PR/CI, publication target, and deployment path are the real production resources. Never isolate the test by replacing real-world behavior with synthetic data.
+3. Use server-held, least-privilege credentials and explicit per-action authorization; no credentials in the browser.
+4. Test Mode may prepare a real PR targeting the normal publication branch, but must pause for the Owner's explicit Publication-button approval before merge/publication.
+5. After merge, Test Mode must pause again for a separate Owner click before production deployment. These manual gates apply only to Test Mode; ordinary automated production processing keeps its existing behavior.
+6. Preserve the existing Owner authentication, CSRF, audit, and production-isolation protections. Do not let Test Mode approval become a general authorization for unrelated runs or later changed commits.
 
 **No application code, workflow, database, branch, deployment, or production configuration is changed by this design document. Implementation begins only after Owner approval of this design and the required environment/credential prerequisites.**
