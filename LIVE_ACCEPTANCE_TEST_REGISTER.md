@@ -532,7 +532,7 @@ For each affected test or test execution:
 - **Pass condition:** The same-origin sign-in accepts only a Firebase-authenticated, email-verified account whose exact email matches `OWNER_EMAIL` and whose `user/{uid}` Firestore document has `role: "owner"` and `active: true`. Student, inactive, unverified, mismatched-email, missing-profile, and wrong-UID accounts are denied.
 - **Evidence to retain:** Sanitized Firebase project/config reference, Owner UID/email evidence, Firestore profile field types, rules review, real Owner browser walkthrough, and denied-account results.
 - **Status:** `NOT RUN`
-- **Candidate evidence:** The Firebase-only authorization implementation from PR #143 is deployed on the previous isolated architecture. The same-origin implementation is proposed in PR #160 and has not yet been deployed or tested against production Owner credentials.
+- **Candidate evidence:** PR #160 merged as `9687aec521667f87c23a09d3d0dead1bf3624f0f`; the same-origin implementation is included in the subsequent successful production Pages deployment (workflow run [#42510141003](https://github.com/maraniejabertahil-lgtm/PH-EXAM-RESULTS/actions/runs/42510141003)). Main-branch automated Firebase/Firestore authorization regression tests passed. No real Owner credential or production Firestore role walkthrough has been recorded; this acceptance test remains `NOT RUN`.
 
 #### P4-16 — Same-origin proof exchange and signed Owner session
 
@@ -540,7 +540,7 @@ For each affected test or test execution:
 - **Pass condition:** After Firebase Owner verification, the browser posts the short-lived proof to the same-origin `/auth/firebase/complete` endpoint. Only a valid, unexpired, correctly signed proof may issue the existing short-lived signed HttpOnly Owner session. No GitHub OAuth or cross-project redirect is used.
 - **Evidence to retain:** Browser network trace showing same-origin proof exchange, sanitized accepted/rejected proof cases, cookie attributes, session expiry and replay tests.
 - **Status:** `NOT RUN`
-- **Candidate evidence:** PR #160 includes same-origin proof completion and session handling with regression tests. Production browser/session acceptance remains outstanding.
+- **Candidate evidence:** PR #160 merged as `9687aec521667f87c23a09d3d0dead1bf3624f0f` and its same-origin proof/session implementation is included in the successful production Pages deployment (workflow run [#42510141003](https://github.com/maraniejabertahil-lgtm/PH-EXAM-RESULTS/actions/runs/42510141003)). Automated session/auth regression tests passed in CI; production browser proof exchange, cookie attributes, expiry, and replay walkthrough remain unrecorded. Keep status `NOT RUN`.
 
 #### P4-17 — Protected dashboard/API routes and CSRF logout
 
@@ -548,15 +548,15 @@ For each affected test or test execution:
 - **Pass condition:** Unauthenticated or non-owner visits to `/owner/`, dashboard assets, `/api/activity`, and `/api/analytics` are denied or redirected to `/?owner=login`. An authorized Owner can read permitted D1 activity and analytics data. Logout requires same-origin CSRF validation, rejects cross-origin/replayed requests, and clears the authentication cookies.
 - **Evidence to retain:** Signed-out and non-owner route/API tests, authorized Owner activity/analytics results, CSRF rejection/replay evidence, and successful logout cookie-clearing evidence.
 - **Status:** `NOT RUN`
-- **Candidate evidence:** PR #160 carries forward the existing signed-session, protected D1 API, and CSRF logout implementation and adds same-origin route protection. The branch's automated tests are not live Owner acceptance.
+- **Candidate evidence:** PR #160 merged as `9687aec521667f87c23a09d3d0dead1bf3624f0f`; production deployment succeeded in workflow run [#42510141003](https://github.com/maraniejabertahil-lgtm/PH-EXAM-RESULTS/actions/runs/42510141003), including the unauthenticated `/owner/` redirect/protection smoke check. Automated route/auth/API regression tests passed in CI. Real Owner-authorized D1 activity/analytics reads and CSRF logout/replay/cookie-clearing acceptance remain unverified; keep status `NOT RUN`.
 
 #### P4-18 — Single-domain deployment, public-search isolation, and rollback
 
 - **Related Owner decision:** D-012
 - **Pass condition:** The public search site and Owner dashboard are served from the single public Pages origin, with dashboard access at `/owner/`; public search remains usable signed out and exposes no private data or write credentials. The production deployment verifies required public Pages variables and encrypted secret types. Desktop and mobile walkthroughs pass. The previous private Pages project remains available and a documented rollback can restore service if acceptance fails.
 - **Evidence to retain:** Merged commit and successful production Pages deployment, live same-origin URLs, signed-out public search, desktop/mobile walkthrough, secret-name/type preflight evidence without values, rollback deployment evidence, and confirmation that the private project remains available during acceptance.
-- **Status:** `NOT RUN`
-- **Candidate evidence:** PR #160 implements the same-domain route and deployment preflight and changes the legacy private Pages workflow's Wrangler deployment to manual-only. The PR is not merged; public production variables, deployment, browser walkthrough, rollback, and live acceptance are outstanding. Cloudflare's own Git integration may still create previews until separately disconnected with Owner approval.
+- **Status:** `PARTIAL`
+- **Candidate evidence:** PR #160 merged as `9687aec521667f87c23a09d3d0dead1bf3624f0f`. The first post-merge production deployment stopped safely at the production-settings preflight (workflow run [#42494241166](https://github.com/maraniejabertahil-lgtm/PH-EXAM-RESULTS/actions/runs/42494241166)); a subsequent main-branch deployment passed the production variable/secret-type preflight, uploaded the public assets and Pages Functions, passed same-origin Owner-auth readiness, and verified unauthenticated `/owner/` protection (workflow run [#42510141003](https://github.com/maraniejabertahil-lgtm/PH-EXAM-RESULTS/actions/runs/42510141003)). This establishes merged/deployed implementation and a signed-out route smoke check, not full acceptance. Desktop/mobile walkthroughs, signed-out public-search isolation walkthrough, live Owner sign-in, authenticated APIs, and rollback execution remain outstanding. Keep the previous private Pages project available; Cloudflare Git integration preview behavior must not be disabled without Owner approval.
 ---
 
 ## 6. Phase 5 — End-to-End Simulation & Security
