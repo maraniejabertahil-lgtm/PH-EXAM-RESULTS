@@ -25,10 +25,10 @@ Suggested stage-card content:
 
 | # | Stage | Primary evidence |
 |---|---|---|
-| 1 | Release Detection | Fixture ID, detector decision, event fingerprint, timestamp |
+| 1 | Release Detection | Official source/release identity, detector decision, event fingerprint, timestamp |
 | 2 | Webhook Dispatch | Test workflow name, dispatch response, Actions run ID |
 | 3 | Event Verification | Accepted/rejected case matrix and validation reasons |
-| 4 | Content Acquisition | Fixture/source identifier, retrieval mode, HTTP metadata if applicable, SHA-256 |
+| 4 | Content Acquisition | Official source URL, retrieval method, HTTP metadata, retrieved-content SHA-256 |
 | 5 | Data Extraction | Extractor version, real source record counts, source/output hashes and reconciliation |
 | 6 | Data Normalization | Exact name/sequence preservation assertions, Unicode and whitespace cases |
 | 7 | Greenlight Validation | Score, individual checks, issue codes, publication gate decision |
@@ -65,15 +65,15 @@ The current `.github/workflows/process-import.yml` contains a `repository_dispat
 Implement the following boundaries before enabling any test action:
 
 1. Create a separate `.github/workflows/test-mode.yml` with a dedicated Test Mode trigger and an explicit test-run ID. It must not impersonate an ordinary automated production run. It may call shared production processing code through a deliberately designed, audited interface, but must not silently trigger the normal production workflow or bypass Test Mode's Owner publication gates.
-2. The test workflow must require a validated test-run ID, explicit environment, fixture identifier, and allowed test branch. Reject `main`, production deployment environments, unknown fixture IDs, and any payload requesting publication or broadcasting.
+2. The Test Mode workflow must require a validated test-run ID, official PRC release identity, approved source URL, and permitted branch. Reject unknown sources, arbitrary URLs/refs/workflows, and any payload that bypasses the Owner publication gates.
 3. The Owner browser must call same-origin protected Pages Functions endpoints. Every mutating request requires a valid Owner session, exact same-origin Origin check, and CSRF token. Authentication and CSRF must be checked again server-side for every action; hiding buttons is not security.
-4. GitHub credentials stay server-side. Prefer a narrowly scoped GitHub App installation token or an equivalently restricted credential that can dispatch only the test workflow and manage only the dedicated test branch/PR scope. Never expose a credential to JavaScript, HTML, reports, or browser responses.
+4. GitHub credentials stay server-side. Prefer a narrowly scoped GitHub App installation token or an equivalently restricted credential that can dispatch the Test Mode workflow and manage only the required PR/branch operations. Never expose a credential to JavaScript, HTML, reports, or browser responses.
 5. Use distinct Test Mode configuration and least-privilege credentials where feasible. Where real production integrations or credentials are required to verify the actual production path, expose them only to the server/workflow, scope them to the exact permitted action, and require explicit Owner approval. Missing required configuration returns BLOCKED; never silently fall back to a different environment.
-6. Use a separate test D1 database for `test_runs` and `test_run_steps`. Do not create or write test tables in production D1 as a convenience. Production read-only checks may record their sanitized test evidence in the test D1 store.
+6. Use a separate test D1 database for `test_runs` and `test_run_steps` audit metadata where feasible. The real publication dataset and normal production data stores remain the actual targets of the approved production pipeline; do not redirect or shadow them to claim a real-world publication test.
 7. Use unique run IDs, per-stage attempt IDs, idempotency keys, and a server-side state machine. Duplicate requests return the existing operation/result or a safe conflict; they must not start duplicate Actions runs or PRs.
 8. Enforce server-side allowlists for stage, official source, branch, workflow, and deployment target. Reject arbitrary URLs, arbitrary Git refs, arbitrary workflow names, and caller-supplied commands.
 9. Set explicit least-privilege workflow permissions per job. Production publication/deployment credentials must be unavailable until the corresponding Owner approval is validated server-side. Social credentials remain unavailable to Test Mode.
-10. Preserve a durable audit trail with redacted errors. Never log Owner cookies, CSRF tokens, Firebase proofs, GitHub tokens, or examinee names.
+10. Preserve a durable audit trail with redacted errors. Never log Owner cookies, CSRF tokens, Firebase proofs, GitHub tokens, or unnecessary examinee names.
 
 **Fail-closed rule:** If the system cannot prove the run identity, source identity, exact approved commit/artifact, Owner authorization, or deployment target, the action does not run and is recorded as BLOCKED.
 
@@ -82,7 +82,7 @@ Implement the following boundaries before enabling any test action:
 Suggested same-origin endpoints (final names may be adjusted to match repository conventions):
 
 - `GET /api/test-mode/config` — return Test Mode availability, stages, publication-gate state, and safe readiness flags; Owner session required.
-- `GET /api/test-runs?limit=...` — list the Owner's recent test runs from the test D1 database.
+- `GET /api/test-runs?limit=...` — list the Owner's recent Test Mode runs from the test audit database.
 - `POST /api/test-runs` — create a real-world Test Mode run bound to a specific official release; Owner session + CSRF required.
 - `GET /api/test-runs/:runId` — return run summary and step evidence; Owner session required.
 - `POST /api/test-runs/:runId/stages/:stageId` — start/retry one allowlisted stage; Owner session + CSRF required.
@@ -109,9 +109,9 @@ Use a unique constraint on `run_id` and on `(run_id, stage_number, attempt)`; ad
 
 ### 2 — Webhook Dispatch
 
-- Dispatch the dedicated test workflow from an allowlisted test branch using the server-held test credential.
-- Verify GitHub accepted the dispatch and correlate the created Actions run ID to the test-run ID (the dispatch API response itself may not return a run ID; poll the workflow-run list using a bounded correlation window and unique run ID).
-- PASS only after the exact test workflow run is found and its test-run ID/mode/branch match. No production repository-dispatch event.
+- Dispatch the dedicated Test Mode workflow for the real release using the server-held credential and exact run/release correlation.
+- Verify GitHub accepted the dispatch and correlate the created Actions run ID to the Test Mode run ID (the dispatch API response itself may not return a run ID; poll the workflow-run list using a bounded correlation window and unique run ID).
+- PASS only after the exact Test Mode workflow run is found and its run ID, source release, and branch match. Do not create duplicate release events or bypass the normal production safeguards.
 
 ### 3 — Event Verification
 
@@ -171,7 +171,7 @@ Run stages in strict order: 1 through 10. Each stage must publish a terminal sta
 - Stop on the first FAIL or BLOCKED stage that is a required dependency.
 - Mark later dependent stages SKIPPED, preserving all earlier evidence.
 - A stage can be rerun independently after the cause is addressed; create a new attempt and preserve the prior attempt.
-- Do not silently restart earlier PASS stages unless their input fixture/version changed or the Owner explicitly requests a full fresh run.
+- Do not silently restart earlier PASS stages unless the official source release, processing version, or input content changed, or the Owner explicitly requests a full fresh run.
 - All ten stages use real-world source data and actual integrations. Test Mode pauses for explicit Owner Publication-button approval before merge/publication and again before production deployment. No simulated or mocked substitute counts as a real-world PASS.
 
 ## 7. Report format
@@ -182,9 +182,9 @@ Every run produces a downloadable JSON report and a readable dashboard view cont
 - Environment and mode
 - Started/completed timestamps and total duration
 - Stage number/name, attempt, status, start/end, duration
-- Fixture/source identifier and detector/parser/engine version where relevant
+- Official source/release identifier and detector/parser/engine version where relevant
 - Expected and actual sanitized summaries (counts, decisions, assertions)
-- Evidence references: Actions run ID/URL, test branch/PR, commit SHA, artifact name/hash, staging URL
+- Evidence references: Actions run ID/URL, branch/PR, commit SHA, artifact name/hash, production deployment ID/URL
 - Failure code and redacted diagnostic message
 - Report SHA-256 and report schema version
 - Related acceptance test IDs, clearly labelled as references only
@@ -223,7 +223,7 @@ A phase is not accepted because its UI exists or its workflow starts. It must pa
 - No CSC testing.
 - No synthetic or mocked data as evidence of real-world Test Mode execution.
 - No production merge, publication, or deployment in Test Mode without the specific Owner-clicked Publication approval.
-- No social notifications.
+- No social notifications from Test Mode by default.
 - No new public dashboard or authentication system.
 - No automatic promotion of Test Mode results into the live acceptance register.
 
