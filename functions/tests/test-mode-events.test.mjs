@@ -78,6 +78,13 @@ test("genuine PRC metadata is stored with hashes and duplicate protection", asyn
   assert.match(saved.event_fingerprint, /^[a-f0-9]{64}$/);
   assert.match(saved.payload_sha256, /^[a-f0-9]{64}$/);
 });
+test("event ingestion rejects future timestamps so verified_at cannot precede detected_at", async () => {
+  const environment = env();
+  const future = { ...SOURCE, detected_at: new Date(Date.now() + 60_000).toISOString() };
+  const response = await onRequestPost({ request: request(future), env: environment });
+  assert.equal(response.status, 400);
+  assert.equal(environment.TEST_MODE_DB._events.length, 0);
+});
 test("event ingestion fails closed when the dedicated database is unavailable", async () => {
   const environment = env(); delete environment.TEST_MODE_DB;
   const response = await onRequestPost({ request: request(), env: environment });
