@@ -511,13 +511,15 @@ async function fetchOfficialArticleMetadata(articleUrl, fetchImpl) {
   return { title, url: finalUrl, text, links };
 }
 
-async function recordTestModeReleaseEvent(env, source, event, fetchImpl) {
+async function recordTestModeReleaseEvent(env, source, event, fetchImpl, now) {
   const endpoint = env.TEST_MODE_EVENT_INGEST_URL;
   const token = env.TEST_MODE_EVENT_INGEST_TOKEN;
   if (typeof endpoint !== "string" || !endpoint || typeof token !== "string" || token.length < 32) {
     return { status: "not_configured" };
   }
   try {
+    const dedupeKey = await kvKey("test-mode-prc-release-event", source.id, event.article_url);
+    if (await env.PEAK_WEEK.get(dedupeKey)) return { status: "already_recorded" };
     const target = new URL(endpoint);
     if (target.protocol !== "https:" || target.username || target.password || target.hash) {
       return { status: "invalid_endpoint_configuration" };
@@ -536,6 +538,7 @@ async function recordTestModeReleaseEvent(env, source, event, fetchImpl) {
       return { status: "ingest_rejected", http_status: response.status };
     }
     const result = await response.json().catch(() => ({}));
+    await env.PEAK_WEEK.put(dedupeKey, isoNow(now), { expirationTtl: DISPATCH_TTL_SECONDS });
     return { status: result.duplicate ? "already_recorded" : "recorded", event_id: result.event_id || null };
   } catch (error) {
     return { status: "ingest_unavailable", error: String(error.message || error).slice(0, 160) };
@@ -546,7 +549,12 @@ async function dispatchPrReleaseEvent(env, source, article, fetchImpl, now) {
   const built = buildReleaseEvent(source, article);
   if (!built.ok) return { status: "needs_human_review_no_dispatch", reason: built.reason };
   const key = await kvKey("prc-release-event", source.id, article.url);
-  if (await env.PEAK_WEEK.get(key)) return { status: "already_dispatched", article_url: article.url };
+  if (await env.PEAK_WEEK.get(key)) {
+    const testModeEvent = source.authority === "PRC"
+      ? await recordTestModeReleaseEvent(env, source, built.event, fetchImpl, now)
+      : { status: "not_applicable" };
+    return { status: "already_dispatched", article_url: article.url, test_mode_event: testModeEvent };
+  }
   const response = await fetchImpl(`${GITHUB_API}/repos/${env.GITHUB_REPOSITORY}/dispatches`, {
     method: "POST",
     headers: {
@@ -564,7 +572,7 @@ async function dispatchPrReleaseEvent(env, source, article, fetchImpl, now) {
     throw new Error(`PRC release-event dispatch failed (HTTP ${response.status})${detail ? `: ${detail.slice(0, 200)}` : ""}.`);
   }
   const testModeEvent = source.authority === "PRC"
-    ? await recordTestModeReleaseEvent(env, source, built.event, fetchImpl)
+    ? await recordTestModeReleaseEvent(env, source, built.event, fetchImpl, now)
     : { status: "not_applicable" };
   await env.PEAK_WEEK.put(key, isoNow(now), { expirationTtl: DISPATCH_TTL_SECONDS });
   return { status: "prc-release-event-dispatched", article_url: article.url, test_mode_event: testModeEvent };
