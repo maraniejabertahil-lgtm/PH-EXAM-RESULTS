@@ -28,7 +28,7 @@ const REQUIRED_AUDIT_SCHEMA = {
   },
   test_mode_release_events: {
     columns: ["event_id", "authority", "source_id", "release_id", "source_url", "exam_code", "exam_title", "exam_year", "event_fingerprint", "payload_sha256", "detected_at", "verified_at", "verification_status", "verification_method", "created_at"],
-    sql: ["CHECK (authority = 'PRC')", "CHECK (verification_status IN ('VERIFIED','REJECTED'))", "UNIQUE (event_fingerprint)"],
+    sql: ["CHECK (authority = 'PRC')", "CHECK (verification_status IN ('VERIFIED','REJECTED'))", "UNIQUE (event_fingerprint)", "CHECK (length(event_fingerprint) = 64)", "CHECK (length(payload_sha256) = 64)"],
   },
   test_mode_publication_approvals: {
     columns: ["approval_id", "run_id", "action", "status", "approved_by_owner_uid",

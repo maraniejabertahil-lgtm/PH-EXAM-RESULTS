@@ -105,7 +105,7 @@ export async function onRequestPost({ request, env }) {
       source_url: event.source_url,
     }, env);
     if (!sourceCheck.valid || event.authority !== "PRC" ||
-        !event.event_fingerprint || !/^[a-f0-9]{64}$/i.test(event.payload_sha256 || "") ||
+        !/^[a-f0-9]{64}$/i.test(event.event_fingerprint || "") || !/^[a-f0-9]{64}$/i.test(event.payload_sha256 || "") ||
         !event.detected_at || !event.verified_at || !event.verification_method ||
         !event.exam_code || !event.exam_title ||
         !Number.isInteger(Number(event.exam_year)) ||

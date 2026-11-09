@@ -26,7 +26,7 @@ function readyDb() {
       columns: ["event_id", "authority", "source_id", "release_id", "source_url", "exam_code",
         "exam_title", "exam_year", "event_fingerprint", "payload_sha256", "detected_at",
         "verified_at", "verification_status", "verification_method", "created_at"],
-      sql: "CHECK (authority = 'PRC') CHECK (verification_status IN ('VERIFIED','REJECTED')) UNIQUE (event_fingerprint)",
+      sql: "CHECK (authority = 'PRC') CHECK (verification_status IN ('VERIFIED','REJECTED')) UNIQUE (event_fingerprint) CHECK (length(event_fingerprint) = 64) CHECK (length(payload_sha256) = 64)",
     },
     test_run_steps: {
       columns: ["step_id", "run_id", "stage_number", "attempt", "status", "started_at",
