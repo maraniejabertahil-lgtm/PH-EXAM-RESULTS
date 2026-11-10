@@ -28,6 +28,20 @@ function guessFormat(value) {
   return null;
 }
 
+function inferExamIdentity(title) {
+  const known = EXAMS.filter((exam) => exam.re.test(title));
+  if (known.length === 1) return { code: known[0].code, known: true };
+  if (known.length > 1) return null;
+  const normalized = title.replace(/^\s*(?:(?:January|February|March|April|May|June|July|August|September|October|November|December)\s+)?20\d{2}\s+/i, '').replace(/\s+results?\b[\s\S]*$/i, '').replace(/\s+released\b[\s\S]*$/i, '').replace(/\s+announced\b[\s\S]*$/i, '').trim();
+  const match = normalized.match(/^(.{2,100}?\b(?:computer-based\s+)?(?:licensure\s+)?examination)\b/i);
+  if (!match) return null;
+  const candidate = match[1].replace(/\s+/g, ' ').trim();
+  if (/\band\b|&|\//i.test(candidate)) return null;
+  const words = candidate.replace(/\b(?:computer-based|licensure|examination)\b/gi, ' ').replace(/[^\p{L}\p{N}]+/gu, ' ').trim().split(/\s+/).filter(Boolean);
+  if (!words.length) return null;
+  const slug = words.join('-').toUpperCase().replace(/[^A-Z0-9-]/g, '').slice(0, 26).replace(/-+$/g, '');
+  return slug.length >= 2 ? { code: `EXAM-${slug}`, known: false, candidate } : null;
+}
 function cleanContentUrls(links, articleUrl) {
   const seen = new Set();
   const out = [];
@@ -62,8 +76,9 @@ export function buildReleaseEvent(source, article) {
   const title = article.title.trim();
   const text = typeof article.text === "string" ? article.text : "";
   const hay = `${title} ${text}`;
-  const codes = EXAMS.filter((exam) => exam.re.test(title)).map((exam) => exam.code);
-  if (codes.length !== 1) return review(`exam code ambiguous or missing: [${codes.join(",")}]`);
+  const identity = inferExamIdentity(title);
+  if (!identity) return review("exam name is ambiguous or could not be safely identified");
+  const codes = [identity.code];
 
   const years = [...new Set(title.match(/\b20\d{2}\b/g) || [])];
   if (years.length !== 1) return review(`exam year ambiguous or missing: [${years.join(",")}]`);
