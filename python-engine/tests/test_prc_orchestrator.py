@@ -7,7 +7,7 @@ from unittest.mock import patch
 
 from main import process_batch
 from prc_adapters import REGISTRY
-from prc_orchestrator import NeedsReviewError, _load_tier3_mapping_key, greenlight, run, validate_event
+from prc_orchestrator import NeedsReviewError, _load_tier3_mapping_key, detect_layout_mapping, greenlight, run, validate_event
 
 
 SOURCE = {
@@ -54,6 +54,29 @@ class PRCOrchestratorTests(unittest.TestCase):
 
     def tearDown(self):
         self.temporary.cleanup()
+
+    def test_detects_unambiguous_csv_layout_without_approving_it(self):
+        raw = b'Sequence Number,Full Name\\n1,ALPHA BETA\\n2,GAMMA DELTA\\n'
+        candidate = detect_layout_mapping(raw, 'csv')
+        self.assertEqual(candidate['seq_col'], 'Sequence Number')
+        self.assertEqual(candidate['name_col'], 'Full Name')
+        self.assertEqual(candidate['detected_rows'], 2)
+
+    def test_detects_unambiguous_json_layout(self):
+        raw = json.dumps({'passers': [
+            {'sequence': 1, 'name': 'ALPHA BETA'},
+            {'sequence': 2, 'name': 'GAMMA DELTA'},
+        ]}).encode('utf-8')
+        candidate = detect_layout_mapping(raw, 'json')
+        self.assertEqual(candidate['seq_key'], 'sequence')
+        self.assertEqual(candidate['name_key'], 'name')
+
+    def test_ambiguous_or_unlabelled_layout_fails_closed(self):
+        ambiguous = b'Sequence,Seq No.,Name\\n1,1,ALPHA BETA\\n'
+        unlabelled = b'Column A,Column B\\n1,ALPHA BETA\\n'
+        self.assertIsNone(detect_layout_mapping(ambiguous, 'csv'))
+        self.assertIsNone(detect_layout_mapping(unlabelled, 'csv'))
+        self.assertIsNone(detect_layout_mapping(b'%PDF-1.7', 'pdf'))
 
     def test_tier3_mapping_accepts_both_downloadability_states_only_when_publicly_viewable(self):
         config_dir = self.root / "python-engine" / "config"
