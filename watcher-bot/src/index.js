@@ -462,7 +462,7 @@ async function findOfficialResultArticleLinks(pageUrl, fetchImpl, source = {}) {
   return { links: found, errors };
 }
 
-export async function fetchOfficialArticleMetadata(articleUrl, fetchImpl) {
+export export async function fetchOfficialArticleMetadata(articleUrl, fetchImpl) {
   const page = validateHttpsUrl(articleUrl);
   if (!["www.prc.gov.ph", "prc.gov.ph"].includes(page.hostname.toLowerCase())) {
     throw new Error("PRC article URL is outside the approved official host.");
