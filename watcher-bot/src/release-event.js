@@ -56,7 +56,11 @@ function cleanContentUrls(links, articleUrl) {
     if (!isDrive && !isPdf) continue;
     if (seen.has(u.href)) continue;
     seen.add(u.href);
-    out.push({ format: isPdf ? "pdf" : l.format, url: u.href });
+    out.push({
+      format: isPdf ? "pdf" : l.format,
+      url: u.href,
+      label: typeof l.label === "string" ? l.label.replace(/\s+/g, " ").trim() : ""
+    });
   }
   return out;
 }
@@ -90,10 +94,21 @@ export function buildReleaseEvent(source, article) {
     return review("LEPT level ambiguous or missing in the article title");
   }
 
-  const links = cleanContentUrls(Array.isArray(article.links) ? article.links : [], articleUrl.href)
-    .map((link) => ({ url: link.url, format: guessFormat(link.url) }))
+  let links = cleanContentUrls(Array.isArray(article.links) ? article.links : [], articleUrl.href)
+    .map((link) => ({ ...link, format: guessFormat(link.url) }))
     .filter((link) => link.format);
   if (!links.length) return review("no supported official linked content found");
+  if (links.length > 1) {
+    const rosterLinks = links.filter((link) =>
+      /\b(?:list|roll)\s+of\s+successful\s+examinees\b/i.test(link.label) ||
+      /\bsuccessful\s+examinees\s+(?:list|roll)\b/i.test(link.label)
+    );
+    if (rosterLinks.length !== 1) {
+      return review("multiple official content links and no unique labelled successful-examinee list");
+    }
+    links = rosterLinks;
+  }
+  links = links.map(({ url, format }) => ({ url, format }));
 
   const countPatterns = [
     /\b([\d,]{3,})\s+(?:(?:elementary|secondary)\s+)?(?:teachers?\s+)?(?:out of|successfully passed|passed)\b/i,
