@@ -833,7 +833,7 @@ test("PRC listing snapshots historical pages and processes newly posted result a
   };
   const { fetchImpl, dispatches } = githubFetch([source], async (url, init = {}) => {
     if (url === source.url && init.method === "HEAD") {
-      return new Response(null, { status: 200, headers: { etag: '"prc-listing-stable'"', "content-type": "text/html" } });
+      return new Response(null, { status: 200, headers: { etag: '"prc-listing-stable"', "content-type": "text/html" } });
     }
     if (url === source.url && init.method === "GET") {
       return new Response(listingPage(0), { status: 200, headers: { "content-type": "text/html" } });
