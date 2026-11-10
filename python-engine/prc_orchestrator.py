@@ -8,6 +8,8 @@ from __future__ import annotations
 import argparse
 import csv
 import io
+import csv
+import io
 import hashlib
 import json
 import os
@@ -19,7 +21,6 @@ from pathlib import Path
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlsplit
 from urllib.request import HTTPRedirectHandler, Request, build_opener
-from html.parser import HTMLParser
 
 from acquisition.official_content import (
     OfficialContentError,
@@ -242,16 +243,53 @@ def _validate_content_format(raw: bytes, fmt: str) -> None:
         raise NeedsReviewError("The official result content is empty.")
 
 
-_SEQUENCE_HEADER = re.compile(r'^(?:sequence|seq|serial|roll|item|no|number)(?:\\s*(?:no|number|#))?
-    path = Path(cfg_path) if cfg_path else HERE / "config" / "adapter_mappings.json"
+def detect_layout_mapping(raw: bytes, fmt: str) -> dict | None:
+    '''Suggest a layout from explicit headers; never approve or apply it automatically.'''
     try:
-        config = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
-        raise NeedsReviewError(f"Unable to read reviewed adapter mappings: {exc}") from exc
-    if not isinstance(config, dict):
-        raise NeedsReviewError("Reviewed adapter mappings must be a JSON object.")
-    return config.get(f"{event['exam_code']}:{event.get('result_level') or '*'}:{fmt}")
-
+        text = raw.decode('utf-8-sig')
+    except UnicodeError:
+        return None
+    sequence_labels = {'sequence', 'sequencenumber', 'seq', 'seqno', 'serialnumber', 'rollnumber', 'number', 'no'}
+    name_labels = {'name', 'fullname', 'examineename', 'passername', 'candidatename'}
+    def find_keys(keys):
+        normalized = [''.join(char for char in str(key).lower() if char.isalnum()) for key in keys]
+        seq = [index for index, key in enumerate(normalized) if key in sequence_labels]
+        names = [index for index, key in enumerate(normalized) if key in name_labels]
+        if len(seq) != 1 or len(names) != 1 or seq[0] == names[0]:
+            return None
+        return seq[0], names[0]
+    if fmt == 'csv':
+        reader = csv.DictReader(io.StringIO(text))
+        found = find_keys(reader.fieldnames or [])
+        rows = list(reader)
+        if found is None or not rows:
+            return None
+        seq_key, name_key = reader.fieldnames[found[0]], reader.fieldnames[found[1]]
+        if not all(str(row.get(seq_key, '')).strip().replace(',', '').isdigit() and str(row.get(name_key, '')).strip() for row in rows[:5]):
+            return None
+        return {'seq_col': seq_key, 'name_col': name_key, 'detected_rows': len(rows)}
+    if fmt == 'json':
+        try:
+            data = json.loads(text)
+        except json.JSONDecodeError:
+            return None
+        collections = [data] if isinstance(data, list) else ([value for value in data.values() if isinstance(value, list)] if isinstance(data, dict) else [])
+        candidates = []
+        for rows in collections:
+            if not rows or not all(isinstance(row, dict) for row in rows[:5]):
+                continue
+            keys = list(rows[0])
+            found = find_keys(keys)
+            if found is None:
+                continue
+            seq_key, name_key = keys[found[0]], keys[found[1]]
+            if all(str(row.get(seq_key, '')).strip().replace(',', '').isdigit() and str(row.get(name_key, '')).strip() for row in rows[:5]):
+                candidates.append((seq_key, name_key, len(rows)))
+        if len(candidates) != 1:
+            return None
+        seq_key, name_key, count = candidates[0]
+        return {'seq_key': seq_key, 'name_key': name_key, 'detected_rows': count}
+    return None
 
 def _exam_specific_source(event: dict, sources: list[dict]) -> dict | None:
     identity = event["exam_code"]
