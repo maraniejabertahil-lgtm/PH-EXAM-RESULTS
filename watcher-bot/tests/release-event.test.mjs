@@ -48,3 +48,24 @@ test("keeps articles with more than one recognized exam in human review", () => 
   assert.equal(result.ok, false);
   assert.match(result.reason, /exam code ambiguous or missing/);
 });
+
+test("dynamically identifies a previously unseen single-exam PRC headline", () => {
+  const result = buildReleaseEvent(source, {
+    ...officialArticle,
+    title: "November 2026 Unlisted Professional Examination Results Released",
+    text: "The PRC announces that 12 out of 20 passed.",
+  });
+  assert.equal(result.ok, true);
+  assert.equal(result.event.exam_code, "EXAM-UNLISTED-PROFESSIONAL");
+  assert.equal(result.event.exam_year, 2026);
+  assert.equal(result.event.announced_count, 12);
+});
+
+test("keeps vague examination headlines in human review", () => {
+  const result = buildReleaseEvent(source, {
+    ...officialArticle,
+    title: "November 2026 Examination Results Released",
+  });
+  assert.equal(result.ok, false);
+  assert.match(result.reason, /ambiguous|safely identified/);
+});
