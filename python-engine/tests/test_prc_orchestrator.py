@@ -78,6 +78,23 @@ class PRCOrchestratorTests(unittest.TestCase):
         self.assertIsNone(detect_layout_mapping(unlabelled, 'csv'))
         self.assertIsNone(detect_layout_mapping(b'%PDF-1.7', 'pdf'))
 
+    def test_detected_layout_is_reported_but_not_auto_approved(self):
+        payload = event()
+        payload['content_urls'][0]['format'] = 'csv'
+        raw = b'Sequence Number,Full Name\n1,ALPHA BETA\n'
+        result = run(
+            payload,
+            self.root / 'output-layout-review',
+            fetcher=lambda _url: raw,
+            registry_path=self.registry_path,
+            cfg_path=self.mapping_path,
+        )
+        report = json.loads((self.root / 'output-layout-review' / 'report.json').read_text(encoding='utf-8'))
+        self.assertEqual(result, 3)
+        self.assertFalse(report['layout_detection']['approved'])
+        self.assertEqual(report['layout_detection']['candidate']['seq_col'], 'Sequence Number')
+        self.assertFalse((self.root / 'output-layout-review' / 'release-batch.json').exists())
+
     def test_tier3_mapping_accepts_both_downloadability_states_only_when_publicly_viewable(self):
         config_dir = self.root / "python-engine" / "config"
         config_dir.mkdir(parents=True)
