@@ -46,7 +46,13 @@ The three project records are connected by references, not synchronized copies. 
 
 ## Phase roadmap
 
-### Phase 1 — The Watcher (Cloudflare Worker)
+### Dynamic PRC examination recognition and layout safety
+
+The Watcher derives a bounded candidate examination identity from a single-exam PRC result headline when no known alias matches. Vague or multi-exam headlines remain in review. The Python engine can identify unambiguous sequence/name headers in CSV and JSON as diagnostic candidates, but it never converts a suggestion into an approved mapping. New examination formats still require the configured Owner-reviewed mapping; PDF/OCR mappings, official-source authorization, and access checks remain unchanged. Detecting an announcement does not prove that its result list is safely extractable or publishable. The existing 100% Greenlight and exact-head GitOps gates remain mandatory.
+
+---
+
+## Phase 1 — The Watcher (Cloudflare Worker)
 
 Build and verify the Cloudflare Worker that monitors approved official PRC/CSC sources, handles Peak Week mode, performs only compliant preemptive checks, and dispatches qualifying events to GitHub Actions.
 

@@ -29,14 +29,16 @@ test("recognizes the official November 2026 Veterinarians result article", () =>
   }]);
 });
 
-test("keeps unknown PRC exam titles in human review", () => {
+test("recognizes a new single-exam PRC title without a fixed allowlist entry", () => {
   const result = buildReleaseEvent(source, {
     ...officialArticle,
     title: "November 2026 Unlisted Professional Examination Results Released"
   });
 
-  assert.equal(result.ok, false);
-  assert.match(result.reason, /exam code ambiguous or missing/);
+  assert.equal(result.ok, true);
+  assert.equal(result.event.exam_code, "EXAM-UNLISTED-PROFESSIONAL");
+  assert.equal(result.event.exam_year, 2026);
+  assert.equal(result.event.announced_count, 1083);
 });
 
 test("keeps articles with more than one recognized exam in human review", () => {
@@ -46,5 +48,26 @@ test("keeps articles with more than one recognized exam in human review", () => 
   });
 
   assert.equal(result.ok, false);
-  assert.match(result.reason, /exam code ambiguous or missing/);
+  assert.match(result.reason, /ambiguous|safely identified/);
+});
+
+test("dynamically identifies a previously unseen single-exam PRC headline", () => {
+  const result = buildReleaseEvent(source, {
+    ...officialArticle,
+    title: "November 2026 Unlisted Professional Examination Results Released",
+    text: "The PRC announces that 123 out of 200 passed.",
+  });
+  assert.equal(result.ok, true);
+  assert.equal(result.event.exam_code, "EXAM-UNLISTED-PROFESSIONAL");
+  assert.equal(result.event.exam_year, 2026);
+  assert.equal(result.event.announced_count, 123);
+});
+
+test("keeps vague examination headlines in human review", () => {
+  const result = buildReleaseEvent(source, {
+    ...officialArticle,
+    title: "November 2026 Examination Results Released",
+  });
+  assert.equal(result.ok, false);
+  assert.match(result.reason, /ambiguous|safely identified/);
 });

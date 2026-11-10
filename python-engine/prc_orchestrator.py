@@ -6,6 +6,8 @@ event, and 3 is a safe stop requiring a source, access, or mapping review.
 from __future__ import annotations
 
 import argparse
+import csv
+import io
 import hashlib
 import json
 import os
@@ -238,6 +240,53 @@ def _validate_content_format(raw: bytes, fmt: str) -> None:
     elif not raw:
         raise NeedsReviewError("The official result content is empty.")
 
+
+def detect_layout_mapping(raw: bytes, fmt: str) -> dict | None:
+    '''Suggest explicit CSV/JSON mappings; this is diagnostic, never an approval.'''
+    try:
+        content = raw.decode('utf-8-sig')
+    except UnicodeError:
+        return None
+    sequence_labels = {'sequence', 'sequencenumber', 'seq', 'seqno', 'serialnumber', 'rollnumber', 'number', 'no'}
+    name_labels = {'name', 'fullname', 'examineename', 'passername', 'candidatename'}
+    def locate(keys):
+        normalized = [''.join(ch for ch in str(key).lower() if ch.isalnum()) for key in keys]
+        seq = [i for i, key in enumerate(normalized) if key in sequence_labels]
+        names = [i for i, key in enumerate(normalized) if key in name_labels]
+        if len(seq) != 1 or len(names) != 1 or seq[0] == names[0]:
+            return None
+        return seq[0], names[0]
+    if fmt == 'csv':
+        reader = csv.DictReader(io.StringIO(content))
+        indices = locate(reader.fieldnames or [])
+        rows = list(reader)
+        if indices is None or not rows:
+            return None
+        seq_key, name_key = reader.fieldnames[indices[0]], reader.fieldnames[indices[1]]
+        valid = all(str(row.get(seq_key, '')).strip().replace(',', '').isdigit() and str(row.get(name_key, '')).strip() for row in rows[:5])
+        return {'seq_col': seq_key, 'name_col': name_key, 'detected_rows': len(rows)} if valid else None
+    if fmt == 'json':
+        try:
+            data = json.loads(content)
+        except json.JSONDecodeError:
+            return None
+        groups = [data] if isinstance(data, list) else ([v for v in data.values() if isinstance(v, list)] if isinstance(data, dict) else [])
+        candidates = []
+        for rows in groups:
+            if not rows or not all(isinstance(row, dict) for row in rows[:5]):
+                continue
+            keys = list(rows[0])
+            indices = locate(keys)
+            if indices is None:
+                continue
+            seq_key, name_key = keys[indices[0]], keys[indices[1]]
+            valid = all(str(row.get(seq_key, '')).strip().replace(',', '').isdigit() and str(row.get(name_key, '')).strip() for row in rows[:5])
+            if valid:
+                candidates.append((seq_key, name_key, len(rows)))
+        if len(candidates) == 1:
+            seq_key, name_key, count = candidates[0]
+            return {'seq_key': seq_key, 'name_key': name_key, 'detected_rows': count}
+    return None
 
 def load_mapping(event: dict, fmt: str, cfg_path: str | Path | None = None):
     path = Path(cfg_path) if cfg_path else HERE / "config" / "adapter_mappings.json"
@@ -785,10 +834,17 @@ def run(
         else:
             mapping = load_mapping(event, content_format, cfg_path)
             if mapping is None:
+                candidate = detect_layout_mapping(raw, content_format)
+                detail = (
+                    f" A safe structural candidate was detected: {json.dumps(candidate, ensure_ascii=False)}. "
+                    "It is diagnostic only and still requires an Owner-reviewed mapping."
+                    if candidate else " No unique sequence/name column layout could be detected."
+                )
                 return finish(
                     "needs_review", 3,
-                    reason=f"Tier 1 acquired readable {content_format.upper()} content, but no reviewed {content_format.upper()} mapping exists. A missing mapping is not an extraction-unavailable fallback.",
+                    reason=f"Tier 1 acquired readable {content_format.upper()} content, but no reviewed {content_format.upper()} mapping exists. A missing mapping is not an extraction-unavailable fallback." + detail,
                     source=content["url"],
+                    layout_detection={"candidate": candidate, "approved": False},
                 )
             if not isinstance(mapping, dict):
                 return finish("needs_review", 3, reason=f"reviewed {content_format.upper()} mapping must be a JSON object", source=content["url"])
