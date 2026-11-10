@@ -56,7 +56,7 @@ class PRCOrchestratorTests(unittest.TestCase):
         self.temporary.cleanup()
 
     def test_detects_unambiguous_csv_layout_without_approving_it(self):
-        raw = b'Sequence Number,Full Name\\n1,ALPHA BETA\\n2,GAMMA DELTA\\n'
+        raw = b'Sequence Number,Full Name\n1,ALPHA BETA\n2,GAMMA DELTA\n'
         candidate = detect_layout_mapping(raw, 'csv')
         self.assertEqual(candidate['seq_col'], 'Sequence Number')
         self.assertEqual(candidate['name_col'], 'Full Name')
@@ -72,8 +72,8 @@ class PRCOrchestratorTests(unittest.TestCase):
         self.assertEqual(candidate['name_key'], 'name')
 
     def test_ambiguous_or_unlabelled_layout_fails_closed(self):
-        ambiguous = b'Sequence,Seq No.,Name\\n1,1,ALPHA BETA\\n'
-        unlabelled = b'Column A,Column B\\n1,ALPHA BETA\\n'
+        ambiguous = b'Sequence,Seq No.,Name\n1,1,ALPHA BETA\n'
+        unlabelled = b'Column A,Column B\n1,ALPHA BETA\n'
         self.assertIsNone(detect_layout_mapping(ambiguous, 'csv'))
         self.assertIsNone(detect_layout_mapping(unlabelled, 'csv'))
         self.assertIsNone(detect_layout_mapping(b'%PDF-1.7', 'pdf'))
