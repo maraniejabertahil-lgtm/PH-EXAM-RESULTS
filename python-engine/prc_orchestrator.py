@@ -2040,51 +2040,6 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-def detect_layout_mapping(raw: bytes, fmt: str) -> dict | None:
-    '''Suggest explicit CSV/JSON column mappings; never approve or apply them automatically.'''
-    try:
-        text = raw.decode('utf-8-sig')
-    except UnicodeError:
-        return None
-    seq_labels = {'sequence', 'sequencenumber', 'seq', 'seqno', 'serialnumber', 'rollnumber', 'number', 'no'}
-    name_labels = {'name', 'fullname', 'examineename', 'passername', 'candidatename'}
-    def pair(keys):
-        labels = [''.join(ch for ch in str(key).lower() if ch.isalnum()) for key in keys]
-        seq = [i for i, key in enumerate(labels) if key in seq_labels]
-        names = [i for i, key in enumerate(labels) if key in name_labels]
-        return (seq[0], names[0]) if len(seq) == 1 and len(names) == 1 and seq[0] != names[0] else None
-    if fmt == 'csv':
-        reader = csv.DictReader(io.StringIO(text))
-        indices = pair(reader.fieldnames or [])
-        rows = list(reader)
-        if indices is None or not rows:
-            return None
-        seq_key, name_key = reader.fieldnames[indices[0]], reader.fieldnames[indices[1]]
-        if not all(str(row.get(seq_key, '')).strip().replace(',', '').isdigit() and str(row.get(name_key, '')).strip() for row in rows[:5]):
-            return None
-        return {'seq_col': seq_key, 'name_col': name_key, 'detected_rows': len(rows)}
-    if fmt == 'json':
-        try:
-            data = json.loads(text)
-        except json.JSONDecodeError:
-            return None
-        collections = [data] if isinstance(data, list) else ([v for v in data.values() if isinstance(v, list)] if isinstance(data, dict) else [])
-        found = []
-        for rows in collections:
-            if not rows or not all(isinstance(row, dict) for row in rows[:5]):
-                continue
-            keys = list(rows[0])
-            indices = pair(keys)
-            if indices is None:
-                continue
-            seq_key, name_key = keys[indices[0]], keys[indices[1]]
-            if all(str(row.get(seq_key, '')).strip().replace(',', '').isdigit() and str(row.get(name_key, '')).strip() for row in rows[:5]):
-                found.append((seq_key, name_key, len(rows)))
-        if len(found) == 1:
-            seq_key, name_key, count = found[0]
-            return {'seq_key': seq_key, 'name_key': name_key, 'detected_rows': count}
-    return None
-
 def load_mapping(event: dict, fmt: str, cfg_path: str | Path | None = None):
     path = Path(cfg_path) if cfg_path else HERE / "config" / "adapter_mappings.json"
     try:
