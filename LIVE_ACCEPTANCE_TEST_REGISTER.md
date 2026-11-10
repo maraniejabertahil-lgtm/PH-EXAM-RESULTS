@@ -126,14 +126,14 @@ For each affected test or test execution:
 #### P1-07 — Change detection
 
 - **Pass condition:** A relevant change at an approved monitored official source is detected.
-- **Evidence to retain:** PRC homepage baseline and scheduled unchanged checks were verified live. Regression coverage now simulates a new official listing article while the ETag remains identical and verifies that bounded discovery still processes it. This is synthetic test evidence only; no newly released official result article/change has yet been observed in production.
-- **Status:** `PARTIAL`
+- **Evidence to retain:** Live production evidence on 2026-11-10: the deployed Cloudflare Watcher detected the official PRC November 2026 Veterinarians result article (posted 2026-11-09) from the approved PRC exam-results listing. The event was dispatched at 2026-11-10T23:42:26Z and created GitHub Actions run #11. Separate regression tests simulate a new listing article with an unchanged ETag. The real event proves article discovery, but not that this particular live change had unchanged HTTP metadata.
+- **Status:** `PASS`
 
 #### P1-08 — Webhook dispatch
 
 - **Pass condition:** On a qualifying detection, the Watcher sends the configured `repository_dispatch` event to GitHub Actions.
-- **Evidence to retain:** PR #18: two synthetic diagnostic `source-detected` events reached the production receiver and generated validation-only runs. Regression tests exercise the unchanged-metadata listing path and bounded PDF-verification dispatch using mocked official-page responses. These tests do not count as a genuine scheduled production source detection; none has yet been observed.
-- **Status:** `PARTIAL`
+- **Evidence to retain:** Live production `prc-release-detected` dispatch was received by GitHub Actions as workflow run #42925562348 (run number 11), created at 2026-11-10T23:42:28Z from the production Watcher. This proves the real scheduled webhook reached the receiver. The downstream acquisition step safely stopped because four official documents were linked and the event had lost their visible labels. PR #177 now preserves article link labels and selects only the unique successful-examinee roster; the fix is deployed in Cloudflare Worker version `8082b63d-8412-4c8c-b1b8-97afc7061473`. A new real PRC announcement is still needed to verify the corrected selection through the downstream acquisition/Greenlight stages.
+- **Status:** `PASS`
 
 #### P1-09 — Official-source priority
 
