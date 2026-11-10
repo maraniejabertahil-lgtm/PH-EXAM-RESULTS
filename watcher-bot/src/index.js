@@ -462,7 +462,7 @@ async function findOfficialResultArticleLinks(pageUrl, fetchImpl, source = {}) {
   return { links: found, errors };
 }
 
-async function fetchOfficialArticleMetadata(articleUrl, fetchImpl) {
+export async function fetchOfficialArticleMetadata(articleUrl, fetchImpl) {
   const page = validateHttpsUrl(articleUrl);
   if (!["www.prc.gov.ph", "prc.gov.ph"].includes(page.hostname.toLowerCase())) {
     throw new Error("PRC article URL is outside the approved official host.");
@@ -498,13 +498,14 @@ async function fetchOfficialArticleMetadata(articleUrl, fetchImpl) {
   const title = heading ? clean(heading[1]) : "";
   const text = clean(html);
   const links = [];
-  const anchors = /<a\b[^>]*href\s*=\s*["']([^"']+)["'][^>]*>/gi;
+  const anchors = /<a\b[^>]*href\s*=\s*["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi;
   let match;
   while ((match = anchors.exec(html))) {
     try {
       const url = new URL(match[1].replace(/&amp;/gi, "&"), finalUrl);
+      const label = clean(match[2]);
       if (url.protocol === "https:" && !url.username && !url.password) {
-        links.push({ url: url.href, label: "" });
+        links.push({ url: url.href, label });
       }
     } catch { /* Ignore malformed links. */ }
   }

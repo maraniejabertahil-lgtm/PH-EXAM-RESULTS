@@ -29,6 +29,45 @@ test("recognizes the official November 2026 Veterinarians result article", () =>
   }]);
 });
 
+test("selects only the uniquely labelled successful-examinee roster from multiple official PRC links", () => {
+  const result = buildReleaseEvent(source, {
+    ...officialArticle,
+    links: [
+      { url: "https://drive.google.com/file/d/1FullTextOfficialResult2026/view", label: "Full text of the Official Result" },
+      { url: "https://drive.google.com/file/d/1PerformanceSchools2026/view", label: "Performance of Schools" },
+      { url: "https://drive.google.com/file/d/1TopTenSuccessfulExaminees2026/view", label: "Successful Examinees who garnered the top 10 highest places" },
+      { url: "https://drive.google.com/file/d/1AlphabeticalRoster2026/view", label: "List of Successful Examinees" }
+    ]
+  });
+  assert.equal(result.ok, true);
+  assert.deepEqual(result.event.content_urls, [{
+    url: "https://drive.google.com/file/d/1AlphabeticalRoster2026/view",
+    format: "pdf"
+  }]);
+});
+
+test("keeps multiple official links in human review when the roster label is missing or duplicated", () => {
+  const missing = buildReleaseEvent(source, {
+    ...officialArticle,
+    links: [
+      { url: "https://drive.google.com/file/d/1TopTen2026/view", label: "Top Ten" },
+      { url: "https://drive.google.com/file/d/1Schools2026/view", label: "Performance of Schools" }
+    ]
+  });
+  assert.equal(missing.ok, false);
+  assert.match(missing.reason, /unique labelled successful-examinee list/);
+
+  const duplicated = buildReleaseEvent(source, {
+    ...officialArticle,
+    links: [
+      { url: "https://drive.google.com/file/d/1RosterA2026/view", label: "List of Successful Examinees" },
+      { url: "https://drive.google.com/file/d/1RosterB2026/view", label: "Roll of Successful Examinees" }
+    ]
+  });
+  assert.equal(duplicated.ok, false);
+  assert.match(duplicated.reason, /unique labelled successful-examinee list/);
+});
+
 test("recognizes a new single-exam PRC title without a fixed allowlist entry", () => {
   const result = buildReleaseEvent(source, {
     ...officialArticle,

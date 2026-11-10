@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { runScheduled, expandPreemptiveTemplates, classifySourceOutcome } from "../src/index.js";
+import { runScheduled, expandPreemptiveTemplates, classifySourceOutcome, fetchOfficialArticleMetadata } from "../src/index.js";
 import worker from "../src/index.js";
 
 const repository = "owner/repository";
@@ -896,6 +896,32 @@ test("PRC listing snapshots historical pages and processes newly posted result a
   assert.ok(secondBatch.outbound_subrequests_used <= secondBatch.outbound_subrequest_safety_limit);
 });
 
+
+test("official PRC article metadata keeps the visible label beside each linked document", async () => {
+  const articleUrl = "https://www.prc.gov.ph/article/november-2026-veterinarians-computer-based-licensure-examination-results-released-one-1";
+  const html = `
+    <html><head><title>November 2026 Veterinarians Results Released | PRC</title></head>
+    <body><article>
+      <h5>November 2026 Veterinarians Computer-Based Licensure Examination Results Released</h5>
+      <p>The PRC announces that 1,083 out of 1,503 passed the Veterinarians Computer-Based Licensure Examination.</p>
+      <ul>
+        <li><a href="https://drive.google.com/file/d/1FullTextOfficialResult2026/view">Full text of the Official Result</a></li>
+        <li><a href="https://drive.google.com/file/d/1PerformanceSchools2026/view">Performance of Schools</a></li>
+        <li><a href="https://drive.google.com/file/d/1TopTenSuccessfulExaminees2026/view">Successful Examinees who garnered the top 10 highest places</a></li>
+        <li><a href="https://drive.google.com/file/d/1AlphabeticalRoster2026/view">List of Successful Examinees</a></li>
+      </ul>
+    </article></body></html>`;
+  const result = await fetchOfficialArticleMetadata(articleUrl, async () =>
+    new Response(html, { status: 200, headers: { "content-type": "text/html" } })
+  );
+  assert.equal(result.title, "November 2026 Veterinarians Results Released | PRC");
+  assert.deepEqual(result.links.map((link) => link.label), [
+    "Full text of the Official Result",
+    "Performance of Schools",
+    "Successful Examinees who garnered the top 10 highest places",
+    "List of Successful Examinees"
+  ]);
+});
 
 test("source activity classification is conservative and includes nested PDF outcomes", () => {
   assert.equal(classifySourceOutcome({ status: "unchanged" }), "success");
