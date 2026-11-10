@@ -133,7 +133,7 @@ For each affected test or test execution:
 
 - **Pass condition:** On a qualifying detection, the Watcher sends the configured `repository_dispatch` event to GitHub Actions.
 - **Evidence to retain:** Live production `prc-release-detected` dispatch was received by GitHub Actions as workflow run #42925562348 (run number 11), created at 2026-11-10T23:42:28Z from the production Watcher. This proves the real scheduled webhook reached the receiver. The downstream acquisition step safely stopped because four official documents were linked and the event had lost their visible labels. PR #177 now preserves article link labels and selects only the unique successful-examinee roster; the fix is deployed in Cloudflare Worker version `8082b63d-8412-4c8c-b1b8-97afc7061473`. A new real PRC announcement is still needed to verify the corrected selection through the downstream acquisition/Greenlight stages.
-- **Status:** `PARTIAL`
+- **Status:** `PASS`
 
 #### P1-09 — Official-source priority
 
