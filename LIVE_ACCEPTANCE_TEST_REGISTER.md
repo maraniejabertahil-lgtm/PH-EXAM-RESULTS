@@ -126,13 +126,13 @@ For each affected test or test execution:
 #### P1-07 — Change detection
 
 - **Pass condition:** A relevant change at an approved monitored official source is detected.
-- **Evidence to retain:** PRC homepage baseline and scheduled unchanged checks were verified live; no newly released official result article/change was observed during the audit window.
+- **Evidence to retain:** PRC homepage baseline and scheduled unchanged checks were verified live. Regression coverage now simulates a new official listing article while the ETag remains identical and verifies that bounded discovery still processes it. This is synthetic test evidence only; no newly released official result article/change has yet been observed in production.
 - **Status:** `PARTIAL`
 
 #### P1-08 — Webhook dispatch
 
 - **Pass condition:** On a qualifying detection, the Watcher sends the configured `repository_dispatch` event to GitHub Actions.
-- **Evidence to retain:** PR #18: two synthetic diagnostic `source-detected` events reached the production receiver and generated validation-only runs. No genuine scheduled production source detection dispatch has been observed.
+- **Evidence to retain:** PR #18: two synthetic diagnostic `source-detected` events reached the production receiver and generated validation-only runs. Regression tests exercise the unchanged-metadata listing path and bounded PDF-verification dispatch using mocked official-page responses. These tests do not count as a genuine scheduled production source detection; none has yet been observed.
 - **Status:** `PARTIAL`
 
 #### P1-09 — Official-source priority
