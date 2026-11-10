@@ -856,7 +856,7 @@ async function checkTarget(target, env, fetchImpl, now, allowPageChange) {
     }
     return { source_id: sourceId, url: target.url, status: "baseline_created" };
   }
-  if (previous === current) return { source_id: sourceId, url: target.url, status: "unchanged" };
+  if (previous === current && source.track_new_articles_only !== true) return { source_id: sourceId, url: target.url, status: "unchanged" };
   if (source.track_new_articles_only !== true) {
     try {
       await env.PEAK_WEEK.put(key, current, { expirationTtl: BASELINE_TTL_SECONDS });
@@ -999,6 +999,49 @@ function createSubrequestBudget(env, fetchImpl) {
   };
 }
 
+const SOURCE_OUTCOME_PRIORITY = { success: 0, warning: 1, blocked: 2, failed: 3 };
+
+export function classifySourceOutcome(result) {
+  const statuses = [];
+  const collect = (item) => {
+    if (!item || typeof item !== "object") return;
+    statuses.push(String(item.status || "unknown").toLowerCase());
+    if (Array.isArray(item.pdf_results)) item.pdf_results.forEach(collect);
+  };
+  collect(result);
+  const classify = (status) => {
+    if ([
+      "baseline_created", "unchanged", "changed", "changed_no_page_scan",
+      "dispatched", "already_dispatched", "article_snapshot_rebuilt_historical_skipped"
+    ].includes(status)) return "success";
+    if ([
+      "needs_human_review_no_dispatch", "manual_review_required",
+      "skipped_no_official_source_configured", "robots_disallowed"
+    ].includes(status) || status.includes("human_review")) return "blocked";
+    if ([
+      "official_listing_page_unavailable", "subrequest_budget_reached",
+      "budget_reached", "page_scan_error", "baseline_created_page_scan_error",
+      "error", "failed", "unavailable"
+    ].includes(status) || /(?:^|_)(?:error|failed|unavailable)(?:_|$)/.test(status)) return "failed";
+    if ([
+      "not_pdf", "recovered", "http_error_drive_fallback_recovered",
+      "article_has_no_matching_pdf_yet", "article_batch_pending",
+      "article_snapshot_pending", "pending"
+    ].includes(status) || /(?:^|_)(?:pending|not_pdf|recovered)(?:_|$)/.test(status)) return "warning";
+    return "warning";
+  };
+  return statuses.reduce((worst, status) => {
+    const outcome = classify(status);
+    return SOURCE_OUTCOME_PRIORITY[outcome] > SOURCE_OUTCOME_PRIORITY[worst] ? outcome : worst;
+  }, "success");
+}
+
+function worstOutcome(outcomes) {
+  return outcomes.reduce((worst, outcome) =>
+    SOURCE_OUTCOME_PRIORITY[outcome] > SOURCE_OUTCOME_PRIORITY[worst] ? outcome : worst,
+  "success");
+}
+
 export async function runScheduled({
   env, fetchImpl = fetch,
   sleepImpl = (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
@@ -1032,10 +1075,7 @@ export async function runScheduled({
       for (let index = 0; index < item.scan.results.length; index += 1) {
         const result = item.scan.results[index];
         const resultStatus = String(result.status || "unknown");
-        const outcome = /skipped|manual_review_required/.test(resultStatus)
-          ? "blocked"
-          : (/recovered|not_pdf/.test(resultStatus) ? "warning"
-            : (/error|failed|budget_reached/.test(resultStatus) ? "failed" : "success"));
+        const outcome = classifySourceOutcome(result);
         const sourceId = String(result.source_id || "unknown");
         activityEvents.push({
           event_id: executionId + ":source:" + item.phase + ":" + index + ":" + sourceId,
@@ -1089,10 +1129,17 @@ export async function runScheduled({
       second_check: second
     };
     console.log(JSON.stringify(report));
+    const sourceOutcomes = scans.flatMap((item) =>
+      item.scan.results.map((result) => classifySourceOutcome(result))
+    );
+    sourceOutcomes.push(scheduleOutcome);
+    const scheduledOutcome = worstOutcome(sourceOutcomes);
     activityEvents.push({
       event_id: executionId + ":finished", execution_id: executionId,
       occurred_at: new Date().toISOString(), operation: "scheduled_scan",
-      status: "success", duration_ms: Date.now() - startedAt,
+      status: scheduledOutcome,
+      severity: scheduledOutcome === "failed" ? "error" : (scheduledOutcome === "success" ? "info" : "warning"),
+      duration_ms: Date.now() - startedAt,
       message: "Watcher scheduled scan completed.",
       source: "cloudflare_worker",
       metadata: {

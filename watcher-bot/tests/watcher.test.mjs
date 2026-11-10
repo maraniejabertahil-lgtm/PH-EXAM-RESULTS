@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { runScheduled, expandPreemptiveTemplates } from "../src/index.js";
+import { runScheduled, expandPreemptiveTemplates, classifySourceOutcome } from "../src/index.js";
 import worker from "../src/index.js";
 
 const repository = "owner/repository";
@@ -833,7 +833,7 @@ test("PRC listing snapshots historical pages and processes newly posted result a
   };
   const { fetchImpl, dispatches } = githubFetch([source], async (url, init = {}) => {
     if (url === source.url && init.method === "HEAD") {
-      return new Response(null, { status: 200, headers: { etag: '"prc-listing-v' + listingVersion + '"', "content-type": "text/html" } });
+      return new Response(null, { status: 200, headers: { etag: '"prc-listing-stable"', "content-type": "text/html" } });
     }
     if (url === source.url && init.method === "GET") {
       return new Response(listingPage(0), { status: 200, headers: { "content-type": "text/html" } });
@@ -896,6 +896,17 @@ test("PRC listing snapshots historical pages and processes newly posted result a
   assert.ok(secondBatch.outbound_subrequests_used <= secondBatch.outbound_subrequest_safety_limit);
 });
 
+
+test("source activity classification is conservative and includes nested PDF outcomes", () => {
+  assert.equal(classifySourceOutcome({ status: "unchanged" }), "success");
+  assert.equal(classifySourceOutcome({ status: "article_snapshot_rebuilt_historical_skipped" }), "success");
+  assert.equal(classifySourceOutcome({ status: "needs_human_review_no_dispatch" }), "blocked");
+  assert.equal(classifySourceOutcome({ status: "official_listing_page_unavailable" }), "failed");
+  assert.equal(classifySourceOutcome({ status: "article_has_no_matching_pdf_yet" }), "warning");
+  assert.equal(classifySourceOutcome({ status: "changed", pdf_results: [{ status: "failed_pdf_check" }] }), "failed");
+  assert.equal(classifySourceOutcome({ status: "changed", pdf_results: [{ status: "article_batch_pending" }] }), "warning");
+  assert.equal(classifySourceOutcome({ status: "a_new_unrecognized_state" }), "warning");
+});
 
 test("scheduled Watcher discovers the nearest official PRC release and serves its cached endpoint", async () => {
   const scheduleSource = {
