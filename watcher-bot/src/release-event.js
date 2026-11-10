@@ -5,6 +5,7 @@ const EXAMS = [
   { code: "NLE", re: /\b(?:nurse licensure|nursing)\b/i },
   { code: "CLE", re: /\b(?:criminology|criminologist)\b/i },
   { code: "ELE", re: /\b(?:engineers? licensure|engineering licensure)\b/i },
+  { code: "VET", re: /\b(?:veterinarians?|veterinary medicine)\b/i },
 ];
 const LEVELS = {
   elementary: /\belementary\b/i,
@@ -34,11 +35,11 @@ function cleanContentUrls(links, articleUrl) {
     let u;
     try { u = new URL(l.url, articleUrl); } catch { continue; }
     if (u.protocol !== "https:") continue;
-    u.hash = "";                                   // drops #main, #footer, #page
-    if (u.href === new URL(articleUrl).href) continue;  // self-links
+    u.hash = "";
+    if (u.href === new URL(articleUrl).href) continue;
     const isDrive = u.hostname === "drive.google.com" && /^\/file\/d\/[^/]+\/view$/.test(u.pathname);
     const isPdf = u.pathname.toLowerCase().endsWith(".pdf");
-    if (!isDrive && !isPdf) continue;              // only result-list candidates
+    if (!isDrive && !isPdf) continue;
     if (seen.has(u.href)) continue;
     seen.add(u.href);
     out.push({ format: isPdf ? "pdf" : l.format, url: u.href });
