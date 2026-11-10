@@ -42,7 +42,7 @@ test("keeps unknown PRC exam titles in human review", () => {
 test("keeps articles with more than one recognized exam in human review", () => {
   const result = buildReleaseEvent(source, {
     ...officialArticle,
-    title: "November 2026 Veterinarians and Nurses Licensure Examination Results Released"
+    title: "November 2026 Certified Public Accountants and Veterinarians Licensure Examination Results Released"
   });
 
   assert.equal(result.ok, false);
