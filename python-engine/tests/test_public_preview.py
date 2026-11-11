@@ -7,6 +7,7 @@ from unittest.mock import patch
 
 from acquisition.public_preview import PublicPreviewCaptureError, load_public_preview_capture
 from main import PipelineError, _approved_public_preview_source, process_batch, publish_batch
+from publication_policy import requires_owner_visual_review
 
 
 def digest(path):
@@ -433,9 +434,6 @@ class PublicPreviewCaptureTests(unittest.TestCase):
         gitops.assert_not_called()
 
 
-if __name__ == "__main__":
-    unittest.main()
-
     def test_lept_secondary_public_preview_accepts_901_pages_and_rejects_over_limit(self):
         article_url = "https://prc.gov.ph/article/march-2026-licensure-examination-professional-teachers-results-released-thirty-nine-39"
         listing_source = {
@@ -507,3 +505,20 @@ if __name__ == "__main__":
                 batch, root=self.root, exam_listing_source=listing_source
             )
 
+    def test_lept_2026_rosters_require_owner_visual_review_even_with_source_wide_auto_publish(self):
+        repository_root = Path(__file__).resolve().parents[2]
+        for exam in ("LEPT-ELEMENTARY", "LEPT-SECONDARY"):
+            batch = {
+                "official_content_mode": "public_preview_capture",
+                "source_id": "PRC-EXAM-RESULTS-HOMEPAGE",
+                "exam": exam,
+                "year": 2026,
+            }
+            self.assertTrue(
+                requires_owner_visual_review(batch, root=repository_root),
+                exam + " must wait for the Owner's exact visual-review receipt",
+            )
+
+
+if __name__ == "__main__":
+    unittest.main()

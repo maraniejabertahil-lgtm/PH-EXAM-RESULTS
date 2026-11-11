@@ -10,13 +10,16 @@ on:
       - "watcher-bot/tests/release-event.test.mjs"
       - "python-engine/prc_orchestrator.py"
       - "python-engine/main.py"
-      - "python-engine/tests/test_public_preview.py"
       - "python-engine/config/sources.json"
       - "python-engine/config/adapter_mappings.json"
       - ".github/workflows/prc-lept-march-2026-live-retrieval.yml"
 
 permissions:
   contents: read
+
+concurrency:
+  group: prc-lept-march-2026-live-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   retrieve-elementary-passers:
