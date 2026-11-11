@@ -340,10 +340,12 @@ def publish_lept_pair(
     combined_report = build_combined_greenlight_report(records_by_exam, owner_reviews)
 
     client = GitHubGitOps(os.environ.get("GITHUB_REPOSITORY", ""))
+    publication_run_id = os.getenv("GITHUB_RUN_ID") or run_id
     opened = client.open_dataset_pr(
         artifacts=artifacts,
         greenlight_report=combined_report,
         title="Publish PRC March 2026 LET Elementary and Secondary results",
+        branch_name=f"data/lept-pair-{publication_run_id}-{combined_report['records_sha256'][:8]}",
     )
     publication = client.dispatch_ci_and_merge(
         pull_request_number=opened["pull_request_number"],
