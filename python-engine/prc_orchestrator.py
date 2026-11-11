@@ -46,6 +46,8 @@ REQUIRED_EVENT_FIELDS = (
     "exam_year", "list_type", "content_urls", "detected_at",
 )
 MAX_CONTENT_BYTES = 25 * 1024 * 1024
+MAX_PUBLIC_PREVIEW_PAGES = 2000
+PRC_HOSTS = {"www.prc.gov.ph", "prc.gov.ph"}
 TRANSIENT_HTTP_STATUSES = {408, 425, 429, 500, 502, 503, 504}
 HERE = Path(__file__).parent
 
@@ -153,7 +155,9 @@ def _approved_source(event: dict, registry_path: str | Path | None) -> dict:
         raise NeedsReviewError("Automatic acquisition is disabled for this PRC source.")
     if event["exam_code"] != "LICENSURE-EXAM-RESULTS" and source.get("exam_scope") != "all":
         raise NeedsReviewError("The approved PRC source does not cover this examination.")
-    if urlsplit(event["article_url"]).hostname.lower() != urlsplit(source["url"]).hostname.lower():
+    source_host = (urlsplit(source["url"]).hostname or "").lower()
+    article_host = (urlsplit(event["article_url"]).hostname or "").lower()
+    if source_host != article_host and not (source_host in PRC_HOSTS and article_host in PRC_HOSTS):
         raise NeedsReviewError("The result article is outside the approved PRC source origin.")
 
     exam_identity = event["exam_code"]
@@ -358,8 +362,10 @@ def _approved_public_preview(
     else:
         raise NeedsReviewError("Configured public acquisition method is not approved.")
     max_pages = settings.get("max_pages", 1 if method == "ordinary_public_page_ui" else None)
-    if isinstance(max_pages, bool) or not isinstance(max_pages, int) or not 1 <= max_pages <= 400:
-        raise NeedsReviewError("Exam-specific public-preview page cap must be between 1 and 400.")
+    if isinstance(max_pages, bool) or not isinstance(max_pages, int) or not 1 <= max_pages <= MAX_PUBLIC_PREVIEW_PAGES:
+        raise NeedsReviewError(
+            f"Exam-specific public-preview page cap must be between 1 and {MAX_PUBLIC_PREVIEW_PAGES}."
+        )
     return source, settings
 
 
