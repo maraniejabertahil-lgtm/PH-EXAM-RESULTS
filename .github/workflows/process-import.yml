@@ -390,6 +390,147 @@ jobs:
             event.json
           retention-days: 7
 
+  publish-owner-reviewed-lept-pair:
+    if: github.event_name == 'workflow_dispatch' && inputs.lept_pair_run_id != '' && inputs.review_run_id == ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: write
+      pull-requests: write
+      actions: write
+    steps:
+      - name: Require owner-dispatched atomic LEPT publication from main
+        env:
+          LEPT_PAIR_RUN_ID: ${{ inputs.lept_pair_run_id }}
+          REPOSITORY_OWNER: ${{ github.repository_owner }}
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF" = "refs/heads/main" || { echo "::error::LEPT publication may only run from main."; exit 1; }
+          test "$GITHUB_ACTOR" = "$REPOSITORY_OWNER" || { echo "::error::Only the repository owner may publish reviewed LEPT results."; exit 1; }
+          [[ "$LEPT_PAIR_RUN_ID" =~ ^[0-9]+$ ]] || { echo "::error::lept_pair_run_id must be numeric."; exit 1; }
+
+      - name: Check out the main-branch publication pipeline
+        uses: actions/checkout@v5
+        with:
+          ref: main
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Install Python engine dependencies
+        working-directory: python-engine
+        run: python -m pip install -r requirements.txt
+
+      - name: Verify the exact source retrieval run completed successfully
+        env:
+          LEPT_PAIR_RUN_ID: ${{ inputs.lept_pair_run_id }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+          import urllib.request
+
+          repository = os.environ["REPOSITORY"]
+          run_id = os.environ["LEPT_PAIR_RUN_ID"]
+          request = urllib.request.Request(
+              f"https://api.github.com/repos/{repository}/actions/runs/{run_id}",
+              headers={
+                  "Accept": "application/vnd.github+json",
+                  "Authorization": f"Bearer {os.environ['GITHUB_TOKEN']}",
+                  "X-GitHub-Api-Version": "2022-11-28",
+                  "User-Agent": "PH-EXAM-RESULTS-LEPT-Publisher",
+              },
+          )
+          with urllib.request.urlopen(request, timeout=20) as response:
+              run = json.loads(response.read().decode("utf-8"))
+          if (
+              run.get("status") != "completed"
+              or run.get("conclusion") != "success"
+              or run.get("path") != ".github/workflows/prc-lept-march-2026-live-retrieval.yml"
+              or run.get("head_repository", {}).get("full_name") != repository
+              or run.get("head_branch") != "feat/prc-humanized-multi-list-routing"
+          ):
+              raise SystemExit("Selected run is not the successful, exact March 2026 LEPT live-retrieval run.")
+          print("Exact two-level live-retrieval run verified:", run_id)
+          PY
+
+      - name: Download both exact LEPT result artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: prc-lept-*-passer-retrieval-${{ inputs.lept_pair_run_id }}
+          merge-multiple: false
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          repository: ${{ github.repository }}
+          run-id: ${{ inputs.lept_pair_run_id }}
+          path: prc-lept-artifacts
+
+      - name: Restore the two candidate workspaces
+        env:
+          LEPT_PAIR_RUN_ID: ${{ inputs.lept_pair_run_id }}
+        run: |
+          set -euo pipefail
+          ELEMENTARY="prc-lept-artifacts/prc-lept-elementary-passer-retrieval-$LEPT_PAIR_RUN_ID/prc-lept-elementary-output"
+          SECONDARY="prc-lept-artifacts/prc-lept-secondary-passer-retrieval-$LEPT_PAIR_RUN_ID/prc-lept-secondary-output"
+          test -f "$ELEMENTARY/release-batch.json" || { echo "::error::Elementary candidate artifact is missing."; exit 1; }
+          test -f "$SECONDARY/release-batch.json" || { echo "::error::Secondary candidate artifact is missing."; exit 1; }
+          mkdir -p prc-lept-elementary-output prc-lept-secondary-output
+          cp -a "$ELEMENTARY/." prc-lept-elementary-output/
+          cp -a "$SECONDARY/." prc-lept-secondary-output/
+
+      - name: Save both exact Owner review receipts
+        env:
+          ELEMENTARY_RECEIPT_JSON: ${{ inputs.elementary_owner_review_receipt }}
+          SECONDARY_RECEIPT_JSON: ${{ inputs.secondary_owner_review_receipt }}
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          for key, path in (
+              ("ELEMENTARY_RECEIPT_JSON", "prc-lept-artifacts/elementary-owner-review-receipt.json"),
+              ("SECONDARY_RECEIPT_JSON", "prc-lept-artifacts/secondary-owner-review-receipt.json"),
+          ):
+              raw = os.environ.get(key, "")
+              if not raw.strip():
+                  raise SystemExit(f"Missing required Owner review receipt: {key}")
+              try:
+                  receipt = json.loads(raw)
+              except json.JSONDecodeError as exc:
+                  raise SystemExit(f"{key} is not valid JSON: {exc}")
+              if not isinstance(receipt, dict):
+                  raise SystemExit(f"{key} must be a JSON object.")
+              Path(path).write_text(
+                  json.dumps(receipt, ensure_ascii=False, indent=2) + "\n",
+                  encoding="utf-8",
+              )
+          PY
+
+      - name: Publish both Owner-approved LEPT lists in one atomic dataset PR
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          python python-engine/publish_lept_pair.py \
+            --run-id "${{ inputs.lept_pair_run_id }}" \
+            --elementary-batch prc-lept-elementary-output/release-batch.json \
+            --secondary-batch prc-lept-secondary-output/release-batch.json \
+            --elementary-receipt prc-lept-artifacts/elementary-owner-review-receipt.json \
+            --secondary-receipt prc-lept-artifacts/secondary-owner-review-receipt.json
+
+      - name: Preserve atomic LEPT publication report
+        if: always() && hashFiles('python-engine/artifacts/lept-pair-publication-report.json') != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: prc-lept-pair-publication-${{ github.run_id }}
+          path: python-engine/artifacts/lept-pair-publication-report.json
+          retention-days: 30
+
   publish-owner-reviewed-preview:
     if: github.event_name == 'workflow_dispatch' && inputs.review_run_id != '' && inputs.lept_pair_run_id == ''
     runs-on: ubuntu-latest
