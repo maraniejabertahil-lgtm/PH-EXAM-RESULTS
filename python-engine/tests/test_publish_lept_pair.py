@@ -1,4 +1,5 @@
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -51,7 +52,7 @@ class CombinedLeptPublicationTests(unittest.TestCase):
         self.assertTrue(all(report["checks"].values()))
 
     def test_only_exact_owner_reviewed_source_entries_are_temporarily_enabled(self):
-        with __import__("tempfile").TemporaryDirectory() as temporary:
+        with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             config = root / "python-engine" / "config"
             config.mkdir(parents=True)
