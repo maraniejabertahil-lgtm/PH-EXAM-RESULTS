@@ -26,6 +26,42 @@ async function sha256(bytes) {
   return bytesToHex(await crypto.subtle.digest("SHA-256", bytes));
 }
 
+function validScreenshotPath(value) {
+  return typeof value === "string"
+    && value.length > 0 && value.length <= 500
+    && !value.startsWith("/") && !value.includes("\\")
+    && !value.split("/").some((part) => !part || part === "." || part === "..")
+    && /\.(?:png|jpe?g|webp)$/i.test(value);
+}
+
+export async function validateScreenshotFiles(bundle, fileList) {
+  const files = Array.from(fileList ?? []);
+  const urls = new Map();
+  for (const item of bundle.evidence) {
+    const key = item.screenshot_path ?? item.sha256;
+    if (typeof item.image_data === "string") {
+      urls.set(key, item.image_data);
+      continue;
+    }
+    const matches = files.filter((file) => {
+      const relativePath = String(file.webkitRelativePath || file.name || "").replaceAll("\\", "/");
+      return relativePath.endsWith(item.screenshot_path);
+    });
+    if (matches.length !== 1) {
+      throw new Error(`Expected exactly one local screenshot for ${item.screenshot_path}; found ${matches.length}.`);
+    }
+    const file = matches[0];
+    if (!/^image\/(?:png|jpeg|webp)$/i.test(file.type) || file.size > 20 * 1024 * 1024) {
+      throw new Error(`Screenshot file type or size is not allowed: ${item.screenshot_path}.`);
+    }
+    if (await sha256(await file.arrayBuffer()) !== item.sha256) {
+      throw new Error(`Screenshot SHA-256 does not match the review bundle: ${item.screenshot_path}.`);
+    }
+    urls.set(item.screenshot_path, URL.createObjectURL(file));
+  }
+  return urls;
+}
+
 export async function validateReviewBundle(value) {
   if (!value || value.schema_version !== 1 || typeof value.authority !== "string"
       || typeof value.exam !== "string" || !Number.isInteger(value.year)
@@ -66,14 +102,17 @@ export async function validateReviewBundle(value) {
         || typeof item.expected_visible_text !== "string"
         || !item.expected_visible_text.trim()
         || !/^[a-f0-9]{64}$/.test(item.sha256)
-        || typeof item.image_data !== "string"
-        || !/^data:image\/(?:png|jpeg|webp);base64,[A-Za-z0-9+/]+={0,2}$/.test(item.image_data)) {
+        || (typeof item.image_data !== "string" && !validScreenshotPath(item.screenshot_path))
+        || (typeof item.image_data === "string"
+          && !/^data:image\/(?:png|jpeg|webp);base64,[A-Za-z0-9+/]+={0,2}$/.test(item.image_data))) {
       throw new Error("Review bundle contains invalid visual evidence.");
     }
-    const [, mime, encoded] = item.image_data.match(/^data:(image\/(?:png|jpeg|webp));base64,(.+)$/);
-    const bytes = Uint8Array.from(atob(encoded), (character) => character.charCodeAt(0));
-    if (await sha256(bytes) !== item.sha256 || !mime.startsWith("image/")) {
-      throw new Error("Visual evidence integrity check failed.");
+    if (typeof item.image_data === "string") {
+      const [, mime, encoded] = item.image_data.match(/^data:(image\/(?:png|jpeg|webp));base64,(.+)$/);
+      const bytes = Uint8Array.from(atob(encoded), (character) => character.charCodeAt(0));
+      if (await sha256(bytes) !== item.sha256 || !mime.startsWith("image/")) {
+        throw new Error("Visual evidence integrity check failed.");
+      }
     }
     for (const sequence of sequences) coveredSequences.add(sequence);
   }
