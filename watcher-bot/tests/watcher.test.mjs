@@ -1016,6 +1016,7 @@ test("Watcher fans out LEPT rosters independently and retries only the list whos
       <a href="https://drive.google.com/file/d/1Top10Secondary/view">Successful Examinees who garnered the top 10 highest places for Secondary</a>
       <a href="https://drive.google.com/file/d/1ElementaryRoster/view">List of Successful Examinees for Elementary</a>
       <a href="https://drive.google.com/file/d/1SecondaryRoster/view">List of Successful Examinees for Secondary</a>
+      <a href="https://drive.google.com/file/d/1UnknownRoster/view">Roll of Successful Examinees</a>
     </body></html>`;
   let listingVersion = 1;
   let failSecondaryOnce = true;
@@ -1061,7 +1062,8 @@ test("Watcher fans out LEPT rosters independently and retries only the list whos
   const partialResults = partial.first_check.results[0].pdf_results;
   assert.deepEqual(partialResults.map((item) => item.status), [
     "prc-release-event-dispatched",
-    "dispatch_failed_manual_review_required"
+    "dispatch_failed_retryable",
+    "attachment_pending_automatic_retry"
   ]);
   assert.deepEqual(dispatchAttempts.map((event) => event.result_level), ["elementary", "secondary"]);
   assert.deepEqual(dispatchAttempts.map((event) => event.announced_count), [18376, 45001]);
@@ -1075,7 +1077,8 @@ test("Watcher fans out LEPT rosters independently and retries only the list whos
   const retryResults = retried.first_check.results[0].pdf_results;
   assert.deepEqual(retryResults.map((item) => item.status), [
     "already_dispatched",
-    "prc-release-event-dispatched"
+    "prc-release-event-dispatched",
+    "attachment_pending_automatic_retry"
   ]);
   assert.equal(dispatchAttempts.length, 3, "the successful Elementary list must not be dispatched twice");
   assert.equal(dispatchAttempts[2].result_level, "secondary");
