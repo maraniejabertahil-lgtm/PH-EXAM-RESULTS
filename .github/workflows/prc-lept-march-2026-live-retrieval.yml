@@ -18,7 +18,7 @@ on:
       - "python-engine/config/adapter_mappings.json"
       - ".github/workflows/prc-lept-march-2026-live-retrieval.yml"
 
-workflow_dispatch:
+  workflow_dispatch:
     inputs:
       worker_only:
         description: "Run only the live production Worker check; skip the two full roster captures."
