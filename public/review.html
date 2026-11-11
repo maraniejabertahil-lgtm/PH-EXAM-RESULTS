@@ -21,11 +21,15 @@
     <section class="search-panel" aria-labelledby="page-title">
       <p class="eyebrow">LOCAL REVIEW WORKFLOW</p>
       <h1 id="page-title">Review source evidence and records</h1>
-      <p class="intro">Choose a review bundle created from the validated capture. The bundle stays in this browser; this page does not upload it or send searches to a server.</p>
+      <p class="intro">Choose the review bundle JSON and the unzipped GitHub Actions artifact folder. The bundle and screenshots stay in this browser; this page does not upload them or send searches to a server.</p>
       <p class="review-warning"><strong>Important:</strong> This tool does not authenticate reviewers. A downloaded receipt is not an approval by itself. Commit the receipt through the authorized GitHub review process; publication remains blocked unless the receipt matches the exact candidate.</p>
       <label class="name-field" for="bundle-file">Review bundle JSON
         <input id="bundle-file" type="file" accept="application/json,.json">
       </label>
+      <label class="name-field" for="evidence-files">Unzipped capture artifact folder
+        <input id="evidence-files" type="file" webkitdirectory directory multiple accept="image/png,image/jpeg,image/webp">
+      </label>
+      <p class="result-note">Select the top-level extracted artifact folder. The browser checks every screenshot against the SHA-256 value in the review bundle.</p>
       <p id="review-status" class="status-message" role="status" aria-live="polite">Select a validated review bundle.</p>
     </section>
 
