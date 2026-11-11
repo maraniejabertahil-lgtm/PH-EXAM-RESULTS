@@ -80,7 +80,24 @@ jobs:
 
           const articleUrl = "https://prc.gov.ph/article/march-2026-licensure-examination-professional-teachers-results-released-thirty-nine-39";
           const expectedRosterUrl = "https://drive.google.com/file/d/1kY0CTSuwdxDwnf1UEvWe27HDEXU3rolE/view?usp=sharing";
-          const article = await fetchOfficialArticleMetadata(articleUrl, fetch);
+          const retryingOfficialFetch = async (url, init) => {
+            const target = new URL(url);
+            if (!["prc.gov.ph", "www.prc.gov.ph"].includes(target.hostname.toLowerCase())) {
+              return fetch(url, init);
+            }
+            let lastError;
+            for (let attempt = 1; attempt <= 4; attempt += 1) {
+              try {
+                return await fetch(url, init);
+              } catch (error) {
+                lastError = error;
+                if (attempt === 4) break;
+                await new Promise((resolve) => setTimeout(resolve, 1500 * (2 ** (attempt - 1))));
+              }
+            }
+            throw lastError;
+          };
+          const article = await fetchOfficialArticleMetadata(articleUrl, retryingOfficialFetch);
           const built = buildReleaseEvent(
             { id: "PRC-EXAM-RESULTS-HOMEPAGE", authority: "PRC" },
             article,
@@ -474,7 +491,24 @@ jobs:
 
           const articleUrl = "https://prc.gov.ph/article/march-2026-licensure-examination-professional-teachers-results-released-thirty-nine-39";
           const expectedRosterUrl = "https://drive.google.com/file/d/1RFuFGN4D1T3hkGC-iib9pRmJP1vJiJJ7/view?usp=sharing";
-          const article = await fetchOfficialArticleMetadata(articleUrl, fetch);
+          const retryingOfficialFetch = async (url, init) => {
+            const target = new URL(url);
+            if (!["prc.gov.ph", "www.prc.gov.ph"].includes(target.hostname.toLowerCase())) {
+              return fetch(url, init);
+            }
+            let lastError;
+            for (let attempt = 1; attempt <= 4; attempt += 1) {
+              try {
+                return await fetch(url, init);
+              } catch (error) {
+                lastError = error;
+                if (attempt === 4) break;
+                await new Promise((resolve) => setTimeout(resolve, 1500 * (2 ** (attempt - 1))));
+              }
+            }
+            throw lastError;
+          };
+          const article = await fetchOfficialArticleMetadata(articleUrl, retryingOfficialFetch);
           const built = buildReleaseEvent(
             { id: "PRC-EXAM-RESULTS-HOMEPAGE", authority: "PRC" },
             article,
