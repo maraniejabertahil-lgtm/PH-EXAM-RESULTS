@@ -934,7 +934,7 @@ test("source activity classification is conservative and includes nested PDF out
   assert.equal(classifySourceOutcome({ status: "a_new_unrecognized_state" }), "warning");
 });
 
-test("scheduled Watcher discovers the nearest official PRC release and serves its cached endpoint", async () => {
+test("scheduled Watcher discovers the nearest official PRC release and rejects its old public snapshot", async () => {
   const scheduleSource = {
     id: "PRC-OFFICIAL-SCHEDULE-INDEX",
     authority: "PRC",
@@ -981,7 +981,7 @@ test("scheduled Watcher discovers the nearest official PRC release and serves it
     new Request("https://watcher.example/api/releases/upcoming"),
     env
   );
-  assert.equal(response.status, 200);
+  assert.equal(response.status, 503);
   const payload = await response.json();
-  assert.equal(payload.nearest.exam, "Veterinarians");
+  assert.equal(payload.status, "stale");
 });
