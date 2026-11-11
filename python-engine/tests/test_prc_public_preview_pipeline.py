@@ -157,7 +157,7 @@ class PRCPublicPreviewPipelineTests(unittest.TestCase):
         self.assertEqual(key, "LEPT:elementary:2026:public_preview")
         self.assertEqual(
             parse_public_preview_snapshots(
-                [{"text": "Page 2 of 368\\n51 ABAPO, REJEAN DUMAYON"}],
+                [{"text": "Page 2 of 368\n51 ABAPO, REJEAN DUMAYON"}],
                 mapping,
             ),
             [(51, "ABAPO, REJEAN DUMAYON")],
