@@ -26,6 +26,7 @@ CHALLENGE_TERMS = (
 )
 MAX_SHARDS = 16
 MAX_PAGES = 2000
+DEFAULT_PAGE_COUNT_REGEX = r"Page \d+ of\s+(\d+)"
 
 
 class AccessChallengeError(RuntimeError):
@@ -97,7 +98,7 @@ def capture_shard(
     *, preview_url: str, shard: int, shard_count: int, output_dir: Path,
     allowed_hosts: set[str], user_agent: str = DEFAULT_USER_AGENT,
     page_control_selector: str = 'input[aria-label^="Page is"]',
-    page_count_regex: str = r"Page 1 of\s+(\d+)",
+    page_count_regex: str = DEFAULT_PAGE_COUNT_REGEX,
     page_marker_template: str = "Page {page} of {count}",
     per_page_deadline: int = 35, poll_ms: int = 50, max_pages: int = MAX_PAGES,
 ) -> dict:
@@ -160,10 +161,11 @@ def capture_shard(
             loop_started = time.monotonic()
 
             for page_number in range(start, end + 1):
-                if page_number > 1:
-                    control.click()
-                    control.fill(str(page_number))
-                    control.press("Enter")
+                # Some Drive previews open on page 2 or another content page.
+                # Always navigate to the exact requested page, including page 1.
+                control.click()
+                control.fill(str(page_number))
+                control.press("Enter")
                 marker = page_marker_template.format(page=page_number, count=page_count)
                 deadline = time.monotonic() + per_page_deadline
                 stable_samples, previous_text, visible = 0, None, ""
