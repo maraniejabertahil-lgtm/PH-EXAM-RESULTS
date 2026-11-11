@@ -115,10 +115,17 @@ export function buildReleaseEvent(source, article, options = {}) {
   if (codes[0] === "LEPT" && titleLevels.length === 1 && titleLevels[0] !== requestedLevel) {
     return review("requested LEPT result level conflicts with the official article title");
   }
+  if (requestedLevel && !LEVEL_NAMES.includes(requestedLevel)) {
+    return review("unsupported result level");
+  }
 
   let links = cleanContentUrls(Array.isArray(article.links) ? article.links : [], articleUrl.href)
     .map((link) => ({ ...link, format: guessFormat(link.url) }))
     .filter((link) => link.format);
+  if (options.contentUrl) {
+    links = links.filter((link) => link.url === options.contentUrl);
+    if (links.length !== 1) return review("selected official passer-list attachment was not found exactly once");
+  }
   if (!links.length) return review("no supported official linked content found");
   const rosterLinks = links.filter((link) =>
     /\b(?:list|roll)\s+of\s+successful\s+examinees\b/i.test(link.label) ||
@@ -146,16 +153,20 @@ export function buildReleaseEvent(source, article, options = {}) {
   if (!links.length) return review("no supported official linked content found");
   links = links.map(({ url, format }) => ({ url, format }));
 
-  const countPatterns = codes[0] === "LEPT"
-    ? [new RegExp("\\b([\\d,]{3,})\\s+" + requestedLevel + "\\s+teachers?\\s+out of\\b", "i")]
-    : [
-        /\b([\d,]{3,})\s+(?:(?:elementary|secondary)\s+)?(?:teachers?\s+)?(?:out of|successfully passed|passed)\b/i,
-        /\b([\d,]{3,})\s+(?:successful examinees|passers|examinees)\b/i,
-      ];
-  let announcedCount = null;
-  for (const pattern of countPatterns) {
-    const match = hay.match(pattern);
-    if (match) {
+  let announcedCount = Number.isSafeInteger(options.announcedCount) && options.announcedCount > 0
+    ? options.announcedCount
+    : null;
+  if (announcedCount === null && requestedLevel) {
+    announcedCount = findLevelAnnouncedCount(hay, requestedLevel);
+  }
+  if (announcedCount === null && codes[0] !== "LEPT") {
+    const countPatterns = [
+      /\\b([\\d,]{3,})\\s+(?:(?:elementary|secondary)\\s+)?(?:teachers?\\s+)?(?:out of|successfully passed|passed)\\b/i,
+      /\\b([\\d,]{3,})\\s+(?:successful examinees|passers|examinees)\\b/i,
+    ];
+    for (const pattern of countPatterns) {
+      const match = hay.match(pattern);
+      if (!match) continue;
       const parsed = Number(match[1].replace(/,/g, ""));
       if (Number.isSafeInteger(parsed) && parsed > 0) {
         announcedCount = parsed;
@@ -165,6 +176,9 @@ export function buildReleaseEvent(source, article, options = {}) {
   }
   if (codes[0] === "LEPT" && announcedCount === null) {
     return review("official article does not state an announced passer count for " + requestedLevel);
+  }
+  if (options.requireAnnouncedCount === true && announcedCount === null) {
+    return review("official article does not state a separate announced passer count for " + requestedLevel);
   }
 
   return {
@@ -177,7 +191,7 @@ export function buildReleaseEvent(source, article, options = {}) {
       exam_title: title,
       exam_year: Number(years[0]),
       exam_date: null,
-      result_level: codes[0] === "LEPT" ? requestedLevel : (titleLevels[0] || null),
+      result_level: requestedLevel || (titleLevels.length === 1 ? titleLevels[0] : null),
       list_type: "successful_examinees",
       announced_count: announcedCount,
       content_urls: links,
