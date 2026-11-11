@@ -23,6 +23,8 @@
   Use for: Path: automation.
  • Path: programming/extract structured/SKILL.md
   Use for: Path: extract structured Markdown/JSON.
+ • Path: programming/Extract text/SKILL.md
+  Use for: Path: Extract text from images, PDFs and URLs.
 
 ## Writing
 - Professional Writing
