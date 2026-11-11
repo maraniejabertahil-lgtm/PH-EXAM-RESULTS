@@ -6,7 +6,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from acquisition.public_preview import PublicPreviewCaptureError, load_public_preview_capture
-from main import PipelineError, process_batch, publish_batch
+from main import PipelineError, _approved_public_preview_source, process_batch, publish_batch
 
 
 def digest(path):
@@ -435,3 +435,75 @@ class PublicPreviewCaptureTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+    def test_lept_secondary_public_preview_accepts_901_pages_and_rejects_over_limit(self):
+        article_url = "https://prc.gov.ph/article/march-2026-licensure-examination-professional-teachers-results-released-thirty-nine-39"
+        listing_source = {
+            "id": "PRC-EXAM-RESULTS-HOMEPAGE",
+            "authority": "PRC",
+            "exam": "LICENSURE-EXAM-RESULTS",
+            "exam_scope": "all",
+            "source_type": "official",
+            "authorized": True,
+            "enabled": True,
+            "url": "https://www.prc.gov.ph/articles/exam-results",
+            "allow_linked_drive_documents": True,
+        }
+        specific_source = {
+            "id": "PRC-LEPT-SECONDARY-2026-03-OFFICIAL-LIST",
+            "authority": "PRC",
+            "exam": "LEPT-SECONDARY-2026",
+            "year": 2026,
+            "source_type": "official",
+            "authorized": True,
+            "enabled": True,
+            "auto_acquire": True,
+            "url": article_url,
+            "drive_file_ids": ["1RFuFGN4D1T3hkGC-iib9pRmJP1vJiJJ7"],
+            "allow_linked_drive_documents": True,
+            "robots_policy_verified": True,
+            "robots_policy_url": "https://prc.gov.ph/robots.txt",
+            "public_preview": {
+                "enabled": True,
+                "method": "ordinary_public_preview_ui",
+                "allowed_hosts": ["drive.google.com"],
+                "max_pages": 901,
+            },
+        }
+        registry_path = self.root / "python-engine/config/sources.json"
+        registry_path.write_text(
+            json.dumps({"sources": [listing_source, specific_source]}),
+            encoding="utf-8",
+        )
+        batch = {
+            "authority": "PRC",
+            "exam": "LEPT-SECONDARY",
+            "level": "secondary",
+            "year": 2026,
+            "source_id": listing_source["id"],
+            "exam_specific_source_id": specific_source["id"],
+            "official_source_url": listing_source["url"],
+            "official_article_url": article_url,
+            "official_content_url": "https://drive.google.com/file/d/1RFuFGN4D1T3hkGC-iib9pRmJP1vJiJJ7/view?usp=sharing",
+            "public_preview_url": "https://drive.google.com/file/d/1RFuFGN4D1T3hkGC-iib9pRmJP1vJiJJ7/preview",
+            "public_preview_allowed_hosts": ["drive.google.com"],
+            "public_preview_method": "ordinary_public_preview_ui",
+            "official_content_mode": "public_preview_capture",
+        }
+
+        approved = _approved_public_preview_source(
+            batch, root=self.root, exam_listing_source=listing_source
+        )
+        self.assertEqual(approved["id"], specific_source["id"])
+        self.assertEqual(approved["public_preview"]["max_pages"], 901)
+
+        specific_source["public_preview"]["max_pages"] = 2001
+        registry_path.write_text(
+            json.dumps({"sources": [listing_source, specific_source]}),
+            encoding="utf-8",
+        )
+        with self.assertRaisesRegex(PipelineError, "enabled exam-specific public-preview source"):
+            _approved_public_preview_source(
+                batch, root=self.root, exam_listing_source=listing_source
+            )
+
