@@ -419,5 +419,148 @@ class PRCPublicPreviewPipelineTests(unittest.TestCase):
                 )
 
 
+    def test_vet_public_view_only_roster_uses_tier2_after_direct_html_response(self):
+        article_url = "https://www.prc.gov.ph/article/november-2026-veterinarians-computer-based-licensure-examination-results-released-one-1"
+        content_url = "https://drive.google.com/file/d/1y6DT1PZG8lLlqlAHAqPVoKB3cKKy74l0/view?usp=sharing"
+        file_id = "1y6DT1PZG8lLlqlAHAqPVoKB3cKKy74l0"
+        vet_source = {
+            "id": "PRC-VET-2026-11-OFFICIAL-LIST",
+            "authority": "PRC",
+            "exam": "VET-2026",
+            "source_type": "official",
+            "authorized": True,
+            "enabled": True,
+            "auto_acquire": True,
+            "url": article_url,
+            "drive_file_ids": [file_id],
+            "allow_linked_drive_documents": True,
+            "robots_policy_verified": True,
+            "robots_policy_url": "https://www.prc.gov.ph/robots.txt",
+            "public_preview": {
+                "enabled": True,
+                "method": "ordinary_public_preview_ui",
+                "shards": 4,
+                "allowed_hosts": ["drive.google.com"],
+                "max_pages": 30,
+            },
+        }
+        registry_path = self.root / "python-engine/config/sources.json"
+        registry_path.write_text(
+            json.dumps({"sources": [LISTING_SOURCE, vet_source]}),
+            encoding="utf-8",
+        )
+        mapping = {
+            "record_pattern": r"^\s*(?P<sequence>\d{1,4})\s+(?P<name>[^\W\d_][\w\s,.'’()\-]+?)\s*$",
+            "require_comma_in_name": True,
+        }
+        mapping_path = self.root / "python-engine/config/adapter_mappings.json"
+        mapping_path.write_text(
+            json.dumps({"VET:2026:public_preview": mapping}),
+            encoding="utf-8",
+        )
+        payload = {
+            "schema_version": "1",
+            "source_id": LISTING_SOURCE["id"],
+            "article_url": article_url,
+            "exam_code": "VET",
+            "exam_title": "November 2026 Veterinarians Computer-Based Licensure Examination Results Released in One (1) Working Day",
+            "exam_year": 2026,
+            "list_type": "successful_examinees",
+            "announced_count": 2,
+            "content_urls": [{"url": content_url, "format": "pdf"}],
+            "detected_at": "2026-11-11T00:00:00Z",
+        }
+        calls = []
+
+        def capture_vet_preview(*, preview_url, output_dir, settings):
+            self.assertEqual(preview_url, content_url.replace("/view?usp=sharing", "/preview"))
+            self.assertEqual(settings["max_pages"], 30)
+            output_dir.mkdir(parents=True, exist_ok=True)
+            texts = [
+                "Page 1 of 2\n1 ABAD, JEM ELYZA SALAZAR",
+                "Page 2 of 2\n2 ABAD, MARIA LOURDES SALAZAR",
+            ]
+            screenshots = []
+            page_index = []
+            for page_number, page_text in enumerate(texts, start=1):
+                screenshot_name = f"page-{page_number:04d}.png"
+                screenshot = output_dir / screenshot_name
+                screenshot.write_bytes(f"vet-preview-page-{page_number}".encode())
+                screenshot_hash = digest(screenshot)
+                screenshots.append({
+                    "viewer_page": page_number,
+                    "path": screenshot_name,
+                    "sha256": screenshot_hash,
+                })
+                page_index.append({
+                    "viewer_page": page_number,
+                    "sha256": hashlib.sha256(page_text.encode()).hexdigest(),
+                    "screenshot_sha256": screenshot_hash,
+                })
+            (output_dir / "page-capture-index.json").write_text(
+                json.dumps(page_index), encoding="utf-8"
+            )
+            (output_dir / "page-text-snapshots.jsonl").write_text(
+                "".join(
+                    json.dumps({"viewer_page": number, "text": page_text}) + "\n"
+                    for number, page_text in enumerate(texts, start=1)
+                ),
+                encoding="utf-8",
+            )
+            manifest = {
+                "schema_version": 1,
+                "capture_method": "ordinary_public_preview_ui",
+                "viewer_pages_expected": 2,
+                "viewer_pages_captured": 2,
+                "page_coverage_complete": True,
+                "pdf_downloaded": False,
+                "access_controls_bypassed": False,
+                "files": {"screenshots": screenshots},
+            }
+            (output_dir / "capture-manifest.json").write_text(
+                json.dumps(manifest), encoding="utf-8"
+            )
+            calls.append("captured")
+            return manifest
+
+        def verify_preview(**_kwargs):
+            calls.append("verified")
+            return {}
+
+        result = run(
+            payload,
+            self.root / "vet-output",
+            fetcher=lambda _url: b"<!doctype html><html><title>Google Drive viewer</title></html>",
+            preview_verifier=verify_preview,
+            preview_capturer=capture_vet_preview,
+            registry_path=registry_path,
+            cfg_path=mapping_path,
+            repository_root=self.root,
+        )
+        report = json.loads((self.root / "vet-output/report.json").read_text(encoding="utf-8"))
+        batch = json.loads((self.root / "vet-output/release-batch.json").read_text(encoding="utf-8"))
+        self.assertEqual(result, 0)
+        self.assertEqual(calls, ["verified", "captured"])
+        self.assertEqual(report["status"], "ready_for_greenlight_pipeline")
+        self.assertEqual(report["tier1"]["status"], "unavailable")
+        self.assertFalse(report["tier1"]["downloadable"])
+        self.assertEqual(report["tier2"]["status"], "available")
+        self.assertEqual(report["records"], 2)
+        self.assertEqual(report["greenlight"], 100)
+        self.assertEqual(batch["official_content_mode"], "public_preview_capture")
+        self.assertFalse(batch["published"])
+        records = [
+            json.loads(line)
+            for line in (self.root / "vet-output/public-preview-capture/records.jsonl").read_text(encoding="utf-8").splitlines()
+        ]
+        self.assertEqual(
+            records,
+            [
+                {"seq": "1", "name": "ABAD, JEM ELYZA SALAZAR"},
+                {"seq": "2", "name": "ABAD, MARIA LOURDES SALAZAR"},
+            ],
+        )
+
+
 if __name__ == "__main__":
     unittest.main()
