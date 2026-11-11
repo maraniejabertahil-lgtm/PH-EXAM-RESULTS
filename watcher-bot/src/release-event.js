@@ -167,3 +167,90 @@ export function buildReleaseEvent(source, article, options = {}) {
     },
   };
 }
+
+// Classify every supported official attachment before deciding which links can
+// become independent passer-list jobs. Non-passer attachments are recorded for
+// visibility but are never sent to the roster extractor.
+export function discoverArticleAttachments(article) {
+  if (!article || typeof article.url !== "string" || !Array.isArray(article.links)) return [];
+  let articleUrl;
+  try { articleUrl = new URL(article.url); } catch { return []; }
+  return cleanContentUrls(article.links, articleUrl.href)
+    .map((link) => ({ ...link, format: guessFormat(link.url) }))
+    .filter((link) => link.format)
+    .map((link) => {
+      const label = link.label || "";
+      let classification = "other";
+      if (/\bperformance of schools?\b/i.test(label)) {
+        classification = "school_summary";
+      } else if (/\btop\s*10\b|\bgarnered\b[\s\S]*\btop\b/i.test(label)) {
+        classification = "topnotchers";
+      } else if (/\bfull\s+text\b[\s\S]*\bofficial\s+result\b/i.test(label)) {
+        classification = "press_release";
+      } else if (
+        /\b(?:list|roll)\s+of\s+successful\s+examinees\b/i.test(label) ||
+        /\bsuccessful\s+examinees\s+(?:list|roll)\b/i.test(label)
+      ) {
+        classification = "main_passers_list";
+      }
+      const levels = Object.entries(LEVELS)
+        .filter(([, pattern]) => pattern.test(label))
+        .map(([level]) => level);
+      return {
+        url: link.url,
+        format: link.format,
+        label,
+        classification,
+        result_level: levels.length === 1 ? levels[0] : null,
+        ambiguous_result_level: levels.length > 1,
+      };
+    });
+}
+
+// A PRC article may announce several LEPT cohorts. Build and validate every
+// cohort first, then let the Watcher dispatch each one as its own event.
+export function buildReleaseEvents(source, article) {
+  const attachments = discoverArticleAttachments(article);
+  const rosterLinks = attachments.filter((item) => item.classification === "main_passers_list");
+  const isLept = typeof article?.title === "string" &&
+    /\b(?:LEPT|licensure examination for professional teachers)\b/i.test(article.title);
+
+  if (!isLept) {
+    const built = buildReleaseEvent(source, article);
+    return built.ok
+      ? { ok: true, events: [built.event], attachments }
+      : { ...built, events: [], attachments };
+  }
+
+  if (rosterLinks.length > 1) {
+    const seenLevels = new Set();
+    for (const item of rosterLinks) {
+      if (!item.result_level || item.ambiguous_result_level) {
+        return review("multiple LEPT passer lists were found but every list must have one clear supported level");
+      }
+      if (seenLevels.has(item.result_level)) {
+        return review("multiple official LEPT passer lists claim the same " + item.result_level + " level");
+      }
+      seenLevels.add(item.result_level);
+    }
+
+    const events = [];
+    for (const item of rosterLinks) {
+      const built = buildReleaseEvent(source, article, { resultLevel: item.result_level });
+      if (!built.ok) return { ...built, events: [], attachments };
+      if (built.event.content_urls.length !== 1 || built.event.content_urls[0].url !== item.url) {
+        return review("LEPT " + item.result_level + " event did not resolve to its exact labelled official roster link");
+      }
+      events.push(built.event);
+    }
+    return { ok: true, events, attachments };
+  }
+
+  const onlyRoster = rosterLinks[0];
+  const requestedLevel = onlyRoster?.result_level || undefined;
+  const built = buildReleaseEvent(source, article, requestedLevel ? { resultLevel: requestedLevel } : {});
+  return built.ok
+    ? { ok: true, events: [built.event], attachments }
+    : { ...built, events: [], attachments };
+}
+
