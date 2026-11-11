@@ -184,28 +184,51 @@ test("classifies every official PRC attachment and builds one event per LEPT pas
   assert.ok(result.events.every((event) => event.content_urls.length === 1));
 });
 
-test("does not fan out LEPT lists when a category is missing or repeated", () => {
-  const missingCategory = buildReleaseEvents(source, {
+test("keeps a clearly labelled LEPT list moving when its sibling label is unclear", () => {
+  const result = buildReleaseEvents(source, {
     ...leptArticle,
     links: [
       { url: "https://drive.google.com/file/d/1ElementaryRoster/view", label: "List of Successful Examinees for Elementary" },
       { url: "https://drive.google.com/file/d/1UnknownRoster/view", label: "Roll of Successful Examinees" }
     ]
   });
-  assert.equal(missingCategory.ok, false);
-  assert.match(missingCategory.reason, /every list must have one clear supported level/);
-  assert.equal(missingCategory.events.length, 0);
+  assert.equal(result.ok, true);
+  assert.equal(result.events.length, 1);
+  assert.equal(result.events[0].result_level, "elementary");
+  assert.equal(result.events[0].announced_count, 18376);
+  assert.equal(result.unresolved.length, 1);
+  assert.match(result.unresolved[0].reason, /level is not clear/);
+});
 
-  const repeatedCategory = buildReleaseEvents(source, {
+test("isolates duplicate same-level attachments without blocking a different level", () => {
+  const result = buildReleaseEvents(source, {
     ...leptArticle,
     links: [
       { url: "https://drive.google.com/file/d/1ElementaryRosterA/view", label: "List of Successful Examinees for Elementary" },
-      { url: "https://drive.google.com/file/d/1ElementaryRosterB/view", label: "Roll of Successful Examinees for Elementary" }
+      { url: "https://drive.google.com/file/d/1ElementaryRosterB/view", label: "Roll of Successful Examinees for Elementary" },
+      { url: "https://drive.google.com/file/d/1SecondaryRoster/view", label: "List of Successful Examinees for Secondary" }
     ]
   });
-  assert.equal(repeatedCategory.ok, false);
-  assert.match(repeatedCategory.reason, /same elementary level/);
-  assert.equal(repeatedCategory.events.length, 0);
+  assert.equal(result.ok, true);
+  assert.equal(result.events.length, 1);
+  assert.equal(result.events[0].result_level, "secondary");
+  assert.equal(result.events[0].announced_count, 45001);
+  assert.equal(result.unresolved.length, 2);
+  assert.ok(result.unresolved.every((item) => /same level/.test(item.reason)));
+});
+
+test("infers the missing complementary level only for an exact two-list announcement", () => {
+  const result = buildReleaseEvents(source, {
+    ...leptArticle,
+    links: [
+      { url: "https://drive.google.com/file/d/1ElementaryRoster/view", label: "List of Successful Examinees for Elementary" },
+      { url: "https://drive.google.com/file/d/1GenericRoster/view", label: "Roll of Successful Examinees" }
+    ]
+  });
+  assert.equal(result.ok, true);
+  assert.equal(result.events.length, 2);
+  assert.deepEqual(result.events.map((event) => event.result_level), ["elementary", "secondary"]);
+  assert.equal(result.attachments.find((item) => item.inferred_result_level).result_level, "secondary");
 });
 
 test("does not guess a category for a single generic LEPT roster", () => {
@@ -218,5 +241,28 @@ test("does not guess a category for a single generic LEPT roster", () => {
   assert.equal(result.ok, false);
   assert.match(result.reason, /result level is ambiguous/);
   assert.equal(result.events.length, 0);
+});
+
+test("routes Elementary and Secondary lists for examinations other than LEPT", () => {
+  const article = {
+    title: "March 2026 Civil Service Professional Examination Results Released",
+    url: "https://prc.gov.ph/article/march-2026-civil-service-professional-examination-results",
+    text: "1,200 elementary passers and 1,450 secondary passers were successful.",
+    links: [
+      { url: "https://drive.google.com/file/d/1CivilElementary/view", label: "List of Successful Examinees for Elementary" },
+      { url: "https://drive.google.com/file/d/1CivilSecondary/view", label: "List of Successful Examinees for Secondary" },
+      { url: "https://drive.google.com/file/d/1CivilTop10/view", label: "Successful Examinees who garnered the top 10 highest places" }
+    ]
+  };
+  const result = buildReleaseEvents(source, article);
+  assert.equal(result.ok, true);
+  assert.equal(result.events.length, 2);
+  assert.deepEqual(result.events.map((event) => event.result_level), ["elementary", "secondary"]);
+  assert.deepEqual(result.events.map((event) => event.announced_count), [1200, 1450]);
+  assert.deepEqual(result.events.map((event) => event.exam_code), [
+    "EXAM-CIVIL-SERVICE-PROFESSIONAL",
+    "EXAM-CIVIL-SERVICE-PROFESSIONAL"
+  ]);
+  assert.ok(result.events.every((event) => event.content_urls.length === 1));
 });
 
