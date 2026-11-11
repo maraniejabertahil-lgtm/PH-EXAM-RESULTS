@@ -119,6 +119,7 @@ export function buildReleaseEvent(source, article, options = {}) {
   }
   if (!links.length) return review("no supported official linked content found");
   links = links.map(({ url, format }) => ({ url, format }));
+
   const countPatterns = codes[0] === "LEPT"
     ? [new RegExp("\\b([\\d,]{3,})\\s+" + requestedLevel + "\\s+teachers?\\s+out of\\b", "i")]
     : [
