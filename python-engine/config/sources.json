@@ -165,7 +165,7 @@
         "allowed_hosts": [
           "drive.google.com"
         ],
-        "page_control_selector": "input[aria-label^=\"Page is\"]",
+        "page_control_selector": "input[aria-label^=\"Page is\"]:visible",
         "page_marker_template": "Page {page} of {count}",
         "per_page_deadline": 45,
         "poll_ms": 100,
@@ -199,7 +199,7 @@
         "allowed_hosts": [
           "drive.google.com"
         ],
-        "page_control_selector": "input[aria-label^=\"Page is\"]",
+        "page_control_selector": "input[aria-label^=\"Page is\"]:visible",
         "page_marker_template": "Page {page} of {count}",
         "per_page_deadline": 45,
         "poll_ms": 100,
