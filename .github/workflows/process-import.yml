@@ -498,6 +498,7 @@ jobs:
               "public/review.html",
               "public/assets/js/review.mjs",
               ".github/workflows/public-review-tests.yml",
+              "LIVE_ACCEPTANCE_TEST_REGISTER.md",
           }
           changed_paths = {item.get("filename") for item in comparison.get("files", [])}
           if comparison.get("status") not in {"ahead", "identical"} or not changed_paths.issubset(allowed_later_paths):
