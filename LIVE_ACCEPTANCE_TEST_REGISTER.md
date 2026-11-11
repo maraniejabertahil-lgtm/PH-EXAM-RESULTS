@@ -738,3 +738,26 @@ Verified by:
 
 - **Owner approval (2026-11-11):** One-minute refresh interval approved. This is separate from actual result-announcement detection.
 - **Required regression evidence:** Verify the one-minute source configuration, refresh after the 60-second interval, no refresh inside the interval, HTTP 503 for snapshots older than two minutes, and Manila-date filtering at midnight. CI and live production checks must be recorded before changing this test to `PASS`.
+
+
+---
+
+### Live execution — PRC March 2026 LEPT Elementary and Secondary paired retrieval
+
+- **Related Owner decisions:** D-001, D-013, D-014 (retrieval and validation only; no merge or publication).
+- **Related tests:** P2-03, P2-04, P2-28. Tier 3 OCR was not used because the official public viewer supplied rendered page text; OCR remains advisory under the project ADR.
+- **Date/time:** 2026-11-11, 16:22:16–16:30:30 UTC (GitHub Actions); production Worker browser check at 16:33:14 UTC.
+- **Environment:** GitHub Actions, branch `feat/prc-humanized-multi-list-routing`; production D1 read/write verification; isolated local static website previews; normal public browser check of the deployed Worker.
+- **Source/input:** [Official PRC March 2026 LEPT article](https://prc.gov.ph/article/march-2026-licensure-examination-professional-teachers-results-released-thirty-nine-39); official Elementary roster [PDF view](https://drive.google.com/file/d/1kY0CTSuwdxDwnf1UEvWe27HDEXU3rolE/view); official Secondary roster [PDF view](https://drive.google.com/file/d/1RFuFGN4D1T3hkGC-iib9pRmJP1vJiJJ7/view).
+- **Steps performed:** Verified the official PRC announcement and its two level-specific roster links. Captured every viewer page using the exact page-specific rendered-text container and a temporary screenshot. Required contiguous sequence rows on each page and within each shard. Built separate candidate datasets, ran Greenlight, checked production D1, and tested the actual website search code in isolated local previews. Both review bundles bind each page's expected text to the screenshot SHA-256. The downloaded artifacts were independently checked for every sequence, unique names, page coverage, and screenshot hashes.
+- **Expected result:** Elementary 18,376 records (sequences 1–18,376; 368 pages) and Secondary 45,001 records (sequences 1–45,001; 901 pages), no blank or duplicate names, Greenlight 100/100, D1 and website preview pass, no publication.
+- **Actual result:**
+  - Elementary: 18,376/18,376 records; 368/368 pages; exact sequence coverage; zero duplicate sequences or names; 368 screenshot hashes matched; Greenlight 100/100; production D1 PASS; local website preview/search PASS.
+  - Secondary: 45,001/45,001 records; 901/901 pages; exact sequence coverage; zero duplicate sequences or names; 901 screenshot hashes matched; Greenlight 100/100; production D1 PASS; local website preview/search PASS.
+  - Both candidate artifacts contain separate CSV/JSON data, page text, screenshots, capture manifests, and Owner review bundles. Independent artifact checks confirmed the full sequence ranges and every screenshot SHA-256.
+  - Production Watcher in a normal public browser: HTTP 200; `ok=true`; snapshot fetched at 2026-11-11T16:33:14.830Z; 20 upcoming exams; zero unparsed dates; PRC robots access policy `allowed`.
+  - The additional GitHub Actions runner request to the same public Worker returned HTTP 403. The Worker code's own endpoint returns 200 in a normal browser; the runner-specific 403 appears to be an edge/network restriction and has not been bypassed.
+- **Status:** BLOCKED for full pipeline acceptance. Both result-list retrievals and their D1/preview checks PASS. The Worker browser check PASSes, but the GitHub runner Worker check is BLOCKED (HTTP 403), so the overall Actions run is marked failure. Owner visual review and publication have not been performed.
+- **Evidence URLs:** [Live Actions run #43057646988](https://github.com/maraniejabertahil-lgtm/PH-EXAM-RESULTS/actions/runs/43057646988); [Elementary artifact 13872945862](https://github.com/maraniejabertahil-lgtm/PH-EXAM-RESULTS/actions/runs/43057646988/artifacts/13872945862); [Secondary artifact 13871564956](https://github.com/maraniejabertahil-lgtm/PH-EXAM-RESULTS/actions/runs/43057646988/artifacts/13871564956); [code PR #185](https://github.com/maraniejabertahil-lgtm/PH-EXAM-RESULTS/pull/185); [production Worker browser check](https://agent.tinyfish.ai/runs/de4bc6f0-5930-4857-a33d-c98ad532b6e5).
+- **Failure reason / notes:** The first Secondary attempt captured 44,951/45,001 because the viewer page number could change while the page content was blank or stale. The extractor was corrected to read the page wrapper containing the matching heading and its own paragraphs, reject blank/non-contiguous pages, and retry. The corrected run passed both exact counts. The official PRC-linked PDFs visibly carry a DRAFT watermark; the Owner review page now displays this caveat. The candidate lists remain unpublished. PR #185 remains a draft. No data merge, production deployment, or notification occurred.
+- **Verified by:** GitHub Actions assertions plus independent artifact verification of all records, sequence ranges, page counts, duplicate names, and screenshot hashes.
