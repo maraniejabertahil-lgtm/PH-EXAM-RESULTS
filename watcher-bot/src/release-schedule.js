@@ -1,6 +1,7 @@
 const USER_AGENT = "PH-EXAM-RESULTS-Watcher";
 export const RELEASE_SCHEDULE_CACHE_KEY = "official-release-schedule:v1";
-const REFRESH_INTERVAL_MS = 6 * 60 * 60 * 1000;
+const REFRESH_INTERVAL_MS = 60 * 1000;
+const MAX_PUBLIC_SNAPSHOT_AGE_MS = 2 * 60 * 1000;
 const SNAPSHOT_TTL_SECONDS = 14 * 24 * 60 * 60;
 const MAX_HTML_BYTES = 1024 * 1024;
 const MAX_ROBOTS_BYTES = 32 * 1024;
@@ -335,13 +336,16 @@ export async function refreshOfficialReleaseSchedule({ sources, kv, fetchImpl = 
     try { cached = JSON.parse(raw); } catch { cached = null; }
   }
   const fetchedAt = cached?.fetched_at ? Date.parse(cached.fetched_at) : NaN;
+  const configuredMinutes = Number(source.refresh_interval_minutes);
   const configuredHours = Number(source.refresh_interval_hours);
-  const refreshInterval = Number.isInteger(configuredHours) && configuredHours >= 1 && configuredHours <= 24
-    ? configuredHours * 60 * 60 * 1000
-    : REFRESH_INTERVAL_MS;
+  const refreshInterval = Number.isInteger(configuredMinutes) && configuredMinutes >= 1 && configuredMinutes <= 60
+    ? configuredMinutes * 60 * 1000
+    : Number.isInteger(configuredHours) && configuredHours >= 1 && configuredHours <= 24
+      ? configuredHours * 60 * 60 * 1000
+      : REFRESH_INTERVAL_MS;
   const hasCurrentRobotsEvidence = cached?.access_policy?.outcome === "allowed"
     && cached?.access_policy?.user_agent === USER_AGENT;
-  if (cached && hasCurrentRobotsEvidence && Number.isFinite(fetchedAt) && now.getTime() - fetchedAt < refreshInterval) {
+  if (cached && hasCurrentRobotsEvidence && Number.isFinite(fetchedAt) && now.getTime() >= fetchedAt && now.getTime() - fetchedAt < refreshInterval) {
     return { status: "cached", snapshot: cached };
   }
 
@@ -411,7 +415,29 @@ export async function getReleaseScheduleResponse(request, env) {
       });
     }
     const snapshot = JSON.parse(raw);
-    return new Response(JSON.stringify({ ok: true, ...snapshot }), { status: 200, headers });
+    const fetchedAt = snapshot?.fetched_at ? Date.parse(snapshot.fetched_at) : NaN;
+    const ageMs = Number.isFinite(fetchedAt) ? Date.now() - fetchedAt : Infinity;
+    if (ageMs < 0 || ageMs > MAX_PUBLIC_SNAPSHOT_AGE_MS) {
+      return new Response(JSON.stringify({
+        ok: false,
+        status: "stale",
+        message: "The official PRC schedule has not been refreshed recently. Please try again shortly.",
+        fetched_at: snapshot?.fetched_at || null,
+        max_age_ms: MAX_PUBLIC_SNAPSHOT_AGE_MS
+      }), { status: 503, headers: { ...headers, "Cache-Control": "no-store" } });
+    }
+    const today = localManilaDate(new Date()).iso;
+    const upcoming = (Array.isArray(snapshot.upcoming) ? snapshot.upcoming : [])
+      .filter((item) => typeof item?.target_release_date === "string" && item.target_release_date >= today)
+      .map((item) => ({ ...item, days_until: daysUntil(item.target_release_date, new Date()), status: "scheduled" }));
+    return new Response(JSON.stringify({
+      ok: true,
+      ...snapshot,
+      as_of_date_manila: today,
+      upcoming_count: upcoming.length,
+      upcoming,
+      nearest: upcoming[0] || null
+    }), { status: 200, headers: { ...headers, "Cache-Control": "no-store" } });
   } catch {
     return new Response(JSON.stringify({ ok: false, status: "unavailable", message: "The official PRC schedule snapshot is temporarily unavailable." }), {
       status: 503, headers
