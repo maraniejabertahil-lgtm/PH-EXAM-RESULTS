@@ -264,9 +264,9 @@ def capture_shard(
                 try:
                     marker = page_marker_template.format(page=page_number, count=page_count)
                     heading = page.locator(DRIVE_PAGE_HEADING_SELECTOR).filter(has_text=marker)
-                    content = heading.locator(
-                        "xpath=following-sibling::div[1]"
-                    )
+                    # The exact page wrapper is the heading's parent; its
+                    # child paragraphs are only that page's rendered text.
+                    content = heading.locator("xpath=..")
                     visible, navigation_attempts_used, page_sequences = _wait_for_page_stability(
                         page=page,
                         body=body,
