@@ -98,6 +98,10 @@ jobs:
 
           mappings = json.loads(Path("python-engine/config/adapter_mappings.json").read_text(encoding="utf-8"))
           mapping = mappings["LEPT:elementary:2026:public_preview"]
+          registry = json.loads(Path("python-engine/config/sources.json").read_text(encoding="utf-8"))
+          source = next(item for item in registry["sources"] if item.get("exam") == "LEPT-ELEMENTARY-2026")
+          if not source["public_preview"]["page_control_selector"].endswith(":visible"):
+              raise SystemExit("LEPT viewer page control must target the visible input.")
           match = re.fullmatch(mapping["record_pattern"], "51 ABAPO, REJEAN DUMAYON")
           if not match or match.group("sequence") != "51" or match.group("name") != "ABAPO, REJEAN DUMAYON":
               raise SystemExit("LEPT mapping does not match the visible official roster line.")
