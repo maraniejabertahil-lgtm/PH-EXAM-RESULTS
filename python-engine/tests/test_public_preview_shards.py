@@ -11,6 +11,7 @@ sys.path.insert(0, str(EXTRACTOR_DIR))
 
 from public_preview_shards import (  # noqa: E402
     _challenge_present,
+    DEFAULT_PAGE_COUNT_REGEX,
     merge_shards,
     partition_page_ranges,
     validate_shard_metadata,
@@ -24,6 +25,12 @@ class PartitionTests(unittest.TestCase):
         self.assertEqual(ranges[14], (14, 799, 855))
         self.assertEqual(ranges[15], (15, 856, 901))
         self.assertEqual(sum(end - start + 1 for _, start, end in ranges), 901)
+
+    def test_page_count_parser_accepts_a_viewer_that_opens_on_page_two(self):
+        import re
+        match = re.search(DEFAULT_PAGE_COUNT_REGEX, "Page 2 of 368")
+        self.assertIsNotNone(match)
+        self.assertEqual(int(match.group(1)), 368)
 
     def test_small_uneven_partition_is_contiguous(self):
         self.assertEqual(
