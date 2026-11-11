@@ -239,50 +239,70 @@ export function discoverArticleAttachments(article) {
     });
 }
 
-// A PRC article may announce several LEPT cohorts. Build and validate every
-// cohort first, then let the Watcher dispatch each one as its own event.
+// Split every multi-roster PRC announcement into independent jobs. This is
+// exam-agnostic: the same Elementary/Secondary pattern works for LEPT and
+// every other examination that publishes multiple passer lists.
 export function buildReleaseEvents(source, article) {
   const attachments = discoverArticleAttachments(article);
   const rosterLinks = attachments.filter((item) => item.classification === "main_passers_list");
-  const isLept = typeof article?.title === "string" &&
-    /\b(?:LEPT|licensure examination for professional teachers)\b/i.test(article.title);
 
-  if (!isLept) {
-    const built = buildReleaseEvent(source, article);
+  if (rosterLinks.length <= 1) {
+    const onlyRoster = rosterLinks[0];
+    const requestedLevel = onlyRoster?.result_level || undefined;
+    const built = buildReleaseEvent(source, article, requestedLevel ? { resultLevel: requestedLevel } : {});
     return built.ok
-      ? { ok: true, events: [built.event], attachments }
-      : { ...built, events: [], attachments };
+      ? { ok: true, events: [built.event], unresolved: [], attachments }
+      : { ...built, events: [], unresolved: [], attachments };
   }
 
-  if (rosterLinks.length > 1) {
-    const seenLevels = new Set();
-    for (const item of rosterLinks) {
-      if (!item.result_level || item.ambiguous_result_level) {
-        return { ok: false, reason: "multiple LEPT passer lists were found but every list must have one clear supported level", events: [], attachments };
-      }
-      if (seenLevels.has(item.result_level)) {
-        return { ok: false, reason: "multiple official LEPT passer lists claim the same " + item.result_level + " level", events: [], attachments };
-      }
-      seenLevels.add(item.result_level);
-    }
-
-    const events = [];
-    for (const item of rosterLinks) {
-      const built = buildReleaseEvent(source, article, { resultLevel: item.result_level });
-      if (!built.ok) return { ...built, events: [], attachments };
-      if (built.event.content_urls.length !== 1 || built.event.content_urls[0].url !== item.url) {
-        return { ok: false, reason: "LEPT " + item.result_level + " event did not resolve to its exact labelled official roster link", events: [], attachments };
-      }
-      events.push(built.event);
-    }
-    return { ok: true, events, attachments };
+  // A missing label can be inferred only in the exact two-list case where
+  // the other list has one clear level. No inference is made for larger sets.
+  const levelled = rosterLinks.filter((item) => item.result_level && !item.ambiguous_result_level);
+  const unlabelled = rosterLinks.filter((item) => !item.result_level && !item.ambiguous_result_level);
+  if (rosterLinks.length === 2 && levelled.length === 1 && unlabelled.length === 1) {
+    unlabelled[0].result_level = levelled[0].result_level === "elementary" ? "secondary" : "elementary";
+    unlabelled[0].inferred_result_level = true;
   }
 
-  const onlyRoster = rosterLinks[0];
-  const requestedLevel = onlyRoster?.result_level || undefined;
-  const built = buildReleaseEvent(source, article, requestedLevel ? { resultLevel: requestedLevel } : {});
-  return built.ok
-    ? { ok: true, events: [built.event], attachments }
-    : { ...built, events: [], attachments };
+  const articleText = (typeof article.title === "string" ? article.title : "") + " " +
+    (typeof article.text === "string" ? article.text : "");
+  const events = [];
+  const unresolved = [];
+  for (const item of rosterLinks) {
+    if (!item.result_level || item.ambiguous_result_level) {
+      unresolved.push({
+        url: item.url,
+        label: item.label,
+        reason: "passer-list level is not clear from the official attachment label"
+      });
+      continue;
+    }
+    const count = findLevelAnnouncedCount(articleText, item.result_level);
+    const built = buildReleaseEvent(source, article, {
+      resultLevel: item.result_level,
+      contentUrl: item.url,
+      announcedCount: count,
+      requireAnnouncedCount: true
+    });
+    if (!built.ok) {
+      unresolved.push({
+        url: item.url,
+        label: item.label,
+        result_level: item.result_level,
+        reason: built.reason
+      });
+      continue;
+    }
+    if (built.event.content_urls.length !== 1 || built.event.content_urls[0].url !== item.url) {
+      unresolved.push({
+        url: item.url,
+        label: item.label,
+        result_level: item.result_level,
+        reason: "event did not resolve to this exact official attachment"
+      });
+      continue;
+    }
+    events.push(built.event);
+  }
+  return { ok: true, events, unresolved, attachments };
 }
-
