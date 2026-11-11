@@ -820,10 +820,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 8
     steps:
-      - name: Check the live Worker and its fresh official PRC schedule response
+      - name: Check the verified public production Worker and its fresh official PRC schedule response
         env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
+          WORKER_URL: https://ph-exam-results-watcher.bf2hbvt5mn.workers.dev/api/releases/upcoming
         run: |
           set -euo pipefail
           python3 - <<'PY'
@@ -832,22 +831,7 @@ jobs:
           from datetime import datetime, timezone
           from urllib.request import Request, urlopen
 
-          token = os.environ["CLOUDFLARE_API_TOKEN"]
-          account = os.environ["CLOUDFLARE_ACCOUNT_ID"]
-          if not token or not account:
-              raise SystemExit("Production Cloudflare credentials are missing.")
-          request = Request(
-              f"https://api.cloudflare.com/client/v4/accounts/{account}/workers/subdomain",
-              headers={"Authorization": f"Bearer {token}", "Accept": "application/json"},
-          )
-          with urlopen(request, timeout=20) as response:
-              subdomain_payload = json.load(response)
-          if subdomain_payload.get("success") is not True:
-              raise SystemExit("Cloudflare could not confirm the account Workers subdomain.")
-          subdomain = subdomain_payload.get("result", {}).get("subdomain")
-          if not isinstance(subdomain, str) or not subdomain:
-              raise SystemExit("Cloudflare Workers subdomain is missing.")
-          worker_url = f"https://ph-exam-results-watcher.{subdomain}.workers.dev/api/releases/upcoming"
+          worker_url = os.environ["WORKER_URL"]
           request = Request(worker_url, headers={"Accept": "application/json"})
           with urlopen(request, timeout=30) as response:
               if response.status != 200:
