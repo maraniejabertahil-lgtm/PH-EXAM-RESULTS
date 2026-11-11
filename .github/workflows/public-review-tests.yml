@@ -29,5 +29,9 @@ jobs:
       - uses: actions/setup-node@v5
         with:
           node-version: '22'
+      - name: Validate Owner review page script and source warning
+        run: |
+          node --check public/assets/js/review.mjs
+          grep -q 'id="source-quality-warning"' public/review.html
       - name: Run local screenshot review integrity tests
         run: node --test public/assets/js/review-logic.test.mjs
