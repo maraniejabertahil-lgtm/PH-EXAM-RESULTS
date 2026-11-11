@@ -576,6 +576,14 @@ jobs:
           test -n "$REVIEW_RECEIPT_JSON" || { echo "::error::Paste the approved review receipt from /review.html."; exit 1; }
           python3 - <<'PY'
           import json
+          from pathlib import Path
+
+          batch = json.loads(Path("prc-release-output/release-batch.json").read_text(encoding="utf-8"))
+          if batch.get("exam") in {"LEPT-ELEMENTARY", "LEPT-SECONDARY"}:
+              raise SystemExit("March 2026 LEPT must use the atomic pair publication job with both Owner receipts.")
+          PY
+          python3 - <<'PY'
+          import json
           import os
           from pathlib import Path
           try:
