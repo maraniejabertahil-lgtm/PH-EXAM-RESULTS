@@ -58,8 +58,16 @@ def build_combined_greenlight_report(
         records = records_by_exam[exam]
         if len(records) != expected:
             raise PipelineError(f"{exam} record count is {len(records)}, expected {expected}.")
-        if not owner_reviews[exam].get("reviewer"):
-            raise PipelineError(f"{exam} Owner review receipt has no reviewer.")
+        review = owner_reviews[exam]
+        if (
+            review.get("decision") != "approved"
+            or review.get("source_evidence_reviewed") is not True
+            or review.get("records_reviewed") is not True
+            or not review.get("reviewer")
+            or not review.get("candidate_sha256")
+            or not review.get("capture_manifest_sha256")
+        ):
+            raise PipelineError(f"{exam} Owner review receipt is incomplete or not approved.")
         checks[f"{exam.lower()}_greenlight_passed"] = True
         checks[f"{exam.lower()}_owner_review_approved"] = True
         checks[f"{exam.lower()}_official_count_matched"] = True
