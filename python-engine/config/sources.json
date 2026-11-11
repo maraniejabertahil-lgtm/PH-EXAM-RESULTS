@@ -28,7 +28,9 @@
       "exam": "LICENSURE-EXAM-RESULTS",
       "exam_scope": "all",
       "owner_visual_review_required_exams": [
-        "VET-2026"
+        "VET-2026",
+        "LEPT-ELEMENTARY-2026",
+        "LEPT-SECONDARY-2026"
       ],
       "auto_publish_after_greenlight": true,
       "source_type": "official",
@@ -138,6 +140,74 @@
       "refresh_interval_minutes": 1,
       "direct_drive_fallback": false,
       "third_party_fallback": false
+    },
+    {
+      "id": "PRC-LEPT-ELEMENTARY-2026-03-OFFICIAL-LIST",
+      "authority": "PRC",
+      "exam": "LEPT-ELEMENTARY-2026",
+      "year": 2026,
+      "source_type": "official",
+      "authorized": true,
+      "enabled": false,
+      "url": "https://prc.gov.ph/article/march-2026-licensure-examination-professional-teachers-results-released-thirty-nine-39",
+      "file_format": "pdf",
+      "auto_acquire": false,
+      "direct_drive_fallback": false,
+      "drive_file_ids": [
+        "1kY0CTSuwdxDwnf1UEvWe27HDEXU3rolE"
+      ],
+      "allow_linked_drive_documents": true,
+      "robots_policy_verified": false,
+      "robots_policy_url": "https://prc.gov.ph/robots.txt",
+      "manual_drop_required": false,
+      "public_preview": {
+        "enabled": true,
+        "method": "ordinary_public_preview_ui",
+        "shards": 8,
+        "allowed_hosts": [
+          "drive.google.com"
+        ],
+        "page_control_selector": "input[aria-label^=\"Page is\"]:visible",
+        "page_marker_template": "Page {page} of {count}",
+        "per_page_deadline": 45,
+        "poll_ms": 100,
+        "max_pages": 368
+      },
+      "disable_reason": "Tested in isolated live acceptance only; keep disabled in production pending Owner approval."
+    },
+    {
+      "id": "PRC-LEPT-SECONDARY-2026-03-OFFICIAL-LIST",
+      "authority": "PRC",
+      "exam": "LEPT-SECONDARY-2026",
+      "year": 2026,
+      "source_type": "official",
+      "authorized": true,
+      "enabled": false,
+      "url": "https://prc.gov.ph/article/march-2026-licensure-examination-professional-teachers-results-released-thirty-nine-39",
+      "file_format": "pdf",
+      "auto_acquire": false,
+      "direct_drive_fallback": false,
+      "drive_file_ids": [
+        "1RFuFGN4D1T3hkGC-iib9pRmJP1vJiJJ7"
+      ],
+      "allow_linked_drive_documents": true,
+      "robots_policy_verified": false,
+      "robots_policy_url": "https://prc.gov.ph/robots.txt",
+      "manual_drop_required": false,
+      "public_preview": {
+        "enabled": true,
+        "method": "ordinary_public_preview_ui",
+        "shards": 16,
+        "allowed_hosts": [
+          "drive.google.com"
+        ],
+        "page_control_selector": "input[aria-label^=\"Page is\"]:visible",
+        "page_marker_template": "Page {page} of {count}",
+        "per_page_deadline": 45,
+        "poll_ms": 100,
+        "max_pages": 901
+      },
+      "disable_reason": "Tested in isolated live acceptance only; keep disabled in production pending Owner approval."
     }
   ]
 }

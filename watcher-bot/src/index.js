@@ -1,5 +1,5 @@
 import { recordActivities } from "./activity-log.js";
-import { buildReleaseEvent } from "./release-event.js";
+import { buildReleaseEvents } from "./release-event.js";
 import { refreshOfficialReleaseSchedule, getReleaseScheduleResponse } from "./release-schedule.js";
 const GITHUB_API = "https://api.github.com";
 const GITHUB_API_VERSION = "2022-11-28";
@@ -551,15 +551,26 @@ async function recordTestModeReleaseEvent(env, source, event, fetchImpl, now) {
   }
 }
 
-async function dispatchPrReleaseEvent(env, source, article, fetchImpl, now) {
-  const built = buildReleaseEvent(source, article);
-  if (!built.ok) return { status: "needs_human_review_no_dispatch", reason: built.reason };
-  const key = await kvKey("prc-release-event", source.id, article.url);
+async function dispatchPrReleaseEvent(env, source, event, fetchImpl, now) {
+  const listIdentity = [
+    event.result_level || "general",
+    event.list_type || "successful_examinees",
+    ...(Array.isArray(event.content_urls) ? event.content_urls.map((item) => item.url) : [])
+  ].join("\n");
+  // Each roster has its own key. A failed Secondary dispatch can be retried
+  // without sending an already accepted Elementary event a second time.
+  const key = await kvKey("prc-release-event", source.id, event.article_url + "\n" + listIdentity);
   if (await env.PEAK_WEEK.get(key)) {
     const testModeEvent = source.authority === "PRC"
-      ? await recordTestModeReleaseEvent(env, source, built.event, fetchImpl, now)
+      ? await recordTestModeReleaseEvent(env, source, event, fetchImpl, now)
       : { status: "not_applicable" };
-    return { status: "already_dispatched", article_url: article.url, test_mode_event: testModeEvent };
+    return {
+      status: "already_dispatched",
+      article_url: event.article_url,
+      result_level: event.result_level || null,
+      content_url: event.content_urls?.[0]?.url || null,
+      test_mode_event: testModeEvent
+    };
   }
   const response = await fetchImpl(`${GITHUB_API}/repos/${env.GITHUB_REPOSITORY}/dispatches`, {
     method: "POST",
@@ -570,7 +581,7 @@ async function dispatchPrReleaseEvent(env, source, article, fetchImpl, now) {
       "Content-Type": "application/json",
       "User-Agent": USER_AGENT
     },
-    body: JSON.stringify({ event_type: "prc-release-detected", client_payload: { event: built.event } }),
+    body: JSON.stringify({ event_type: "prc-release-detected", client_payload: { event } }),
     signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS)
   });
   if (response.status !== 204) {
@@ -578,10 +589,71 @@ async function dispatchPrReleaseEvent(env, source, article, fetchImpl, now) {
     throw new Error(`PRC release-event dispatch failed (HTTP ${response.status})${detail ? `: ${detail.slice(0, 200)}` : ""}.`);
   }
   const testModeEvent = source.authority === "PRC"
-    ? await recordTestModeReleaseEvent(env, source, built.event, fetchImpl, now)
+    ? await recordTestModeReleaseEvent(env, source, event, fetchImpl, now)
     : { status: "not_applicable" };
   await env.PEAK_WEEK.put(key, isoNow(now), { expirationTtl: DISPATCH_TTL_SECONDS });
-  return { status: "prc-release-event-dispatched", article_url: article.url, test_mode_event: testModeEvent };
+  return {
+    status: "prc-release-event-dispatched",
+    article_url: event.article_url,
+    result_level: event.result_level || null,
+    content_url: event.content_urls?.[0]?.url || null,
+    test_mode_event: testModeEvent
+  };
+}
+
+async function dispatchPrReleaseEvents(env, source, article, fetchImpl, now) {
+  const built = buildReleaseEvents(source, article);
+  const attachmentClassifications = (built.attachments || []).map((item) => ({
+    label: item.label,
+    url: item.url,
+    classification: item.classification,
+    result_level: item.result_level,
+    inferred_result_level: item.inferred_result_level === true
+  }));
+
+  if (!built.ok) {
+    return [{
+      status: "article_pending_automatic_retry_no_dispatch",
+      reason: built.reason,
+      attachment_classifications: attachmentClassifications
+    }];
+  }
+
+  const results = [];
+  // Each list has its own event and retry key. A problem with one attachment
+  // must not block another attachment that has already passed its checks.
+  for (const event of built.events) {
+    try {
+      const dispatched = await dispatchPrReleaseEvent(env, source, event, fetchImpl, now);
+      results.push({
+        ...dispatched,
+        announced_count: event.announced_count,
+        attachment_classifications: attachmentClassifications
+      });
+    } catch (error) {
+      results.push({
+        status: "dispatch_failed_retryable",
+        article_url: event.article_url,
+        result_level: event.result_level || null,
+        announced_count: event.announced_count,
+        content_url: event.content_urls?.[0]?.url || null,
+        attachment_classifications: attachmentClassifications,
+        error: String(error.message || error).slice(0, 160)
+      });
+    }
+  }
+
+  for (const item of built.unresolved || []) {
+    results.push({
+      status: "attachment_pending_automatic_retry",
+      article_url: article.url,
+      result_level: item.result_level || null,
+      content_url: item.url,
+      reason: item.reason,
+      attachment_classifications: attachmentClassifications
+    });
+  }
+  return results;
 }
 
 async function scanApprovedDocuments(source, pageUrl, env, fetchImpl, now, allowArticleDiscovery = true) {
@@ -685,7 +757,7 @@ async function scanApprovedDocuments(source, pageUrl, env, fetchImpl, now, allow
         try {
           if (source.authority === "PRC" && source.source_type === "official") {
             const article = await fetchOfficialArticleMetadata(articleUrl, fetchImpl);
-            articleResults = [await dispatchPrReleaseEvent(env, source, article, fetchImpl, now)];
+            articleResults = await dispatchPrReleaseEvents(env, source, article, fetchImpl, now);
           } else {
             articleResults = await scanApprovedDocuments(source, articleUrl, env, fetchImpl, now, false);
           }

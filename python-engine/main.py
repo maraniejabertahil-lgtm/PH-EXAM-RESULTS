@@ -18,6 +18,7 @@ from pathlib import Path
 from typing import Any
 
 ENGINE_DIR = Path(__file__).resolve().parent
+MAX_PUBLIC_PREVIEW_PAGES = 2000
 if str(ENGINE_DIR) not in sys.path:
     sys.path.insert(0, str(ENGINE_DIR))
 
@@ -149,7 +150,7 @@ def _approved_public_preview_source(
         }
         or isinstance(preview_settings.get("max_pages"), bool)
         or not isinstance(preview_settings.get("max_pages"), int)
-        or not 1 <= preview_settings["max_pages"] <= 400
+        or not 1 <= preview_settings["max_pages"] <= MAX_PUBLIC_PREVIEW_PAGES
         or batch.get("source_id") != exam_listing_source.get("id")
     ):
         raise PipelineError("Batch does not match an enabled exam-specific public-preview source.")

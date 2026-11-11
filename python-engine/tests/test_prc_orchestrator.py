@@ -7,7 +7,7 @@ from unittest.mock import patch
 
 from main import process_batch
 from prc_adapters import REGISTRY
-from prc_orchestrator import NeedsReviewError, _load_tier3_mapping_key, detect_layout_mapping, greenlight, run, validate_event
+from prc_orchestrator import NeedsReviewError, _approved_public_preview, _approved_source, _load_tier3_mapping_key, detect_layout_mapping, greenlight, run, validate_event
 
 
 SOURCE = {
@@ -54,6 +54,42 @@ class PRCOrchestratorTests(unittest.TestCase):
 
     def tearDown(self):
         self.temporary.cleanup()
+
+
+    def test_prc_www_and_apex_hosts_are_same_official_origin(self):
+        payload = event("LEPT")
+        payload["article_url"] = "https://prc.gov.ph/article/march-2026-lept-results"
+        payload["result_level"] = "secondary"
+        specific = {
+            "id": "PRC-LEPT-SECONDARY-2026-OFFICIAL-LIST",
+            "authority": "PRC",
+            "exam": "LEPT-SECONDARY-2026",
+            "source_type": "official",
+            "authorized": True,
+            "enabled": True,
+            "auto_acquire": True,
+            "url": payload["article_url"],
+            "drive_file_ids": ["1RFuFGN4D1T3hkGC-iib9pRmJP1vJiJJ7"],
+            "public_preview": {
+                "enabled": True,
+                "method": "ordinary_public_preview_ui",
+                "shards": 16,
+                "allowed_hosts": ["drive.google.com"],
+                "max_pages": 901,
+            },
+        }
+        self.registry_path.write_text(
+            json.dumps({"sources": [SOURCE, specific]}), encoding="utf-8"
+        )
+        self.assertEqual(_approved_source(payload, self.registry_path)["id"], SOURCE["id"])
+        approval = _approved_public_preview(
+            payload,
+            "https://drive.google.com/file/d/1RFuFGN4D1T3hkGC-iib9pRmJP1vJiJJ7/view?usp=sharing",
+            self.registry_path,
+        )
+        self.assertIsNotNone(approval)
+        self.assertEqual(approval[1]["max_pages"], 901)
+        self.assertEqual(approval[1]["shards"], 16)
 
     def test_detects_unambiguous_csv_layout_without_approving_it(self):
         raw = b'Sequence Number,Full Name\n1,ALPHA BETA\n2,GAMMA DELTA\n'
@@ -449,6 +485,74 @@ class PRCOrchestratorTests(unittest.TestCase):
 
         self.assertEqual(score, 0)
         self.assertIn("invalid record shape at record 2", failures)
+
+
+    def test_each_lept_roster_event_is_validated_separately_and_disabled_sources_stay_blocked(self):
+        article_url = "https://prc.gov.ph/article/march-2026-lept-results"
+        elementary_id = "1kY0CTSuwdxDwnf1UEvWe27HDEXU3rolE"
+        secondary_id = "1RFuFGN4D1T3hkGC-iib9pRmJP1vJiJJ7"
+        specific_sources = [
+            {
+                "id": "PRC-LEPT-ELEMENTARY-2026-03-OFFICIAL-LIST",
+                "authority": "PRC", "exam": "LEPT-ELEMENTARY-2026",
+                "source_type": "official", "authorized": True,
+                "enabled": False, "auto_acquire": False, "url": article_url,
+                "drive_file_ids": [elementary_id],
+                "public_preview": {"enabled": True, "method": "ordinary_public_preview_ui"},
+            },
+            {
+                "id": "PRC-LEPT-SECONDARY-2026-03-OFFICIAL-LIST",
+                "authority": "PRC", "exam": "LEPT-SECONDARY-2026",
+                "source_type": "official", "authorized": True,
+                "enabled": False, "auto_acquire": False, "url": article_url,
+                "drive_file_ids": [secondary_id],
+                "public_preview": {"enabled": True, "method": "ordinary_public_preview_ui"},
+            },
+        ]
+        self.registry_path.write_text(
+            json.dumps({"sources": [SOURCE, *specific_sources]}), encoding="utf-8"
+        )
+        events = []
+        for level, count, file_id in (
+            ("elementary", 18376, elementary_id),
+            ("secondary", 45001, secondary_id),
+        ):
+            payload = event("LEPT")
+            payload.update({
+                "article_url": article_url,
+                "result_level": level,
+                "announced_count": count,
+                "content_urls": [{
+                    "url": f"https://drive.google.com/file/d/{file_id}/view?usp=sharing",
+                    "format": "pdf",
+                }],
+            })
+            events.append(payload)
+
+        for payload in events:
+            self.assertEqual(validate_event(payload), [])
+            self.assertEqual(len(payload["content_urls"]), 1)
+            with self.assertRaisesRegex(NeedsReviewError, "is disabled in the source registry"):
+                _approved_source(payload, self.registry_path)
+
+        # A disabled level cannot be acquired just because the other level exists.
+        self.assertFalse(any(item["enabled"] for item in specific_sources))
+        self.assertFalse(any(item["auto_acquire"] for item in specific_sources))
+
+
+    def test_elementary_secondary_result_levels_are_valid_for_non_lept_exams(self):
+        payload = event("NLE")
+        payload["result_level"] = "elementary"
+        self.assertEqual(validate_event(payload), [])
+
+        payload["result_level"] = "secondary"
+        self.assertEqual(validate_event(payload), [])
+
+        payload["result_level"] = "tertiary"
+        self.assertIn(
+            "result_level must be elementary|secondary when supplied",
+            validate_event(payload),
+        )
 
 
 if __name__ == "__main__":

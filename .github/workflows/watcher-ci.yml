@@ -64,7 +64,7 @@ jobs:
         run: |
           python -m py_compile scripts/nvidia_autonomous_repair.py scripts/nvidia_publish_repair.py scripts/repair_patch_utils.py
           python scripts/test_nvidia_patch_format.py
-          ruby -e 'require "yaml"; YAML.load_file(".github/workflows/nvidia-autonomous-repair.yml", aliases: true); puts "NVIDIA repair workflow YAML: OK"'
+          ruby -e 'require "yaml"; ARGV.each { |path| YAML.load_file(path, aliases: true); puts "#{path}: OK" }' .github/workflows/nvidia-autonomous-repair.yml .github/workflows/process-import.yml .github/workflows/prc-lept-march-2026-live-retrieval.yml
       - name: Run in-scope Python tests (exclude CSC-specific suites per D-003)
         working-directory: python-engine
         run: PYTHONPATH=retrieval python run_in_scope_tests.py

@@ -3,6 +3,7 @@ import hashlib
 import json
 import sys
 import tempfile
+import time
 import unittest
 from pathlib import Path
 
@@ -11,10 +12,133 @@ sys.path.insert(0, str(EXTRACTOR_DIR))
 
 from public_preview_shards import (  # noqa: E402
     _challenge_present,
+    _wait_for_page_stability,
+    AccessChallengeError,
+    DEFAULT_PAGE_COUNT_REGEX,
     merge_shards,
     partition_page_ranges,
     validate_shard_metadata,
 )
+
+
+
+class NavigationRetryTests(unittest.TestCase):
+    class FakePage:
+        url = "https://drive.google.com/file/d/example/preview"
+
+        def wait_for_timeout(self, milliseconds):
+            time.sleep(min(milliseconds / 1000, 0.002))
+
+    class FakeControl:
+        def __init__(self):
+            self.current_page = "1"
+            self.target_page = "1"
+            self.submissions = 0
+
+        def click(self):
+            return None
+
+        def fill(self, value):
+            self.target_page = value
+
+        def press(self, key):
+            if key != "Enter":
+                raise AssertionError("expected Enter")
+            self.submissions += 1
+            # Simulate a viewer that ignores its first page-change request.
+            if self.submissions >= 2:
+                self.current_page = self.target_page
+
+        def input_value(self, timeout=None):
+            return self.current_page
+
+    class FakeHeading:
+        def __init__(self, control):
+            self.control = control
+
+        def count(self):
+            return 1
+
+        def inner_text(self, timeout=None):
+            return f"Page {self.control.current_page} of 5"
+
+    class FakeContent:
+        def __init__(self, control, text_factory=None):
+            self.control = control
+            self.text_factory = text_factory
+
+        def count(self):
+            return 1
+
+        def get_attribute(self, name):
+            return "ndfHFb-c4YZDc-cYSp0e-DARUcf-Df1ZY-bN97Pc-haAclf"
+
+        def inner_text(self, timeout=None):
+            if self.text_factory:
+                return self.text_factory(self.control.current_page)
+            return f"{self.control.current_page} TEST, PERSON"
+
+    class FakeBody:
+        def inner_text(self, timeout=None):
+            return "Public Google Drive preview"
+
+    def _run(self, control, content=None, body=None, previous_last_sequence=None):
+        return _wait_for_page_stability(
+            page=self.FakePage(),
+            body=body or self.FakeBody(),
+            heading=self.FakeHeading(control),
+            content=content or self.FakeContent(control),
+            control=control,
+            page_number=2,
+            marker="Page 2 of 5",
+            per_page_deadline=0.005,
+            poll_ms=10,
+            previous_last_sequence=previous_last_sequence,
+        )
+
+    def test_retries_a_stale_page_and_accepts_only_the_requested_page(self):
+        control = self.FakeControl()
+        visible, attempts, sequences = self._run(control)
+        self.assertEqual(attempts, 2)
+        self.assertIn("2 TEST, PERSON", visible)
+        self.assertEqual(sequences, [2])
+        self.assertEqual(control.current_page, "2")
+
+    def test_blank_page_is_never_accepted_even_when_page_number_matches(self):
+        control = self.FakeControl()
+        control.current_page = "2"
+        content = self.FakeContent(control, lambda _page: "")
+        with self.assertRaisesRegex(RuntimeError, "page_sequence_count"):
+            self._run(control, content=content)
+        self.assertEqual(control.submissions, 3)
+
+    def test_noncontiguous_page_records_are_rejected(self):
+        control = self.FakeControl()
+        control.current_page = "2"
+        content = self.FakeContent(
+            control,
+            lambda _page: "2 TEST, PERSON" + chr(10) + "4 TEST, PERSON",
+        )
+        with self.assertRaisesRegex(RuntimeError, "page_sequence_count"):
+            self._run(control, content=content)
+
+    def test_page_must_continue_from_previous_sequence(self):
+        control = self.FakeControl()
+        control.current_page = "2"
+        content = self.FakeContent(control, lambda _page: "2 TEST, PERSON")
+        with self.assertRaisesRegex(RuntimeError, "previous_last_sequence"):
+            self._run(control, content=content, previous_last_sequence=10)
+
+    def test_access_challenge_is_not_retried_or_treated_as_a_pass(self):
+        control = self.FakeControl()
+
+        class ChallengeBody:
+            def inner_text(self, timeout=None):
+                return "Please verify you are human"
+
+        with self.assertRaises(AccessChallengeError):
+            self._run(control, body=ChallengeBody())
+        self.assertEqual(control.submissions, 1)
 
 
 class PartitionTests(unittest.TestCase):
@@ -24,6 +148,12 @@ class PartitionTests(unittest.TestCase):
         self.assertEqual(ranges[14], (14, 799, 855))
         self.assertEqual(ranges[15], (15, 856, 901))
         self.assertEqual(sum(end - start + 1 for _, start, end in ranges), 901)
+
+    def test_page_count_parser_accepts_a_viewer_that_opens_on_page_two(self):
+        import re
+        match = re.search(DEFAULT_PAGE_COUNT_REGEX, "Page 2 of 368")
+        self.assertIsNotNone(match)
+        self.assertEqual(int(match.group(1)), 368)
 
     def test_small_uneven_partition_is_contiguous(self):
         self.assertEqual(

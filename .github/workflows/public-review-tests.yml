@@ -1,0 +1,37 @@
+name: Public Review Evidence Tests
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'public/review.html'
+      - 'public/assets/js/review.mjs'
+      - 'public/assets/js/review-logic.mjs'
+      - 'public/assets/js/review-logic.test.mjs'
+      - '.github/workflows/public-review-tests.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'public/review.html'
+      - 'public/assets/js/review.mjs'
+      - 'public/assets/js/review-logic.mjs'
+      - 'public/assets/js/review-logic.test.mjs'
+      - '.github/workflows/public-review-tests.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  unit-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+      - name: Validate Owner review page script and source warning
+        run: |
+          node --check public/assets/js/review.mjs
+          grep -q 'id="source-quality-warning"' public/review.html
+      - name: Run local screenshot review integrity tests
+        run: node --test public/assets/js/review-logic.test.mjs

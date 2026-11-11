@@ -852,8 +852,11 @@ test("PRC listing snapshots historical pages and processes newly posted result a
         "November 2026 Criminologist Licensure Examination Results Released",
         "November 2026 Licensure Examination for Professional Teachers Secondary Results Released"
       ];
+      const announcedText = articleIndex === 3
+        ? '<p>The PRC announces that 45,001 secondary teachers out of 61,561 examinees successfully passed.</p>'
+        : '<p>The PRC announces that 1,083 out of 1,503 examinees successfully passed.</p>';
       return new Response(
-        '<h1>' + titles[articleIndex] + '</h1>' +
+        '<h1>' + titles[articleIndex] + '</h1>' + announcedText +
         '<a href="https://drive.google.com/file/d/' + driveIds[articleIndex] + '/view">List of Successful Examinees</a>',
         { status: 200, headers: { "content-type": "text/html" } }
       );
@@ -985,3 +988,99 @@ test("scheduled Watcher discovers the nearest official PRC release and rejects i
   const payload = await response.json();
   assert.equal(payload.status, "stale");
 });
+
+test("Watcher fans out LEPT rosters independently and retries only the list whose dispatch failed", async () => {
+  const listingUrl = "https://www.prc.gov.ph/articles/exam-results";
+  const articleUrl = "https://www.prc.gov.ph/article/march-2026-lept-results";
+  const source = approvedSource({
+    id: "PRC-EXAM-RESULTS-HOMEPAGE",
+    authority: "PRC",
+    exam: "LICENSURE-EXAM-RESULTS",
+    url: listingUrl,
+    scan_page_on_baseline: false,
+    allow_linked_drive_documents: true,
+    discover_official_result_articles: true,
+    track_new_articles_only: true,
+    result_listing_page_count: 1,
+    max_result_articles_per_page: 10,
+    max_new_result_articles_per_scan: 3,
+    drive_file_ids: []
+  });
+  const articleHtml = `
+    <html><body>
+      <h1>March 2026 Licensure Examination for Professional Teachers Results Released</h1>
+      <p>18,376 elementary teachers out of 32,796 examinees and 45,001 secondary teachers out of 61,561 examinees successfully passed.</p>
+      <a href="https://drive.google.com/file/d/1FullTextOfficialResult/view">Full text of the Official Result</a>
+      <a href="https://drive.google.com/file/d/1PerformanceSchools/view">Performance of Schools</a>
+      <a href="https://drive.google.com/file/d/1Top10Elementary/view">Successful Examinees who garnered the top 10 highest places for Elementary</a>
+      <a href="https://drive.google.com/file/d/1Top10Secondary/view">Successful Examinees who garnered the top 10 highest places for Secondary</a>
+      <a href="https://drive.google.com/file/d/1ElementaryRoster/view">List of Successful Examinees for Elementary</a>
+      <a href="https://drive.google.com/file/d/1SecondaryRoster/view">List of Successful Examinees for Secondary</a>
+      <a href="https://drive.google.com/file/d/1UnknownRoster/view">Roll of Successful Examinees</a>
+    </body></html>`;
+  let listingVersion = 1;
+  let failSecondaryOnce = true;
+  const dispatchAttempts = [];
+  const env = envFor();
+  const fetchImpl = async (input, init = {}) => {
+    const url = String(input);
+    if (url.includes("api.github.com/repos/owner/repository/contents/")) {
+      return registryResponse([source]);
+    }
+    if (url === "https://api.github.com/repos/owner/repository/dispatches") {
+      const event = JSON.parse(init.body).client_payload.event;
+      dispatchAttempts.push(event);
+      if (event.result_level === "secondary" && failSecondaryOnce) {
+        failSecondaryOnce = false;
+        return new Response("temporary dispatch failure", { status: 500 });
+      }
+      return new Response(null, { status: 204 });
+    }
+    if (url === listingUrl && init.method === "HEAD") {
+      return new Response(null, {
+        status: 200,
+        headers: { etag: `"listing-v${listingVersion}"`, "content-type": "text/html" }
+      });
+    }
+    if (url === listingUrl && init.method === "GET") {
+      const listingHtml = listingVersion === 1 ? "" :
+        '<a href="' + articleUrl + '">March 2026 Licensure Examination for Professional Teachers Results Released</a>';
+      return new Response(listingHtml, { status: 200, headers: { "content-type": "text/html" } });
+    }
+    if (url === articleUrl && init.method === "GET") {
+      return new Response(articleHtml, { status: 200, headers: { "content-type": "text/html" } });
+    }
+    throw new Error("Unexpected request: " + url + " " + init.method);
+  };
+
+  const baseline = await runScheduled({ env, fetchImpl, scheduledTime: Date.UTC(2026, 10, 3) });
+  assert.equal(baseline.first_check.results[0].status, "baseline_created");
+  assert.equal(dispatchAttempts.length, 0);
+
+  listingVersion = 2;
+  const partial = await runScheduled({ env, fetchImpl, scheduledTime: Date.UTC(2026, 10, 3, 0, 1) });
+  const partialResults = partial.first_check.results[0].pdf_results;
+  assert.deepEqual(partialResults.map((item) => item.status), [
+    "prc-release-event-dispatched",
+    "dispatch_failed_retryable",
+    "attachment_pending_automatic_retry"
+  ]);
+  assert.deepEqual(dispatchAttempts.map((event) => event.result_level), ["elementary", "secondary"]);
+  assert.deepEqual(dispatchAttempts.map((event) => event.announced_count), [18376, 45001]);
+  assert.deepEqual(dispatchAttempts.map((event) => event.content_urls[0].url), [
+    "https://drive.google.com/file/d/1ElementaryRoster/view",
+    "https://drive.google.com/file/d/1SecondaryRoster/view"
+  ]);
+
+  listingVersion = 3;
+  const retried = await runScheduled({ env, fetchImpl, scheduledTime: Date.UTC(2026, 10, 3, 0, 2) });
+  const retryResults = retried.first_check.results[0].pdf_results;
+  assert.deepEqual(retryResults.map((item) => item.status), [
+    "already_dispatched",
+    "prc-release-event-dispatched",
+    "attachment_pending_automatic_retry"
+  ]);
+  assert.equal(dispatchAttempts.length, 3, "the successful Elementary list must not be dispatched twice");
+  assert.equal(dispatchAttempts[2].result_level, "secondary");
+});
+

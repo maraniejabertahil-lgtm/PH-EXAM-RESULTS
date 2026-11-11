@@ -1,4 +1,4 @@
-name: Public Preview Shards Tests
+name: Public Preview and Review Bundle Tests
 
 on:
   push:
@@ -6,6 +6,8 @@ on:
     paths:
       - 'python-engine/extractor/public_preview_shards.py'
       - 'python-engine/tests/test_public_preview_shards.py'
+      - 'python-engine/create_review_bundle.py'
+      - 'python-engine/tests/test_create_review_bundle.py'
       - '.github/workflows/public-preview-shards-tests.yml'
   pull_request:
     branches: [main]
@@ -27,3 +29,5 @@ jobs:
           python-version: '3.12'
       - name: Run public-preview sharding regression tests
         run: python -m unittest discover -s python-engine/tests -p 'test_public_preview_shards.py' -v
+      - name: Run screenshot-backed review bundle tests
+        run: python -m unittest discover -s python-engine/tests -p 'test_create_review_bundle.py' -v

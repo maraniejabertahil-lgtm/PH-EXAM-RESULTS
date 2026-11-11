@@ -7,5 +7,13 @@
   "VET:2026:public_preview": {
     "record_pattern": "^\\s*(?P<sequence>\\d{1,4})\\s+(?P<name>[^\\W\\d_][\\w\\s,.'’()\\-]+?)\\s*$",
     "require_comma_in_name": true
+  },
+  "LEPT:elementary:2026:public_preview": {
+    "record_pattern": "^\\s*(?P<sequence>\\d+)\\s+(?P<name>.+?)\\s*$",
+    "require_comma_in_name": true
+  },
+  "LEPT:secondary:2026:public_preview": {
+    "record_pattern": "^\\s*(?P<sequence>\\d+)\\s+(?P<name>.+?)\\s*$",
+    "require_comma_in_name": true
   }
 }
