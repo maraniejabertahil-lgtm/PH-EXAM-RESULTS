@@ -65,7 +65,7 @@ function cleanContentUrls(links, articleUrl) {
   return out;
 }
 
-export function buildReleaseEvent(source, article) {
+export function buildReleaseEvent(source, article, options = {}) {
   if (!source || typeof source.id !== "string" || !article ||
       typeof article.title !== "string" || typeof article.url !== "string") {
     return review("source/article metadata is incomplete");
@@ -87,33 +87,53 @@ export function buildReleaseEvent(source, article) {
   const years = [...new Set(title.match(/\b20\d{2}\b/g) || [])];
   if (years.length !== 1) return review(`exam year ambiguous or missing: [${years.join(",")}]`);
 
-  const levels = Object.entries(LEVELS)
+  const titleLevels = Object.entries(LEVELS)
     .filter(([, pattern]) => pattern.test(title))
     .map(([level]) => level);
-  if (codes[0] === "LEPT" && levels.length !== 1) {
-    return review("LEPT level ambiguous or missing in the article title");
+  const requestedLevel = options.resultLevel || (titleLevels.length === 1 ? titleLevels[0] : null);
+  if (codes[0] === "LEPT" && !["elementary", "secondary"].includes(requestedLevel)) {
+    return review("LEPT result level is ambiguous; select the Elementary or Secondary roster");
+  }
+  if (codes[0] === "LEPT" && titleLevels.length === 1 && titleLevels[0] !== requestedLevel) {
+    return review("requested LEPT result level conflicts with the official article title");
   }
 
   let links = cleanContentUrls(Array.isArray(article.links) ? article.links : [], articleUrl.href)
     .map((link) => ({ ...link, format: guessFormat(link.url) }))
     .filter((link) => link.format);
   if (!links.length) return review("no supported official linked content found");
-  if (links.length > 1) {
-    const rosterLinks = links.filter((link) =>
-      /\b(?:list|roll)\s+of\s+successful\s+examinees\b/i.test(link.label) ||
-      /\bsuccessful\s+examinees\s+(?:list|roll)\b/i.test(link.label)
-    );
+  const rosterLinks = links.filter((link) =>
+    /\b(?:list|roll)\s+of\s+successful\s+examinees\b/i.test(link.label) ||
+    /\bsuccessful\s+examinees\s+(?:list|roll)\b/i.test(link.label)
+  );
+  if (codes[0] === "LEPT") {
+    const levelLabelLinks = rosterLinks.filter((link) => new RegExp("\\b" + requestedLevel + "\\b", "i").test(link.label));
+    if (levelLabelLinks.length > 0) {
+      links = levelLabelLinks;
+    } else if (titleLevels.length === 1 && rosterLinks.length === 1) {
+      // Older PRC articles put the level in the title and use a generic roster label.
+      links = rosterLinks;
+    } else {
+      links = [];
+    }
+    if (links.length !== 1) {
+      return review("expected exactly one official " + requestedLevel + " successful-examinee roster link; found " + links.length);
+    }
+  } else if (links.length > 1) {
     if (rosterLinks.length !== 1) {
       return review("multiple official content links and no unique labelled successful-examinee list");
     }
     links = rosterLinks;
   }
+  if (!links.length) return review("no supported official linked content found");
   links = links.map(({ url, format }) => ({ url, format }));
 
-  const countPatterns = [
-    /\b([\d,]{3,})\s+(?:(?:elementary|secondary)\s+)?(?:teachers?\s+)?(?:out of|successfully passed|passed)\b/i,
-    /\b([\d,]{3,})\s+(?:successful examinees|passers|examinees)\b/i,
-  ];
+  const countPatterns = codes[0] === "LEPT"
+    ? [new RegExp("\\b([\\d,]{3,})\\s+" + requestedLevel + "\\s+teachers?\\s+out of\\b", "i")]
+    : [
+        /\b([\d,]{3,})\s+(?:(?:elementary|secondary)\s+)?(?:teachers?\s+)?(?:out of|successfully passed|passed)\b/i,
+        /\b([\d,]{3,})\s+(?:successful examinees|passers|examinees)\b/i,
+      ];
   let announcedCount = null;
   for (const pattern of countPatterns) {
     const match = hay.match(pattern);
@@ -124,6 +144,9 @@ export function buildReleaseEvent(source, article) {
         break;
       }
     }
+  }
+  if (codes[0] === "LEPT" && announcedCount === null) {
+    return review("official article does not state an announced passer count for " + requestedLevel);
   }
 
   return {
@@ -136,7 +159,7 @@ export function buildReleaseEvent(source, article) {
       exam_title: title,
       exam_year: Number(years[0]),
       exam_date: null,
-      result_level: levels[0] || null,
+      result_level: codes[0] === "LEPT" ? requestedLevel : (titleLevels[0] || null),
       list_type: "successful_examinees",
       announced_count: announcedCount,
       content_urls: links,

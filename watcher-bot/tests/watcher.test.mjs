@@ -852,8 +852,11 @@ test("PRC listing snapshots historical pages and processes newly posted result a
         "November 2026 Criminologist Licensure Examination Results Released",
         "November 2026 Licensure Examination for Professional Teachers Secondary Results Released"
       ];
+      const announcedText = articleIndex === 3
+        ? '<p>The PRC announces that 45,001 secondary teachers out of 61,561 examinees successfully passed.</p>'
+        : '<p>The PRC announces that 1,083 out of 1,503 examinees successfully passed.</p>';
       return new Response(
-        '<h1>' + titles[articleIndex] + '</h1>' +
+        '<h1>' + titles[articleIndex] + '</h1>' + announcedText +
         '<a href="https://drive.google.com/file/d/' + driveIds[articleIndex] + '/view">List of Successful Examinees</a>',
         { status: 200, headers: { "content-type": "text/html" } }
       );

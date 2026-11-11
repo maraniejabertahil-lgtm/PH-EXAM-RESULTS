@@ -11,7 +11,7 @@ from acquisition.public_preview import (
     parse_public_preview_snapshots,
 )
 from main import PipelineError, process_batch
-from prc_orchestrator import NeedsReviewError, capture_public_preview, run
+from prc_orchestrator import NeedsReviewError, capture_public_preview, load_public_preview_mapping, run
 from playwright.sync_api import Error as PlaywrightError
 
 
@@ -143,6 +143,25 @@ class PRCPublicPreviewPipelineTests(unittest.TestCase):
 
     def tearDown(self):
         self.temporary.cleanup()
+
+    def test_lept_reviewed_mapping_matches_visible_roster_line(self):
+        event = {
+            "exam_code": "LEPT",
+            "result_level": "elementary",
+            "exam_year": 2026,
+        }
+        key, mapping = load_public_preview_mapping(
+            event,
+            cfg_path=Path(__file__).resolve().parents[1] / "config" / "adapter_mappings.json",
+        )
+        self.assertEqual(key, "LEPT:elementary:2026:public_preview")
+        self.assertEqual(
+            parse_public_preview_snapshots(
+                [{"text": "Page 2 of 368\n51 ABAPO, REJEAN DUMAYON"}],
+                mapping,
+            ),
+            [(51, "ABAPO, REJEAN DUMAYON")],
+        )
 
     def test_browser_capture_uses_sequential_bounded_shards(self):
         import sys
