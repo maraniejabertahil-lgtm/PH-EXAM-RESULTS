@@ -101,7 +101,7 @@ def _page_sequence_numbers(text: str) -> list[int]:
     """Return sequence numbers from one page's rendered roster paragraphs."""
     sequences = []
     for line in text.splitlines():
-        match = re.fullmatch(r"\\s*(?P<sequence>\\d+)\\s+(?P<name>.+?)\\s*", line)
+        match = re.fullmatch(r"\s*(?P<sequence>\d+)\s+(?P<name>.+?)\s*", line)
         if match and "," in match.group("name"):
             sequences.append(int(match.group("sequence")))
     return sequences
