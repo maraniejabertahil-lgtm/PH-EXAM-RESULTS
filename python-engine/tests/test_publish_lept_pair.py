@@ -15,6 +15,7 @@ from publish_lept_pair import (  # noqa: E402
     build_combined_greenlight_report,
     _temporarily_enable_reviewed_sources,
     _prevalidate_owner_receipt,
+    _require_owner_dispatch,
 )
 from main import PipelineError  # noqa: E402
 
@@ -27,6 +28,25 @@ def sample_records(count):
 
 
 class CombinedLeptPublicationTests(unittest.TestCase):
+    def test_paired_publication_requires_authenticated_repository_owner(self):
+        self.assertEqual(
+            _require_owner_dispatch(
+                "maraniejabertahil-lgtm/PH-EXAM-RESULTS",
+                "maraniejabertahil-lgtm",
+            ),
+            "maraniejabertahil-lgtm",
+        )
+        with self.assertRaisesRegex(PipelineError, "Only the authenticated repository Owner"):
+            _require_owner_dispatch(
+                "maraniejabertahil-lgtm/PH-EXAM-RESULTS",
+                "another-user",
+            )
+        with self.assertRaisesRegex(PipelineError, "Only the authenticated repository Owner"):
+            _require_owner_dispatch(
+                "maraniejabertahil-lgtm/PH-EXAM-RESULTS",
+                "",
+            )
+
     def setUp(self):
         self.records = {
             exam: sample_records(count)
