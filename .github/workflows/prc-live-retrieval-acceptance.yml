@@ -8,6 +8,7 @@ on:
       - "python-engine/config/sources.json"
       - "python-engine/config/adapter_mappings.json"
       - "python-engine/prc_orchestrator.py"
+      - "python-engine/requirements-preview.txt"
       - "watcher-bot/src/release-event.js"
       - ".github/workflows/prc-live-retrieval-acceptance.yml"
   workflow_dispatch:
