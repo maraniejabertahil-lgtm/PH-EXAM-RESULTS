@@ -1,0 +1,198 @@
+name: PRC Live Passer Retrieval Acceptance
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "python-engine/config/sources.json"
+      - "python-engine/config/adapter_mappings.json"
+      - "python-engine/prc_orchestrator.py"
+      - "watcher-bot/src/release-event.js"
+      - ".github/workflows/prc-live-retrieval-acceptance.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  retrieve-official-vet-passers:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Check out the approved retrieval code
+        uses: actions/checkout@v5
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Install Python retrieval dependencies
+        working-directory: python-engine
+        run: |
+          python -m pip install -r requirements.txt
+          python -m pip install -r requirements-preview.txt
+          python -m playwright install --with-deps chromium
+
+      - name: Build the event from the live official PRC article
+        run: |
+          node --input-type=module <<'NODE'
+          import { writeFile } from "node:fs/promises";
+          import { fetchOfficialArticleMetadata } from "./watcher-bot/src/index.js";
+          import { buildReleaseEvent } from "./watcher-bot/src/release-event.js";
+
+          const articleUrl = "https://www.prc.gov.ph/article/november-2026-veterinarians-computer-based-licensure-examination-results-released-one-1";
+          const expectedRosterUrl = "https://drive.google.com/file/d/1y6DT1PZG8lLlqlAHAqPVoKB3cKKy74l0/view?usp=sharing";
+          const article = await fetchOfficialArticleMetadata(articleUrl, fetch);
+          const built = buildReleaseEvent(
+            { id: "PRC-EXAM-RESULTS-HOMEPAGE", authority: "PRC" },
+            article
+          );
+          if (!built.ok) throw new Error("Official PRC article was not accepted: " + built.reason);
+          if (built.event.exam_code !== "VET" || built.event.exam_year !== 2026) {
+            throw new Error("The live article did not resolve to VET 2026.");
+          }
+          if (built.event.announced_count !== 1083) {
+            throw new Error("Expected PRC announced count 1083, got " + built.event.announced_count + ".");
+          }
+          if (built.event.content_urls.length !== 1 ||
+              built.event.content_urls[0].url !== expectedRosterUrl) {
+            throw new Error("The Watcher did not select only the official List of Successful Examinees.");
+          }
+          await writeFile("event.json", JSON.stringify(built.event, null, 2) + "\n", "utf8");
+          console.log("Live PRC article selection passed: one official roster link, 1,083 announced passers.");
+          NODE
+
+      - name: Acquire and extract passer names through the Python engine
+        run: |
+          python3 python-engine/prc_orchestrator.py \
+            --event event.json \
+            --out prc-retrieval-output
+
+      - name: Verify the complete real passer list without publishing it
+        run: |
+          python3 - <<'PY'
+          import csv
+          import json
+          from pathlib import Path
+
+          output = Path("prc-retrieval-output")
+          report = json.loads((output / "report.json").read_text(encoding="utf-8"))
+          batch = json.loads((output / "release-batch.json").read_text(encoding="utf-8"))
+          capture_dir = output / "public-preview-capture"
+          records_path = capture_dir / "records.jsonl"
+          records = [
+              json.loads(line)
+              for line in records_path.read_text(encoding="utf-8").splitlines()
+              if line.strip()
+          ]
+          expected_count = 1083
+          if report.get("status") != "ready_for_greenlight_pipeline":
+              raise SystemExit("Retrieval did not reach the ready state: " + str(report.get("status")))
+          if report.get("records") != expected_count or report.get("greenlight") != 100:
+              raise SystemExit("The Python engine did not validate all 1,083 official passer records.")
+          if batch.get("announced_count") != expected_count:
+              raise SystemExit("The extraction batch does not preserve the official announced count.")
+          if batch.get("official_content_mode") != "public_preview_capture":
+              raise SystemExit("The retrieval did not use the approved ordinary public preview.")
+          if report.get("published") is not False:
+              raise SystemExit("This retrieval-only acceptance workflow must never publish.")
+          if len(records) != expected_count:
+              raise SystemExit("Expected 1,083 passer names; found " + str(len(records)) + ".")
+          sequences = [int(item["seq"]) for item in records]
+          if sequences != list(range(1, expected_count + 1)):
+              raise SystemExit("Passer sequence numbers have a gap, duplicate, or ordering error.")
+          names = [item["name"].strip() for item in records]
+          if any(not name or "," not in name for name in names):
+              raise SystemExit("A passer name is blank or does not match the reviewed roster format.")
+          if len({name.casefold() for name in names}) != expected_count:
+              raise SystemExit("Duplicate passer names were found.")
+          capture_manifest = json.loads(
+              (capture_dir / "viewer-capture-manifest.json").read_text(encoding="utf-8")
+          )
+          if capture_manifest.get("page_coverage_complete") is not True:
+              raise SystemExit("The public viewer capture did not cover every page.")
+          if capture_manifest.get("pdf_downloaded") is not False:
+              raise SystemExit("The retrieval must use the public viewer, not download the PDF.")
+          if capture_manifest.get("access_controls_bypassed") is not False:
+              raise SystemExit("The retrieval must not bypass access controls.")
+
+          json_path = output / "passer-list.json"
+          csv_path = output / "passer-list.csv"
+          json_path.write_text(
+              json.dumps(
+                  {
+                      "authority": "PRC",
+                      "exam": "VET",
+                      "year": 2026,
+                      "official_article_url": batch["official_article_url"],
+                      "official_content_url": batch["official_content_url"],
+                      "announced_count": expected_count,
+                      "records": [
+                          {"sequence_number": str(item["seq"]), "name": item["name"]}
+                          for item in records
+                      ],
+                  },
+                  ensure_ascii=False,
+                  indent=2,
+              ) + "\n",
+              encoding="utf-8",
+          )
+          with csv_path.open("w", newline="", encoding="utf-8-sig") as stream:
+              writer = csv.DictWriter(stream, fieldnames=["sequence_number", "name"])
+              writer.writeheader()
+              writer.writerows(
+                  {"sequence_number": str(item["seq"]), "name": item["name"]}
+                  for item in records
+              )
+
+          acceptance = {
+              "status": "PASS",
+              "authority": "PRC",
+              "exam": "VET",
+              "year": 2026,
+              "announced_count": expected_count,
+              "retrieved_count": len(records),
+              "greenlight_score": report["greenlight"],
+              "viewer_pages_expected": capture_manifest["viewer_pages_expected"],
+              "viewer_pages_captured": capture_manifest["viewer_pages_captured"],
+              "official_article_url": batch["official_article_url"],
+              "official_content_url": batch["official_content_url"],
+              "published": False,
+              "pdf_downloaded": False,
+              "access_controls_bypassed": False,
+          }
+          (output / "retrieval-acceptance.json").write_text(
+              json.dumps(acceptance, ensure_ascii=False, indent=2) + "\n",
+              encoding="utf-8",
+          )
+          with open(__import__("os").environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as summary:
+              summary.write(
+                  "## Live PRC passer retrieval: PASS\n\n"
+                  "- Official examination: Veterinarians, November 2026\n"
+                  "- Retrieved passer names: **1,083 / 1,083**\n"
+                  "- Sequence coverage: **1–1,083, complete**\n"
+                  "- Greenlight: **100%**\n"
+                  "- Source: official PRC article and its public Google Drive viewer\n"
+                  "- PDF download: no; access-control bypass: no\n"
+                  "- Publication: **not performed**; this workflow tests retrieval only\n"
+              )
+          print("LIVE RETRIEVAL PASS: 1,083 official passer names; Greenlight 100; not published.")
+          PY
+
+      - name: Preserve the full retrieved passer list and evidence
+        if: always() && hashFiles('prc-retrieval-output/retrieval-acceptance.json') != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: prc-vet-passer-retrieval-${{ github.run_id }}
+          path: |
+            prc-retrieval-output/
+            event.json
+          if-no-files-found: error
+          retention-days: 7
