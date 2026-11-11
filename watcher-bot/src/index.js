@@ -615,7 +615,7 @@ async function dispatchPrReleaseEvents(env, source, article, fetchImpl, now) {
     return [{
       status: "article_pending_automatic_retry_no_dispatch",
       reason: built.reason,
-      attachment_classifications
+      attachment_classifications: attachmentClassifications
     }];
   }
 
@@ -628,7 +628,7 @@ async function dispatchPrReleaseEvents(env, source, article, fetchImpl, now) {
       results.push({
         ...dispatched,
         announced_count: event.announced_count,
-        attachment_classifications
+        attachment_classifications: attachmentClassifications
       });
     } catch (error) {
       results.push({
@@ -637,7 +637,7 @@ async function dispatchPrReleaseEvents(env, source, article, fetchImpl, now) {
         result_level: event.result_level || null,
         announced_count: event.announced_count,
         content_url: event.content_urls?.[0]?.url || null,
-        attachment_classifications,
+        attachment_classifications: attachmentClassifications,
         error: String(error.message || error).slice(0, 160)
       });
     }
@@ -650,7 +650,7 @@ async function dispatchPrReleaseEvents(env, source, article, fetchImpl, now) {
       result_level: item.result_level || null,
       content_url: item.url,
       reason: item.reason,
-      attachment_classifications
+      attachment_classifications: attachmentClassifications
     });
   }
   return results;
