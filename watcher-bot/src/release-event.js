@@ -131,7 +131,7 @@ export function buildReleaseEvent(source, article, options = {}) {
     /\b(?:list|roll)\s+of\s+successful\s+examinees\b/i.test(link.label) ||
     /\bsuccessful\s+examinees\s+(?:list|roll)\b/i.test(link.label)
   );
-  if (codes[0] === "LEPT") {
+  if (codes[0] === "LEPT" && !options.contentUrl) {
     const levelLabelLinks = rosterLinks.filter((link) => new RegExp("\\b" + requestedLevel + "\\b", "i").test(link.label));
     if (levelLabelLinks.length > 0) {
       links = levelLabelLinks;
@@ -161,8 +161,8 @@ export function buildReleaseEvent(source, article, options = {}) {
   }
   if (announcedCount === null && codes[0] !== "LEPT") {
     const countPatterns = [
-      /\\b([\\d,]{3,})\\s+(?:(?:elementary|secondary)\\s+)?(?:teachers?\\s+)?(?:out of|successfully passed|passed)\\b/i,
-      /\\b([\\d,]{3,})\\s+(?:successful examinees|passers|examinees)\\b/i,
+      /\b([\d,]{3,})\s+(?:(?:elementary|secondary)\s+)?(?:teachers?\s+)?(?:out of|successfully passed|passed)\b/i,
+      /\b([\d,]{3,})\s+(?:successful examinees|passers|examinees)\b/i,
     ];
     for (const pattern of countPatterns) {
       const match = hay.match(pattern);
