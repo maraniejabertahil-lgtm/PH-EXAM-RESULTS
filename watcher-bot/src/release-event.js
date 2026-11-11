@@ -15,6 +15,24 @@ const ALLOWED_LINK_HOSTS = new Set([
   "www.prc.gov.ph", "prc.gov.ph", "drive.google.com", "docs.google.com",
 ]);
 const review = (reason) => ({ ok: false, reason });
+const LEVEL_NAMES = ["elementary", "secondary"];
+
+function findLevelAnnouncedCount(text, level) {
+  if (!LEVEL_NAMES.includes(level)) return null;
+  const patterns = [
+    new RegExp("(\\\\d[\\\\d,]{2,})\\\\s+" + level + "\\\\b(?:\\\\s+[a-z]{2,18}){0,3}\\\\s+(?:out of|passed|passers|successful examinees|examinees|candidates)\\\\b", "i"),
+    new RegExp("\\\\b" + level + "\\\\b[^\\\\d]{0,40}(\\\\d[\\\\d,]{2,})\\\\s+(?:passers|successful examinees|examinees|candidates|teachers)\\\\b", "i"),
+    new RegExp("(\\\\d[\\\\d,]{2,})\\\\s+(?:passers|successful examinees|examinees|candidates)\\\\s+(?:for|in)\\\\s+\\\\b" + level + "\\\\b", "i")
+  ];
+  for (const pattern of patterns) {
+    const match = text.match(pattern);
+    if (!match) continue;
+    const count = Number(match[1].replace(/,/g, ""));
+    if (Number.isSafeInteger(count) && count > 0) return count;
+  }
+  return null;
+}
+
 
 function guessFormat(value) {
   let url;
