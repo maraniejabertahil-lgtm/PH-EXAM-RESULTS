@@ -548,7 +548,7 @@ class PRCPublicPreviewPipelineTests(unittest.TestCase):
         self.assertEqual(report["records"], 2)
         self.assertEqual(report["greenlight"], 100)
         self.assertEqual(batch["official_content_mode"], "public_preview_capture")
-        self.assertFalse(batch["published"])
+        self.assertFalse(report["published"])
         records = [
             json.loads(line)
             for line in (self.root / "vet-output/public-preview-capture/records.jsonl").read_text(encoding="utf-8").splitlines()
