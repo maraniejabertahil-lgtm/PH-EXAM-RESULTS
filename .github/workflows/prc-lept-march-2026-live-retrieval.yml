@@ -89,6 +89,21 @@ jobs:
           Path("test-sources.json").write_text(json.dumps(registry, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
           PY
 
+      - name: Preflight the reviewed LEPT record mapping
+        run: |
+          python3 - <<'PY'
+          import json
+          import re
+          from pathlib import Path
+
+          mappings = json.loads(Path("python-engine/config/adapter_mappings.json").read_text(encoding="utf-8"))
+          mapping = mappings["LEPT:elementary:2026:public_preview"]
+          match = re.fullmatch(mapping["record_pattern"], "51 ABAPO, REJEAN DUMAYON")
+          if not match or match.group("sequence") != "51" or match.group("name") != "ABAPO, REJEAN DUMAYON":
+              raise SystemExit("LEPT mapping does not match the visible official roster line.")
+          print("LEPT mapping preflight passed.")
+          PY
+
       - name: Acquire all public-viewer pages and run Greenlight
         run: |
           python3 python-engine/prc_orchestrator.py \
