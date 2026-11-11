@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { buildReleaseEvent } from "../src/release-event.js";
+import { buildReleaseEvent, buildReleaseEvents, discoverArticleAttachments } from "../src/release-event.js";
 
 const source = { id: "PRC-EXAM-RESULTS-HOMEPAGE", authority: "PRC" };
 const officialArticle = {
@@ -152,3 +152,71 @@ test("keeps multi-level LEPT articles in review unless a roster level is selecte
   assert.equal(result.ok, false);
   assert.match(result.reason, /result level is ambiguous/);
 });
+
+test("classifies every official PRC attachment and builds one event per LEPT passer list", () => {
+  const article = {
+    ...leptArticle,
+    links: [
+      { url: "https://drive.google.com/file/d/1FullText/view", label: "Full text of the Official Result" },
+      { url: "https://drive.google.com/file/d/1Schools/view", label: "Performance of Schools" },
+      { url: "https://drive.google.com/file/d/1Top10Elementary/view", label: "Successful Examinees who garnered the top 10 highest places for Elementary" },
+      { url: "https://drive.google.com/file/d/1Top10Secondary/view", label: "Successful Examinees who garnered the top 10 highest places for Secondary" },
+      { url: "https://drive.google.com/file/d/1ElementaryRoster/view", label: "List of Successful Examinees for Elementary" },
+      { url: "https://drive.google.com/file/d/1SecondaryRoster/view", label: "List of Successful Examinees for Secondary" }
+    ]
+  };
+
+  const attachments = discoverArticleAttachments(article);
+  assert.deepEqual(attachments.map((item) => item.classification), [
+    "press_release", "school_summary", "topnotchers", "topnotchers",
+    "main_passers_list", "main_passers_list"
+  ]);
+
+  const result = buildReleaseEvents(source, article);
+  assert.equal(result.ok, true);
+  assert.equal(result.events.length, 2);
+  assert.deepEqual(result.events.map((event) => event.result_level), ["elementary", "secondary"]);
+  assert.deepEqual(result.events.map((event) => event.announced_count), [18376, 45001]);
+  assert.deepEqual(result.events.map((event) => event.content_urls[0].url), [
+    "https://drive.google.com/file/d/1ElementaryRoster/view",
+    "https://drive.google.com/file/d/1SecondaryRoster/view"
+  ]);
+  assert.ok(result.events.every((event) => event.content_urls.length === 1));
+});
+
+test("does not fan out LEPT lists when a category is missing or repeated", () => {
+  const missingCategory = buildReleaseEvents(source, {
+    ...leptArticle,
+    links: [
+      { url: "https://drive.google.com/file/d/1ElementaryRoster/view", label: "List of Successful Examinees for Elementary" },
+      { url: "https://drive.google.com/file/d/1UnknownRoster/view", label: "Roll of Successful Examinees" }
+    ]
+  });
+  assert.equal(missingCategory.ok, false);
+  assert.match(missingCategory.reason, /every list must have one clear supported level/);
+  assert.equal(missingCategory.events.length, 0);
+
+  const repeatedCategory = buildReleaseEvents(source, {
+    ...leptArticle,
+    links: [
+      { url: "https://drive.google.com/file/d/1ElementaryRosterA/view", label: "List of Successful Examinees for Elementary" },
+      { url: "https://drive.google.com/file/d/1ElementaryRosterB/view", label: "Roll of Successful Examinees for Elementary" }
+    ]
+  });
+  assert.equal(repeatedCategory.ok, false);
+  assert.match(repeatedCategory.reason, /same elementary level/);
+  assert.equal(repeatedCategory.events.length, 0);
+});
+
+test("does not guess a category for a single generic LEPT roster", () => {
+  const result = buildReleaseEvents(source, {
+    ...leptArticle,
+    links: [
+      { url: "https://drive.google.com/file/d/1GenericRoster/view", label: "Roll of Successful Examinees" }
+    ]
+  });
+  assert.equal(result.ok, false);
+  assert.match(result.reason, /result level is ambiguous/);
+  assert.equal(result.events.length, 0);
+});
+
