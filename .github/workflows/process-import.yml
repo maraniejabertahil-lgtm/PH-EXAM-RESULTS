@@ -493,6 +493,7 @@ jobs:
               ".github/workflows/process-import.yml",
               "python-engine/publish_lept_pair.py",
               "python-engine/tests/test_publish_lept_pair.py",
+              ".github/workflows/lept-pair-publisher-tests.yml",
           }
           changed_paths = {item.get("filename") for item in comparison.get("files", [])}
           if comparison.get("status") not in {"ahead", "identical"} or not changed_paths.issubset(allowed_later_paths):
