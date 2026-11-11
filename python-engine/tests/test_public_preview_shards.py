@@ -117,7 +117,7 @@ class NavigationRetryTests(unittest.TestCase):
         control.current_page = "2"
         content = self.FakeContent(
             control,
-            lambda _page: "2 TEST, PERSON\\n4 TEST, PERSON",
+            lambda _page: "2 TEST, PERSON" + chr(10) + "4 TEST, PERSON",
         )
         with self.assertRaisesRegex(RuntimeError, "page_sequence_count"):
             self._run(control, content=content)
