@@ -6,6 +6,7 @@ on:
     paths:
       - 'python-engine/publish_lept_pair.py'
       - 'python-engine/tests/test_publish_lept_pair.py'
+      - '.github/workflows/process-import.yml'
       - '.github/workflows/lept-pair-publisher-tests.yml'
   pull_request:
     branches: [main]
@@ -28,5 +29,7 @@ jobs:
       - name: Install Python engine dependencies
         working-directory: python-engine
         run: python -m pip install -r requirements.txt
+      - name: Validate publication workflow YAML
+        run: ruby -e 'require "yaml"; YAML.load_file(".github/workflows/process-import.yml")'
       - name: Run atomic LEPT publisher tests
         run: PYTHONPATH=python-engine python -m unittest discover -s python-engine/tests -p 'test_publish_lept_pair.py' -v
