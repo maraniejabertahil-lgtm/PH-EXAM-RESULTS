@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import argparse
-import base64
 import hashlib
 import json
 import sys
@@ -96,7 +95,7 @@ def create_review_bundle(
                 "expected_visible_text": result.get("expected_visible_text"),
                 "viewer_text_confirmed": result.get("viewer_text_confirmed"),
                 "sha256": screenshot_hash,
-                "image_data": "data:image/png;base64," + base64.b64encode(screenshot_bytes).decode("ascii"),
+                "screenshot_path": screenshot_path.relative_to(repository_root).as_posix(),
             })
         if {item.get("sequence_number") for item in evidence} != set(record_by_sequence):
             raise PublicPreviewCaptureError("Visual evidence does not cover every validated candidate record.")
@@ -240,7 +239,7 @@ def _create_sharded_evidence(
             ),
             "viewer_text_confirmed": True,
             "sha256": screenshot_hash,
-            "image_data": "data:image/png;base64," + base64.b64encode(screenshot_bytes).decode("ascii"),
+            "screenshot_path": screenshot_path.relative_to(repository_root).as_posix(),
         })
 
     if seen != set(record_by_sequence):
