@@ -189,13 +189,14 @@ test("keeps a clearly labelled LEPT list moving when its sibling label is unclea
     ...leptArticle,
     links: [
       { url: "https://drive.google.com/file/d/1ElementaryRoster/view", label: "List of Successful Examinees for Elementary" },
+      { url: "https://drive.google.com/file/d/1SecondaryRoster/view", label: "List of Successful Examinees for Secondary" },
       { url: "https://drive.google.com/file/d/1UnknownRoster/view", label: "Roll of Successful Examinees" }
     ]
   });
   assert.equal(result.ok, true);
-  assert.equal(result.events.length, 1);
-  assert.equal(result.events[0].result_level, "elementary");
-  assert.equal(result.events[0].announced_count, 18376);
+  assert.equal(result.events.length, 2);
+  assert.deepEqual(result.events.map((event) => event.result_level), ["elementary", "secondary"]);
+  assert.deepEqual(result.events.map((event) => event.announced_count), [18376, 45001]);
   assert.equal(result.unresolved.length, 1);
   assert.match(result.unresolved[0].reason, /level is not clear/);
 });
