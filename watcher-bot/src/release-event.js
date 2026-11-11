@@ -226,10 +226,10 @@ export function buildReleaseEvents(source, article) {
     const seenLevels = new Set();
     for (const item of rosterLinks) {
       if (!item.result_level || item.ambiguous_result_level) {
-        return review("multiple LEPT passer lists were found but every list must have one clear supported level");
+        return { ok: false, reason: "multiple LEPT passer lists were found but every list must have one clear supported level", events: [], attachments };
       }
       if (seenLevels.has(item.result_level)) {
-        return review("multiple official LEPT passer lists claim the same " + item.result_level + " level");
+        return { ok: false, reason: "multiple official LEPT passer lists claim the same " + item.result_level + " level", events: [], attachments };
       }
       seenLevels.add(item.result_level);
     }
@@ -239,7 +239,7 @@ export function buildReleaseEvents(source, article) {
       const built = buildReleaseEvent(source, article, { resultLevel: item.result_level });
       if (!built.ok) return { ...built, events: [], attachments };
       if (built.event.content_urls.length !== 1 || built.event.content_urls[0].url !== item.url) {
-        return review("LEPT " + item.result_level + " event did not resolve to its exact labelled official roster link");
+        return { ok: false, reason: "LEPT " + item.result_level + " event did not resolve to its exact labelled official roster link", events: [], attachments };
       }
       events.push(built.event);
     }
