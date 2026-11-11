@@ -177,7 +177,7 @@ def _temporarily_enable_reviewed_sources(
         source["auto_acquire"] = True
         source["robots_policy_verified"] = True
         source.pop("disable_reason", None)
-    registry_path.write_text(json.dumps(registry, ensure_ascii=False, indent=2) + "\\n", encoding="utf-8")
+    registry_path.write_text(json.dumps(registry, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     return registry_path, original
 
 
