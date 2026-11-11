@@ -100,6 +100,86 @@ def build_combined_greenlight_report(
     }
 
 
+
+def _prevalidate_owner_receipt(
+    *,
+    batch: dict[str, Any],
+    receipt_path: Path,
+    root: Path,
+) -> None:
+    """Bind the receipt to the exact records and capture before enabling sources."""
+    receipt = _read_json(receipt_path, f"{batch.get('exam')} Owner receipt")
+    records, capture_evidence = load_public_preview_capture(batch=batch, root=root)
+    canonical_records = [
+        {"name": record["name"], "sequence_number": record["sequence_number"]}
+        for record in records
+    ]
+    candidate_hash = hashlib.sha256(
+        json.dumps(canonical_records, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+    ).hexdigest()
+    expected = {
+        "schema_version": 1,
+        "authority": "PRC",
+        "exam": batch.get("exam"),
+        "year": batch.get("year"),
+        "announced_count": batch.get("announced_count"),
+        "record_count": len(records),
+        "candidate_sha256": candidate_hash,
+        "capture_manifest_sha256": capture_evidence["capture_manifest_sha256"],
+        "source_evidence_reviewed": True,
+        "records_reviewed": True,
+        "decision": "approved",
+    }
+    for key, value in expected.items():
+        if receipt.get(key) != value:
+            raise PipelineError(f"{batch.get('exam')} Owner receipt does not match the exact candidate ({key}).")
+    if not isinstance(receipt.get("reviewer"), str) or not receipt["reviewer"].strip():
+        raise PipelineError(f"{batch.get('exam')} Owner receipt has no reviewer.")
+    if not isinstance(receipt.get("reviewed_at"), str):
+        raise PipelineError(f"{batch.get('exam')} Owner receipt has no review timestamp.")
+
+
+def _temporarily_enable_reviewed_sources(
+    *,
+    batches: dict[str, dict[str, Any]],
+    root: Path,
+) -> tuple[Path, bytes]:
+    """Enable only the two exact source entries in this disposable runner workspace."""
+    registry_path = root / "python-engine" / "config" / "sources.json"
+    original = registry_path.read_bytes()
+    registry = _read_json(registry_path, "approved PRC source registry")
+    sources = registry.get("sources")
+    if not isinstance(sources, list):
+        raise PipelineError("Approved source registry has no sources list.")
+    for exam, batch in batches.items():
+        source_id = batch.get("exam_specific_source_id")
+        matches = [
+            source for source in sources
+            if isinstance(source, dict)
+            and source.get("id") == source_id
+            and source.get("authority") == "PRC"
+            and source.get("exam") == f"{exam}-2026"
+            and source.get("url") == batch.get("official_article_url")
+        ]
+        if len(matches) != 1:
+            raise PipelineError(f"{exam} does not match exactly one reviewed official PRC source entry.")
+        source = matches[0]
+        if (
+            source.get("authorized") is not True
+            or source.get("source_type") != "official"
+            or not isinstance(source.get("public_preview"), dict)
+            or source["public_preview"].get("enabled") is not True
+            or source.get("robots_policy_runtime_check") is not True
+        ):
+            raise PipelineError(f"{exam} source is not eligible for Owner-reviewed publication.")
+        source["enabled"] = True
+        source["auto_acquire"] = True
+        source["robots_policy_verified"] = True
+        source.pop("disable_reason", None)
+    registry_path.write_text(json.dumps(registry, ensure_ascii=False, indent=2) + "\\n", encoding="utf-8")
+    return registry_path, original
+
+
 def _prepare_level(
     *,
     exam: str,
@@ -197,20 +277,38 @@ def publish_lept_pair(
             if not candidate_path.is_file():
                 raise PipelineError(f"{exam} input file is missing: {candidate_path.relative_to(repository_root)}")
 
+    batches = {
+        exam: _read_json(paths[exam][0], f"{exam} release batch")
+        for exam in EXPECTED_COUNTS
+    }
+    for exam in EXPECTED_COUNTS:
+        _prevalidate_owner_receipt(
+            batch=batches[exam],
+            receipt_path=paths[exam][1],
+            root=repository_root,
+        )
+
+    registry_path, original_registry = _temporarily_enable_reviewed_sources(
+        batches=batches,
+        root=repository_root,
+    )
     prepared: dict[str, tuple[dict[str, Any], dict[str, Any], Path, list[dict[str, str]]]] = {}
     owner_reviews: dict[str, dict[str, Any]] = {}
     records_by_exam: dict[str, list[dict[str, str]]] = {}
-    for exam in EXPECTED_COUNTS:
-        batch, processed, snapshot_dir, records = _prepare_level(
-            exam=exam,
-            batch_path=paths[exam][0],
-            receipt_path=paths[exam][1],
-            run_id=run_id,
-            root=repository_root,
-        )
-        prepared[exam] = (batch, processed, snapshot_dir, records)
-        owner_reviews[exam] = processed["report"]["owner_review"]
-        records_by_exam[exam] = records
+    try:
+        for exam in EXPECTED_COUNTS:
+            batch, processed, snapshot_dir, records = _prepare_level(
+                exam=exam,
+                batch_path=paths[exam][0],
+                receipt_path=paths[exam][1],
+                run_id=run_id,
+                root=repository_root,
+            )
+            prepared[exam] = (batch, processed, snapshot_dir, records)
+            owner_reviews[exam] = processed["report"]["owner_review"]
+            records_by_exam[exam] = records
+    finally:
+        registry_path.write_bytes(original_registry)
 
     article_urls = {prepared[exam][0].get("official_article_url") for exam in EXPECTED_COUNTS}
     if len(article_urls) != 1 or not next(iter(article_urls)):
