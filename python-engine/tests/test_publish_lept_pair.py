@@ -29,23 +29,23 @@ def sample_records(count):
 
 class CombinedLeptPublicationTests(unittest.TestCase):
     def test_paired_publication_requires_authenticated_repository_owner(self):
+        repository = "maraniejabertahil-lgtm/PH-EXAM-RESULTS"
+        event = "workflow_dispatch"
+        ref = "refs/heads/main"
         self.assertEqual(
-            _require_owner_dispatch(
-                "maraniejabertahil-lgtm/PH-EXAM-RESULTS",
-                "maraniejabertahil-lgtm",
-            ),
+            _require_owner_dispatch(repository, "maraniejabertahil-lgtm", event, ref),
             "maraniejabertahil-lgtm",
         )
         with self.assertRaisesRegex(PipelineError, "Only the authenticated repository Owner"):
-            _require_owner_dispatch(
-                "maraniejabertahil-lgtm/PH-EXAM-RESULTS",
-                "another-user",
-            )
+            _require_owner_dispatch(repository, "another-user", event, ref)
         with self.assertRaisesRegex(PipelineError, "Only the authenticated repository Owner"):
-            _require_owner_dispatch(
-                "maraniejabertahil-lgtm/PH-EXAM-RESULTS",
-                "",
-            )
+            _require_owner_dispatch(repository, "", event, ref)
+        with self.assertRaisesRegex(PipelineError, "Owner-dispatched workflow run from main"):
+            _require_owner_dispatch(repository, "maraniejabertahil-lgtm", "push", ref)
+        with self.assertRaisesRegex(PipelineError, "Owner-dispatched workflow run from main"):
+            _require_owner_dispatch(repository, "maraniejabertahil-lgtm", event, "refs/heads/feature")
+        with self.assertRaisesRegex(PipelineError, "approved PH-EXAM-RESULTS repository"):
+            _require_owner_dispatch("other-owner/other-repo", "other-owner", event, ref)
 
     def setUp(self):
         self.records = {
