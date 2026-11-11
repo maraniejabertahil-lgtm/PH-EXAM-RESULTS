@@ -1,0 +1,188 @@
+name: PRC LEPT March 2026 Live Retrieval Acceptance
+
+on:
+  push:
+    branches:
+      - test/lept-march-2026-two-roster-retrieval
+    paths:
+      - "watcher-bot/src/release-event.js"
+      - "watcher-bot/tests/release-event.test.mjs"
+      - "python-engine/prc_orchestrator.py"
+      - "python-engine/config/sources.json"
+      - "python-engine/config/adapter_mappings.json"
+      - ".github/workflows/prc-lept-march-2026-live-retrieval.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  retrieve-elementary-passers:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - name: Check out the isolated LEPT acceptance branch
+        uses: actions/checkout@v5
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Install retrieval and browser dependencies
+        working-directory: python-engine
+        run: |
+          python -m pip install -r requirements.txt
+          python -m pip install -r requirements-preview.txt
+          python -m playwright install --with-deps chromium
+
+      - name: Build Elementary event from the live official PRC article
+        env:
+          RESULT_LEVEL: elementary
+        run: |
+          node --input-type=module <<'NODE'
+          import { writeFile } from "node:fs/promises";
+          import { fetchOfficialArticleMetadata } from "./watcher-bot/src/index.js";
+          import { buildReleaseEvent } from "./watcher-bot/src/release-event.js";
+
+          const articleUrl = "https://prc.gov.ph/article/march-2026-licensure-examination-professional-teachers-results-released-thirty-nine-39";
+          const expectedRosterUrl = "https://drive.google.com/file/d/1kY0CTSuwdxDwnf1UEvWe27HDEXU3rolE/view?usp=sharing";
+          const article = await fetchOfficialArticleMetadata(articleUrl, fetch);
+          const built = buildReleaseEvent(
+            { id: "PRC-EXAM-RESULTS-HOMEPAGE", authority: "PRC" },
+            article,
+            { resultLevel: process.env.RESULT_LEVEL }
+          );
+          if (!built.ok) throw new Error("Official PRC LEPT article was not accepted: " + built.reason);
+          if (built.event.exam_code !== "LEPT" || built.event.exam_year !== 2026 ||
+              built.event.result_level !== "elementary" || built.event.announced_count !== 18376) {
+            throw new Error("The Elementary LEPT event identity or announced count is wrong.");
+          }
+          if (built.event.content_urls.length !== 1 ||
+              built.event.content_urls[0].url !== expectedRosterUrl) {
+            throw new Error("The Watcher did not select only the official Elementary passer list.");
+          }
+          await writeFile("event.json", JSON.stringify(built.event, null, 2) + "\n", "utf8");
+          console.log("Live PRC LEPT Elementary event passed: 18,376 announced passers and exact official roster link.");
+          NODE
+
+      - name: Prepare a temporary, test-only source registry
+        run: |
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          registry = json.loads(Path("python-engine/config/sources.json").read_text(encoding="utf-8"))
+          matches = [item for item in registry["sources"] if item.get("exam") == "LEPT-ELEMENTARY-2026"]
+          if len(matches) != 1:
+              raise SystemExit("Expected exactly one isolated LEPT Elementary source entry.")
+          source = matches[0]
+          # Temporary test-only enablement; no production source setting is changed.
+          # The engine still checks live robots.txt and verifies the exact official article link.
+          source["enabled"] = True
+          source["auto_acquire"] = True
+          source["robots_policy_verified"] = True
+          Path("test-sources.json").write_text(json.dumps(registry, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+          PY
+
+      - name: Acquire all public-viewer pages and run Greenlight
+        run: |
+          python3 python-engine/prc_orchestrator.py \
+            --event event.json \
+            --out prc-lept-elementary-output \
+            --source-registry test-sources.json \
+            --adapter-mappings python-engine/config/adapter_mappings.json
+
+      - name: Verify all 18,376 Elementary passer records without publishing
+        run: |
+          python3 - <<'PY'
+          import csv
+          import json
+          import os
+          from pathlib import Path
+
+          output = Path("prc-lept-elementary-output")
+          report = json.loads((output / "report.json").read_text(encoding="utf-8"))
+          batch = json.loads((output / "release-batch.json").read_text(encoding="utf-8"))
+          capture_dir = output / "public-preview-capture"
+          records_path = capture_dir / "records.jsonl"
+          records = [json.loads(line) for line in records_path.read_text(encoding="utf-8").splitlines() if line.strip()]
+          expected_count = 18376
+          if report.get("status") != "ready_for_greenlight_pipeline":
+              raise SystemExit("Retrieval did not reach ready state: " + str(report.get("status")))
+          if report.get("records") != expected_count or report.get("greenlight") != 100:
+              raise SystemExit("The Python engine did not validate all 18,376 Elementary passer records.")
+          if batch.get("announced_count") != expected_count or batch.get("level") != "elementary":
+              raise SystemExit("The batch does not preserve the official Elementary announced count and level.")
+          if batch.get("official_content_mode") != "public_preview_capture":
+              raise SystemExit("The approved ordinary public preview was not used.")
+          if report.get("published") is not False:
+              raise SystemExit("This retrieval-only acceptance workflow must never publish.")
+          if len(records) != expected_count:
+              raise SystemExit("Expected 18,376 passer names; found " + str(len(records)) + ".")
+          sequences = [int(item["seq"]) for item in records]
+          if sequences != list(range(1, expected_count + 1)):
+              raise SystemExit("Passer sequence numbers have a gap, duplicate, or ordering error.")
+          names = [item["name"].strip() for item in records]
+          if any(not name or "," not in name for name in names):
+              raise SystemExit("A passer name is blank or does not match the reviewed roster format.")
+          if len({" ".join(name.split()).casefold() for name in names}) != expected_count:
+              raise SystemExit("Duplicate passer names were found.")
+          capture_manifest = json.loads((capture_dir / "viewer-capture-manifest.json").read_text(encoding="utf-8"))
+          if capture_manifest.get("page_coverage_complete") is not True:
+              raise SystemExit("The public viewer capture did not cover every page.")
+          if capture_manifest.get("pdf_downloaded") is not False or capture_manifest.get("access_controls_bypassed") is not False:
+              raise SystemExit("The retrieval must not download the PDF or bypass access controls.")
+
+          payload = {
+              "authority": "PRC", "exam": "LEPT", "level": "elementary", "year": 2026,
+              "official_article_url": batch["official_article_url"],
+              "official_content_url": batch["official_content_url"],
+              "announced_count": expected_count,
+              "records": [{"sequence_number": str(item["seq"]), "name": item["name"]} for item in records],
+          }
+          (output / "passer-list.json").write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+          with (output / "passer-list.csv").open("w", newline="", encoding="utf-8-sig") as stream:
+              writer = csv.DictWriter(stream, fieldnames=["sequence_number", "name"])
+              writer.writeheader()
+              writer.writerows({"sequence_number": str(item["seq"]), "name": item["name"]} for item in records)
+
+          acceptance = {
+              "status": "PASS", "authority": "PRC", "exam": "LEPT", "level": "elementary", "year": 2026,
+              "announced_count": expected_count, "retrieved_count": len(records),
+              "greenlight_score": report["greenlight"],
+              "viewer_pages_expected": capture_manifest["viewer_pages_expected"],
+              "viewer_pages_captured": capture_manifest["viewer_pages_captured"],
+              "official_article_url": batch["official_article_url"],
+              "official_content_url": batch["official_content_url"],
+              "published": False, "pdf_downloaded": False, "access_controls_bypassed": False,
+          }
+          (output / "retrieval-acceptance.json").write_text(json.dumps(acceptance, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+          with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as summary:
+              summary.write(
+                  "## Live PRC LEPT Elementary passer retrieval: PASS\n\n"
+                  "- Retrieved passer names: **18,376 / 18,376**\n"
+                  "- Viewer pages: **368 / 368**\n"
+                  "- Sequence coverage: **1–18,376, complete**\n"
+                  "- Greenlight: **100%**\n"
+                  "- PDF download: no; access-control bypass: no\n"
+                  "- Publication: **not performed**\n"
+              )
+          print("LIVE RETRIEVAL PASS: 18,376 LEPT Elementary names; Greenlight 100; not published.")
+          PY
+
+      - name: Preserve passer list and evidence
+        if: always() && hashFiles('prc-lept-elementary-output/retrieval-acceptance.json') != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: prc-lept-elementary-passer-retrieval-${{ github.run_id }}
+          path: |
+            prc-lept-elementary-output/
+            event.json
+            test-sources.json
+          if-no-files-found: error
+          retention-days: 7
