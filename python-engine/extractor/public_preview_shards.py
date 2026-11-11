@@ -100,13 +100,12 @@ def _wait_for_page_stability(
     body,
     control,
     page_number: int,
-    page_count: int,
+    marker: str,
     per_page_deadline: int,
     poll_ms: int,
     max_attempts: int = 3,
 ) -> tuple[str, int]:
     """Navigate to one exact viewer page, retrying stale UI state without accepting it."""
-    marker = f"Page {page_number} of {page_count}"
     visible = ""
     selected_page = ""
     for attempt in range(1, max_attempts + 1):
@@ -222,7 +221,7 @@ def capture_shard(
                         body=body,
                         control=control,
                         page_number=page_number,
-                        page_count=page_count,
+                        marker=page_marker_template.format(page=page_number, count=page_count),
                         per_page_deadline=per_page_deadline,
                         poll_ms=poll_ms,
                     )
@@ -252,6 +251,7 @@ def capture_shard(
                     raise AccessChallengeError("access challenge appeared in viewer page content")
                 snapshots.append({
                     "viewer_page": page_number, "text": visible,
+                    "navigation_attempts": navigation_attempts_used,
                     "sha256": hashlib.sha256(visible.encode("utf-8")).hexdigest(),
                     "characters": len(visible),
                 })
