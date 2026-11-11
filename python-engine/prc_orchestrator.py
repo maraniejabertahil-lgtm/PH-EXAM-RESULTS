@@ -426,7 +426,7 @@ def capture_public_preview(
                 output_dir=output_dir,
                 allowed_hosts={host.lower() for host in allowed_hosts},
                 page_control_selector=settings.get("page_control_selector", 'input[aria-label^="Page is"]'),
-                page_count_regex=settings.get("page_count_regex", r"Page 1 of\s+(\d+)"),
+                page_count_regex=settings.get("page_count_regex", r"Page \d+ of\s+(\d+)"),
                 page_marker_template=settings.get("page_marker_template", "Page {page} of {count}"),
                 per_page_deadline=settings.get("per_page_deadline", 35),
                 poll_ms=settings.get("poll_ms", 100),
