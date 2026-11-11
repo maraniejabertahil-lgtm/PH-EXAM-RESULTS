@@ -614,17 +614,30 @@ async function dispatchPrReleaseEvents(env, source, article, fetchImpl, now) {
   }
 
   const results = [];
+  const attachmentClassifications = built.attachments.map((item) => ({
+    label: item.label,
+    url: item.url,
+    classification: item.classification,
+    result_level: item.result_level
+  }));
   // Validate the complete article before this loop. Dispatches are then
   // independent: a failure for one list does not hide or undo another list.
   for (const event of built.events) {
     try {
-      results.push(await dispatchPrReleaseEvent(env, source, event, fetchImpl, now));
+      const dispatched = await dispatchPrReleaseEvent(env, source, event, fetchImpl, now);
+      results.push({
+        ...dispatched,
+        announced_count: event.announced_count,
+        attachment_classifications: attachmentClassifications
+      });
     } catch (error) {
       results.push({
         status: "dispatch_failed_manual_review_required",
         article_url: event.article_url,
         result_level: event.result_level || null,
+        announced_count: event.announced_count,
         content_url: event.content_urls?.[0]?.url || null,
+        attachment_classifications: attachmentClassifications,
         error: String(error.message || error).slice(0, 160)
       });
     }
