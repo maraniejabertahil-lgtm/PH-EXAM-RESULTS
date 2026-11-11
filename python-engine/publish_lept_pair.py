@@ -45,12 +45,14 @@ def _read_json(path: Path, label: str) -> dict[str, Any]:
     return value
 
 
-def _require_owner_dispatch(repository: str, actor: str) -> str:
-    """Bind the publication request to an authenticated repository-owner dispatch."""
-    if not isinstance(repository, str) or repository.count("/") != 1:
-        raise PipelineError("GITHUB_REPOSITORY must identify the publication repository.")
-    owner = repository.split("/", 1)[0].strip()
-    if not owner or not isinstance(actor, str) or actor.strip().casefold() != owner.casefold():
+def _require_owner_dispatch(repository: str, actor: str, event_name: str, ref: str) -> str:
+    """Bind publication to an Owner-triggered workflow run on the production branch."""
+    if repository != "maraniejabertahil-lgtm/PH-EXAM-RESULTS":
+        raise PipelineError("Paired LEPT publication is restricted to the approved PH-EXAM-RESULTS repository.")
+    if event_name != "workflow_dispatch" or ref != "refs/heads/main":
+        raise PipelineError("Paired LEPT publication requires an Owner-dispatched workflow run from main.")
+    owner = repository.split("/", 1)[0]
+    if not isinstance(actor, str) or actor.strip().casefold() != owner.casefold():
         raise PipelineError("Only the authenticated repository Owner may submit the paired publication run.")
     return actor.strip()
 
@@ -271,6 +273,8 @@ def publish_lept_pair(
     owner_actor = _require_owner_dispatch(
         os.environ.get("GITHUB_REPOSITORY", ""),
         os.environ.get("GITHUB_ACTOR", ""),
+        os.environ.get("GITHUB_EVENT_NAME", ""),
+        os.environ.get("GITHUB_REF", ""),
     )
     repository_root = Path(root or Path.cwd()).resolve()
     paths = {
