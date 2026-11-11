@@ -169,7 +169,8 @@ def _temporarily_enable_reviewed_sources(
             or source.get("source_type") != "official"
             or not isinstance(source.get("public_preview"), dict)
             or source["public_preview"].get("enabled") is not True
-            or source.get("robots_policy_runtime_check") is not True
+            or not isinstance(source.get("robots_policy_url"), str)
+            or not source["robots_policy_url"].startswith("https://")
         ):
             raise PipelineError(f"{exam} source is not eligible for Owner-reviewed publication.")
         source["enabled"] = True
