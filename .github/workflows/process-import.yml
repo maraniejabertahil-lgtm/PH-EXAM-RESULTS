@@ -25,6 +25,18 @@ on:
         description: "Paste the complete approved JSON receipt downloaded from /review.html."
         required: false
         type: string
+      lept_pair_run_id:
+        description: "Successful March 2026 LEPT live-retrieval workflow run ID containing both official lists."
+        required: false
+        type: string
+      elementary_owner_review_receipt:
+        description: "Paste the approved Elementary receipt from /review.html."
+        required: false
+        type: string
+      secondary_owner_review_receipt:
+        description: "Paste the approved Secondary receipt from /review.html."
+        required: false
+        type: string
 
 permissions:
   contents: read
@@ -160,7 +172,7 @@ jobs:
           retention-days: 7
 
   process-reviewed-batch:
-    if: (github.event_name == 'workflow_dispatch' && inputs.review_run_id == '') || github.event_name == 'push'
+    if: (github.event_name == 'workflow_dispatch' && inputs.review_run_id == '' && inputs.lept_pair_run_id == '') || github.event_name == 'push'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
@@ -379,7 +391,7 @@ jobs:
           retention-days: 7
 
   publish-owner-reviewed-preview:
-    if: github.event_name == 'workflow_dispatch' && inputs.review_run_id != ''
+    if: github.event_name == 'workflow_dispatch' && inputs.review_run_id != '' && inputs.lept_pair_run_id == ''
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
