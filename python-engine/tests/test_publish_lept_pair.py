@@ -27,7 +27,14 @@ class CombinedLeptPublicationTests(unittest.TestCase):
             for exam, count in EXPECTED_COUNTS.items()
         }
         self.reviews = {
-            exam: {"reviewer": "Owner", "decision": "approved"}
+            exam: {
+                "reviewer": "Owner",
+                "decision": "approved",
+                "source_evidence_reviewed": True,
+                "records_reviewed": True,
+                "candidate_sha256": "a" * 64,
+                "capture_manifest_sha256": "b" * 64,
+            }
             for exam in EXPECTED_COUNTS
         }
 
@@ -56,8 +63,15 @@ class CombinedLeptPublicationTests(unittest.TestCase):
 
     def test_combined_report_rejects_missing_owner_reviewer(self):
         reviews = dict(self.reviews)
-        reviews["LEPT-SECONDARY"] = {"decision": "approved", "reviewer": ""}
-        with self.assertRaisesRegex(PipelineError, "no reviewer"):
+        reviews["LEPT-SECONDARY"] = {
+            "decision": "approved",
+            "reviewer": "",
+            "source_evidence_reviewed": True,
+            "records_reviewed": True,
+            "candidate_sha256": "a" * 64,
+            "capture_manifest_sha256": "b" * 64,
+        }
+        with self.assertRaisesRegex(PipelineError, "incomplete or not approved"):
             build_combined_greenlight_report(self.records, reviews)
 
 
