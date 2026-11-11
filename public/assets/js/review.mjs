@@ -9,6 +9,7 @@ const elements = {
   workspace: document.querySelector("#review-workspace"),
   title: document.querySelector("#candidate-title"),
   summary: document.querySelector("#candidate-summary"),
+  sourceQualityWarning: document.querySelector("#source-quality-warning"),
   links: document.querySelector("#source-links"),
   query: document.querySelector("#record-query"),
   recordCount: document.querySelector("#record-count"),
@@ -97,6 +98,13 @@ function renderEvidence() {
 function renderBundle() {
   elements.title.textContent = `${bundle.authority} · ${bundle.exam} · ${bundle.year}`;
   elements.summary.textContent = `${bundle.record_count.toLocaleString()} records; candidate SHA-256 ${bundle.candidate_sha256}; capture manifest SHA-256 ${bundle.capture_manifest_sha256}.`;
+  const isMarch2026Lept = bundle.authority === "PRC"
+    && ["LEPT-ELEMENTARY", "LEPT-SECONDARY"].includes(bundle.exam)
+    && bundle.year === 2026;
+  elements.sourceQualityWarning.hidden = !isMarch2026Lept;
+  elements.sourceQualityWarning.textContent = isMarch2026Lept
+    ? "Source-quality note: The official PRC-linked PDF shows a visible DRAFT watermark, while the PRC announcement says the results were released and links this file. Please review this difference before approving. Do not change names or sequence numbers because of the watermark."
+    : "";
   renderSources();
   renderRecords();
   renderEvidence();
@@ -185,7 +193,7 @@ elements.form.addEventListener("submit", async (event) => {
     return;
   }
   downloadReceipt(receipt);
-  setStatus("Receipt downloaded. It is not authoritative until committed and approved through the authorized GitHub review process.", "success");
+  setStatus("Receipt downloaded. It is not authoritative until the repository Owner submits it through the owner-only publication workflow and it is checked against the exact candidate.", "success");
 });
 
 window.addEventListener("pagehide", clearScreenshotUrls);
