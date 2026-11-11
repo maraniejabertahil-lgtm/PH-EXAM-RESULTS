@@ -166,7 +166,6 @@
           "drive.google.com"
         ],
         "page_control_selector": "input[aria-label^=\"Page is\"]",
-        "page_count_regex": "Page 1 of\\\\s+(\\\\d+)",
         "page_marker_template": "Page {page} of {count}",
         "per_page_deadline": 45,
         "poll_ms": 100,
@@ -201,7 +200,6 @@
           "drive.google.com"
         ],
         "page_control_selector": "input[aria-label^=\"Page is\"]",
-        "page_count_regex": "Page 1 of\\\\s+(\\\\d+)",
         "page_marker_template": "Page {page} of {count}",
         "per_page_deadline": 45,
         "poll_ms": 100,
