@@ -45,6 +45,16 @@ def _read_json(path: Path, label: str) -> dict[str, Any]:
     return value
 
 
+def _require_owner_dispatch(repository: str, actor: str) -> str:
+    """Bind the publication request to an authenticated repository-owner dispatch."""
+    if not isinstance(repository, str) or repository.count("/") != 1:
+        raise PipelineError("GITHUB_REPOSITORY must identify the publication repository.")
+    owner = repository.split("/", 1)[0].strip()
+    if not owner or not isinstance(actor, str) or actor.strip().casefold() != owner.casefold():
+        raise PipelineError("Only the authenticated repository Owner may submit the paired publication run.")
+    return actor.strip()
+
+
 def build_combined_greenlight_report(
     records_by_exam: dict[str, list[dict[str, str]]],
     owner_reviews: dict[str, dict[str, Any]],
@@ -258,6 +268,10 @@ def publish_lept_pair(
     """Validate both receipts, assemble one atomic data PR, then run gated CI."""
     if not isinstance(run_id, str) or not run_id.isdigit():
         raise PipelineError("The source live-retrieval run ID must be numeric.")
+    owner_actor = _require_owner_dispatch(
+        os.environ.get("GITHUB_REPOSITORY", ""),
+        os.environ.get("GITHUB_ACTOR", ""),
+    )
     repository_root = Path(root or Path.cwd()).resolve()
     paths = {
         "LEPT-ELEMENTARY": (
@@ -354,6 +368,7 @@ def publish_lept_pair(
     )
     result = {
         "status": "PUBLISHED" if publication.get("merged") is True else "AWAITING_PUBLICATION",
+        "owner_submission_actor": owner_actor,
         "source_live_retrieval_run_id": run_id,
         "record_count": TOTAL_EXPECTED,
         "elementary_count": EXPECTED_COUNTS["LEPT-ELEMENTARY"],
