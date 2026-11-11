@@ -487,5 +487,58 @@ class PRCOrchestratorTests(unittest.TestCase):
         self.assertIn("invalid record shape at record 2", failures)
 
 
+    def test_each_lept_roster_event_is_validated_separately_and_disabled_sources_stay_blocked(self):
+        article_url = "https://prc.gov.ph/article/march-2026-lept-results"
+        elementary_id = "1kY0CTSuwdxDwnf1UEvWe27HDEXU3rolE"
+        secondary_id = "1RFuFGN4D1T3hkGC-iib9pRmJP1vJiJJ7"
+        specific_sources = [
+            {
+                "id": "PRC-LEPT-ELEMENTARY-2026-03-OFFICIAL-LIST",
+                "authority": "PRC", "exam": "LEPT-ELEMENTARY-2026",
+                "source_type": "official", "authorized": True,
+                "enabled": False, "auto_acquire": False, "url": article_url,
+                "drive_file_ids": [elementary_id],
+                "public_preview": {"enabled": True, "method": "ordinary_public_preview_ui"},
+            },
+            {
+                "id": "PRC-LEPT-SECONDARY-2026-03-OFFICIAL-LIST",
+                "authority": "PRC", "exam": "LEPT-SECONDARY-2026",
+                "source_type": "official", "authorized": True,
+                "enabled": False, "auto_acquire": False, "url": article_url,
+                "drive_file_ids": [secondary_id],
+                "public_preview": {"enabled": True, "method": "ordinary_public_preview_ui"},
+            },
+        ]
+        self.registry_path.write_text(
+            json.dumps({"sources": [SOURCE, *specific_sources]}), encoding="utf-8"
+        )
+        events = []
+        for level, count, file_id in (
+            ("elementary", 18376, elementary_id),
+            ("secondary", 45001, secondary_id),
+        ):
+            payload = event("LEPT")
+            payload.update({
+                "article_url": article_url,
+                "result_level": level,
+                "announced_count": count,
+                "content_urls": [{
+                    "url": f"https://drive.google.com/file/d/{file_id}/view?usp=sharing",
+                    "format": "pdf",
+                }],
+            })
+            events.append(payload)
+
+        for payload in events:
+            self.assertEqual(validate_event(payload), [])
+            self.assertEqual(len(payload["content_urls"]), 1)
+            with self.assertRaisesRegex(NeedsReviewError, "is disabled in the source registry"):
+                _approved_source(payload, self.registry_path)
+
+        # A disabled level cannot be acquired just because the other level exists.
+        self.assertFalse(any(item["enabled"] for item in specific_sources))
+        self.assertFalse(any(item["auto_acquire"] for item in specific_sources))
+
+
 if __name__ == "__main__":
     unittest.main()
