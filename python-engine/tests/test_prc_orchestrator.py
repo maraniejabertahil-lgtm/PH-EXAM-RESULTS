@@ -540,5 +540,20 @@ class PRCOrchestratorTests(unittest.TestCase):
         self.assertFalse(any(item["auto_acquire"] for item in specific_sources))
 
 
+    def test_elementary_secondary_result_levels_are_valid_for_non_lept_exams(self):
+        payload = event("NLE")
+        payload["result_level"] = "elementary"
+        self.assertEqual(validate_event(payload), [])
+
+        payload["result_level"] = "secondary"
+        self.assertEqual(validate_event(payload), [])
+
+        payload["result_level"] = "tertiary"
+        self.assertIn(
+            "result_level must be elementary|secondary when supplied",
+            validate_event(payload),
+        )
+
+
 if __name__ == "__main__":
     unittest.main()
