@@ -11,6 +11,8 @@ on:
       - "python-engine/prc_orchestrator.py"
       - "python-engine/extractor/public_preview_shards.py"
       - "python-engine/tests/test_public_preview_shards.py"
+      - "python-engine/create_review_bundle.py"
+      - "python-engine/tests/test_create_review_bundle.py"
       - "python-engine/main.py"
       - "python-engine/config/sources.json"
       - "python-engine/config/adapter_mappings.json"
