@@ -110,3 +110,45 @@ test("keeps vague examination headlines in human review", () => {
   assert.equal(result.ok, false);
   assert.match(result.reason, /ambiguous|safely identified/);
 });
+
+
+const leptArticle = {
+  title: "March 2026 Licensure Examination for Professional Teachers Results Released in Thirty-Nine (39) Working Days",
+  url: "https://prc.gov.ph/article/march-2026-licensure-examination-professional-teachers-results-released-thirty-nine-39",
+  text: "The PRC announces that 18,376 elementary teachers out of 32,796 examinees and 45,001 secondary teachers out of 61,561 examinees successfully passed the Licensure Examination for Professional Teachers given March 15, 2026.",
+  links: [
+    { url: "https://drive.google.com/file/d/1FullTextOfficialResult/view", label: "Full text of the Official Result" },
+    { url: "https://drive.google.com/file/d/1kY0CTSuwdxDwnf1UEvWe27HDEXU3rolE/view?usp=sharing", label: "List of Successful Examinees for Elementary" },
+    { url: "https://drive.google.com/file/d/1RFuFGN4D1T3hkGC-iib9pRmJP1vJiJJ7/view?usp=sharing", label: "List of Successful Examinees for Secondary" }
+  ]
+};
+
+test("selects the Elementary LEPT roster and its own announced count", () => {
+  const result = buildReleaseEvent(source, leptArticle, { resultLevel: "elementary" });
+  assert.equal(result.ok, true);
+  assert.equal(result.event.exam_code, "LEPT");
+  assert.equal(result.event.result_level, "elementary");
+  assert.equal(result.event.announced_count, 18376);
+  assert.deepEqual(result.event.content_urls, [{
+    url: "https://drive.google.com/file/d/1kY0CTSuwdxDwnf1UEvWe27HDEXU3rolE/view?usp=sharing",
+    format: "pdf"
+  }]);
+});
+
+test("selects the Secondary LEPT roster and its own announced count", () => {
+  const result = buildReleaseEvent(source, leptArticle, { resultLevel: "secondary" });
+  assert.equal(result.ok, true);
+  assert.equal(result.event.exam_code, "LEPT");
+  assert.equal(result.event.result_level, "secondary");
+  assert.equal(result.event.announced_count, 45001);
+  assert.deepEqual(result.event.content_urls, [{
+    url: "https://drive.google.com/file/d/1RFuFGN4D1T3hkGC-iib9pRmJP1vJiJJ7/view?usp=sharing",
+    format: "pdf"
+  }]);
+});
+
+test("keeps multi-level LEPT articles in review unless a roster level is selected", () => {
+  const result = buildReleaseEvent(source, leptArticle);
+  assert.equal(result.ok, false);
+  assert.match(result.reason, /result level is ambiguous/);
+});
