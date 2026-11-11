@@ -505,7 +505,7 @@ class PublicPreviewCaptureTests(unittest.TestCase):
                 batch, root=self.root, exam_listing_source=listing_source
             )
 
-    def test_lept_2026_rosters_require_owner_visual_review_even_with_source_wide_auto_publish(self):
+    def test_lept_2026_rosters_use_automatic_greenlight_without_owner_receipts(self):
         repository_root = Path(__file__).resolve().parents[2]
         registry = json.loads(
             (repository_root / "python-engine/config/sources.json").read_text(encoding="utf-8")
@@ -516,18 +516,29 @@ class PublicPreviewCaptureTests(unittest.TestCase):
         }
         for exam, source_id in specific_sources.items():
             source = next(item for item in registry["sources"] if item.get("id") == source_id)
-            self.assertIs(source.get("enabled"), False, exam + " must remain disabled before Owner approval")
-            self.assertIs(source.get("auto_acquire"), False, exam + " must remain disabled before Owner approval")
+            self.assertIs(source.get("enabled"), False, exam + " must stay disabled until source access is verified")
+            self.assertIs(source.get("auto_acquire"), False, exam + " must stay disabled until source access is verified")
             batch = {
                 "official_content_mode": "public_preview_capture",
                 "source_id": "PRC-EXAM-RESULTS-HOMEPAGE",
                 "exam": exam,
                 "year": 2026,
             }
-            self.assertTrue(
+            self.assertFalse(
                 requires_owner_visual_review(batch, root=repository_root),
-                exam + " must wait for the Owner's exact visual-review receipt",
+                exam + " must use automatic Greenlight without an extra Owner receipt",
             )
+
+        vet_batch = {
+            "official_content_mode": "public_preview_capture",
+            "source_id": "PRC-EXAM-RESULTS-HOMEPAGE",
+            "exam": "VET",
+            "year": 2026,
+        }
+        self.assertTrue(
+            requires_owner_visual_review(vet_batch, root=repository_root),
+            "VET-2026 must keep its existing Owner visual-review requirement",
+        )
 
 
 if __name__ == "__main__":
