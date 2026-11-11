@@ -9,6 +9,8 @@ on:
       - "watcher-bot/src/release-event.js"
       - "watcher-bot/tests/release-event.test.mjs"
       - "python-engine/prc_orchestrator.py"
+      - "python-engine/extractor/public_preview_shards.py"
+      - "python-engine/tests/test_public_preview_shards.py"
       - "python-engine/main.py"
       - "python-engine/config/sources.json"
       - "python-engine/config/adapter_mappings.json"
