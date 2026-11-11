@@ -896,13 +896,30 @@ def run(
                     tier1={"status": "available", "content_sha256": hashlib.sha256(raw).hexdigest()},
                 )
     except NeedsReviewError as exc:
-        if preview_approval is None or not str(exc).startswith("Official content request returned HTTP 403"):
-            return finish("needs_review", 3, reason=str(exc), source=content["url"])
+        error_text = str(exc)
+        public_viewer_fallback = (
+            preview_approval is not None
+            and content_format == "pdf"
+            and error_text.startswith("The official PDF link returned HTML")
+        )
+        direct_forbidden_fallback = (
+            preview_approval is not None
+            and error_text.startswith("Official content request returned HTTP 403")
+        )
+        if not (public_viewer_fallback or direct_forbidden_fallback):
+            return finish("needs_review", 3, reason=error_text, source=content["url"])
         downloadable = False
         tier1_available = False
         tier1 = {
             "status": "unavailable",
-            "reason": "The exact official content URL returned HTTP 403; no download workaround was attempted. Tier 2 must independently prove ordinary public viewability.",
+            "reason": (
+                "The exact official Drive view URL returned HTML rather than PDF bytes; "
+                "no download endpoint or access workaround was attempted. Tier 2 must independently "
+                "prove ordinary public viewability."
+                if public_viewer_fallback else
+                "The exact official content URL returned HTTP 403; no download workaround was attempted. "
+                "Tier 2 must independently prove ordinary public viewability."
+            ),
             "downloadable": False,
         }
     except (HTTPError, URLError, TimeoutError, OSError, ValueError) as exc:
