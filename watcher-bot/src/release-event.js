@@ -107,7 +107,15 @@ export function buildReleaseEvent(source, article, options = {}) {
     /\bsuccessful\s+examinees\s+(?:list|roll)\b/i.test(link.label)
   );
   if (codes[0] === "LEPT") {
-    links = rosterLinks.filter((link) => new RegExp("\\b" + requestedLevel + "\\b", "i").test(link.label));
+    const levelLabelLinks = rosterLinks.filter((link) => new RegExp("\\b" + requestedLevel + "\\b", "i").test(link.label));
+    if (levelLabelLinks.length > 0) {
+      links = levelLabelLinks;
+    } else if (titleLevels.length === 1 && rosterLinks.length === 1) {
+      // Older PRC articles put the level in the title and use a generic roster label.
+      links = rosterLinks;
+    } else {
+      links = [];
+    }
     if (links.length !== 1) {
       return review("expected exactly one official " + requestedLevel + " successful-examinee roster link; found " + links.length);
     }
