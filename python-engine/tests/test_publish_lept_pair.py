@@ -1,7 +1,9 @@
+import hashlib
 import json
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 from pathlib import Path
 
 ENGINE_DIR = Path(__file__).resolve().parents[1]
@@ -12,6 +14,7 @@ from publish_lept_pair import (  # noqa: E402
     TOTAL_EXPECTED,
     build_combined_greenlight_report,
     _temporarily_enable_reviewed_sources,
+    _prevalidate_owner_receipt,
 )
 from main import PipelineError  # noqa: E402
 
@@ -102,6 +105,82 @@ class CombinedLeptPublicationTests(unittest.TestCase):
             self.assertEqual(saved, original)
             path.write_bytes(saved)
             self.assertEqual(path.read_bytes(), original)
+
+
+    def test_owner_receipt_must_match_exact_candidate_and_capture_hash(self):
+        records = [{"sequence_number": "1", "name": "AALA, TEST PERSON"}]
+        capture = {"capture_manifest_sha256": "c" * 64}
+        batch = {
+            "exam": "LEPT-ELEMENTARY",
+            "year": 2026,
+            "announced_count": 1,
+        }
+        canonical = [{"name": "AALA, TEST PERSON", "sequence_number": "1"}]
+        candidate_hash = hashlib.sha256(
+            json.dumps(canonical, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+        ).hexdigest()
+        receipt = {
+            "schema_version": 1,
+            "authority": "PRC",
+            "exam": "LEPT-ELEMENTARY",
+            "year": 2026,
+            "announced_count": 1,
+            "record_count": 1,
+            "candidate_sha256": candidate_hash,
+            "capture_manifest_sha256": capture["capture_manifest_sha256"],
+            "source_evidence_reviewed": True,
+            "records_reviewed": True,
+            "decision": "approved",
+            "reviewer": "Owner",
+            "reviewed_at": "2026-11-11T16:00:00Z",
+        }
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            receipt_path = root / "receipt.json"
+            receipt_path.write_text(json.dumps(receipt), encoding="utf-8")
+            with patch("publish_lept_pair.load_public_preview_capture", return_value=(records, capture)):
+                _prevalidate_owner_receipt(batch=batch, receipt_path=receipt_path, root=root)
+
+            receipt["candidate_sha256"] = "0" * 64
+            receipt_path.write_text(json.dumps(receipt), encoding="utf-8")
+            with patch("publish_lept_pair.load_public_preview_capture", return_value=(records, capture)):
+                with self.assertRaisesRegex(PipelineError, "candidate_sha256"):
+                    _prevalidate_owner_receipt(batch=batch, receipt_path=receipt_path, root=root)
+
+    def test_owner_receipt_rejects_missing_visual_review_confirmation(self):
+        records = [{"sequence_number": "1", "name": "AALA, TEST PERSON"}]
+        capture = {"capture_manifest_sha256": "c" * 64}
+        batch = {
+            "exam": "LEPT-ELEMENTARY",
+            "year": 2026,
+            "announced_count": 1,
+        }
+        canonical = [{"name": "AALA, TEST PERSON", "sequence_number": "1"}]
+        candidate_hash = hashlib.sha256(
+            json.dumps(canonical, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+        ).hexdigest()
+        receipt = {
+            "schema_version": 1,
+            "authority": "PRC",
+            "exam": "LEPT-ELEMENTARY",
+            "year": 2026,
+            "announced_count": 1,
+            "record_count": 1,
+            "candidate_sha256": candidate_hash,
+            "capture_manifest_sha256": capture["capture_manifest_sha256"],
+            "source_evidence_reviewed": False,
+            "records_reviewed": True,
+            "decision": "approved",
+            "reviewer": "Owner",
+            "reviewed_at": "2026-11-11T16:00:00Z",
+        }
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            receipt_path = root / "receipt.json"
+            receipt_path.write_text(json.dumps(receipt), encoding="utf-8")
+            with patch("publish_lept_pair.load_public_preview_capture", return_value=(records, capture)):
+                with self.assertRaisesRegex(PipelineError, "source_evidence_reviewed"):
+                    _prevalidate_owner_receipt(batch=batch, receipt_path=receipt_path, root=root)
 
     def test_combined_report_rejects_missing_level(self):
         records = dict(self.records)
