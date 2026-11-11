@@ -3,6 +3,7 @@ import hashlib
 import json
 import sys
 import tempfile
+import time
 import unittest
 from pathlib import Path
 
@@ -11,11 +12,86 @@ sys.path.insert(0, str(EXTRACTOR_DIR))
 
 from public_preview_shards import (  # noqa: E402
     _challenge_present,
+    _wait_for_page_stability,
+    AccessChallengeError,
     DEFAULT_PAGE_COUNT_REGEX,
     merge_shards,
     partition_page_ranges,
     validate_shard_metadata,
 )
+
+
+
+class NavigationRetryTests(unittest.TestCase):
+    class FakePage:
+        url = "https://drive.google.com/file/d/example/preview"
+
+        def wait_for_timeout(self, milliseconds):
+            time.sleep(min(milliseconds / 1000, 0.002))
+
+    class FakeControl:
+        def __init__(self):
+            self.current_page = "1"
+            self.target_page = "1"
+            self.submissions = 0
+
+        def click(self):
+            return None
+
+        def fill(self, value):
+            self.target_page = value
+
+        def press(self, key):
+            if key != "Enter":
+                raise AssertionError("expected Enter")
+            self.submissions += 1
+            # Simulate a viewer that ignores its first page-change request.
+            if self.submissions >= 2:
+                self.current_page = self.target_page
+
+        def input_value(self, timeout=None):
+            return self.current_page
+
+    class FakeBody:
+        def __init__(self, control):
+            self.control = control
+
+        def inner_text(self, timeout=None):
+            return f"Page {self.control.current_page} of 5"
+
+    def test_retries_a_stale_page_and_accepts_only_the_requested_page(self):
+        control = self.FakeControl()
+        visible, attempts = _wait_for_page_stability(
+            page=self.FakePage(),
+            body=self.FakeBody(control),
+            control=control,
+            page_number=2,
+            marker="Page 2 of 5",
+            per_page_deadline=0.005,
+            poll_ms=10,
+        )
+        self.assertEqual(attempts, 2)
+        self.assertIn("Page 2 of 5", visible)
+        self.assertEqual(control.current_page, "2")
+
+    def test_access_challenge_is_not_retried_or_treated_as_a_pass(self):
+        control = self.FakeControl()
+
+        class ChallengeBody:
+            def inner_text(self, timeout=None):
+                return "Please verify you are human"
+
+        with self.assertRaises(AccessChallengeError):
+            _wait_for_page_stability(
+                page=self.FakePage(),
+                body=ChallengeBody(),
+                control=control,
+                page_number=2,
+                marker="Page 2 of 5",
+                per_page_deadline=0.01,
+                poll_ms=10,
+            )
+        self.assertEqual(control.submissions, 1)
 
 
 class PartitionTests(unittest.TestCase):
