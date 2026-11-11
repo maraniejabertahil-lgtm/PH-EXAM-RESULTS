@@ -151,7 +151,7 @@ test("legacy cache without current robots evidence is refreshed immediately", as
     fetchImpl: async (url) => {
       if (url.endsWith("/robots.txt")) {
         robotsCalls += 1;
-        return new Response("User-agent: *\\nAllow: /", { status: 200, headers: { "content-type": "text/plain" } });
+        return new Response("User-agent: *\nAllow: /", { status: 200, headers: { "content-type": "text/plain" } });
       }
       if (url.endsWith("/exam-schedules-menu")) {
         return new Response("<a href=\"/2026-schedule-examination\">2026</a>", { status: 200, headers: { "content-type": "text/html" } });
@@ -170,7 +170,7 @@ test("legacy cache without current robots evidence is refreshed immediately", as
 
 test("fresh KV snapshot prevents repeated external schedule requests", async () => {
   const snapshot = {
-    fetched_at: "2026-11-08T04:00:00.000Z",
+    fetched_at: "2026-11-08T04:59:30.000Z",
     access_policy: { outcome: "allowed", user_agent: "PH-EXAM-RESULTS-Watcher" },
     nearest: { exam: "Veterinarians" }
   };
