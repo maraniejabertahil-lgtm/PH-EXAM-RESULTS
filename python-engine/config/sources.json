@@ -27,7 +27,9 @@
       "authority": "PRC",
       "exam": "LICENSURE-EXAM-RESULTS",
       "exam_scope": "all",
-      "owner_visual_review_required_exams": [],
+      "owner_visual_review_required_exams": [
+        "VET-2026"
+      ],
       "auto_publish_after_greenlight": true,
       "source_type": "official",
       "authorized": true,
@@ -84,6 +86,41 @@
         "per_page_deadline": 35,
         "poll_ms": 100,
         "max_pages": 100
+      }
+    },
+    {
+      "id": "PRC-VET-2026-11-OFFICIAL-LIST",
+      "authority": "PRC",
+      "exam": "VET-2026",
+      "year": 2026,
+      "source_type": "official",
+      "authorized": true,
+      "enabled": true,
+      "url": "https://www.prc.gov.ph/article/november-2026-veterinarians-computer-based-licensure-examination-results-released-one-1",
+      "file_format": "pdf",
+      "auto_acquire": true,
+      "direct_drive_fallback": false,
+      "drive_file_ids": [
+        "1y6DT1PZG8lLlqlAHAqPVoKB3cKKy74l0"
+      ],
+      "allow_linked_drive_documents": true,
+      "robots_policy_verified": true,
+      "robots_policy_url": "https://www.prc.gov.ph/robots.txt",
+      "robots_policy_checked_at": "2026-11-11",
+      "manual_drop_required": false,
+      "public_preview": {
+        "enabled": true,
+        "method": "ordinary_public_preview_ui",
+        "shards": 4,
+        "allowed_hosts": [
+          "drive.google.com"
+        ],
+        "page_control_selector": "input[aria-label^=\"Page is\"]",
+        "page_count_regex": "Page 1 of\\s+(\\d+)",
+        "page_marker_template": "Page {page} of {count}",
+        "per_page_deadline": 45,
+        "poll_ms": 100,
+        "max_pages": 30
       }
     },
     {
