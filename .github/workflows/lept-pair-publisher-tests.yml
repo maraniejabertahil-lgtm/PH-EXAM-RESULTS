@@ -1,4 +1,4 @@
-name: LEPT Pair Publisher Tests
+name: LEPT Pair Publisher Tests and Publication Workflow Validation
 
 on:
   push:
