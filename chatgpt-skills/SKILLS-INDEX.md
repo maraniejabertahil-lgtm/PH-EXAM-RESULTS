@@ -21,7 +21,8 @@
   Use for: Path: testing & deployment.
  • Path: programming/automation/SKILL.md
   Use for: Path: automation.
-
+ • Path: programming/extract structured/SKILL.md
+  Use for: Path: extract structured Markdown/JSON.
 
 ## Writing
 - Professional Writing
