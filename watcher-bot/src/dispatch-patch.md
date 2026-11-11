@@ -7,7 +7,7 @@ The release-event builder is imported by `watcher-bot/src/index.js` and invoked 
 - `buildReleaseEvents` identifies every main passer attachment for any PRC examination and creates an independent job per list. Elementary/Secondary labels are not tied to LEPT.
 - Topnotchers, school-performance summaries, and full-text result documents are classified and logged, but only main passer lists are queued for extraction.
 - Each accepted passer list becomes a separate `prc-release-detected` repository dispatch with one content URL, one result level, and one announced count. The dispatch idempotency key includes the result level and roster URL.
-- A failed list dispatch does not undo a successful sibling dispatch. The failed list remains eligible for retry; successful lists are recognized as already dispatched. Ambiguous or duplicate categories stop the whole article before any list is dispatched.
+- A failed or unclear attachment does not stop other valid jobs. Unresolved attachments remain eligible for automatic retry; successful jobs are recognized as already dispatched. Duplicate same-level attachments are isolated rather than guessed.
 - Each event is received and validated independently by the existing `process-import.yml` workflow and Python orchestrator. Exam-specific sources that remain disabled continue to block acquisition.
 - Non-PRC source-detection behavior remains unchanged.
 
