@@ -27,6 +27,9 @@ CHALLENGE_TERMS = (
 MAX_SHARDS = 16
 MAX_PAGES = 2000
 DEFAULT_PAGE_COUNT_REGEX = r"Page \d+ of\s+(\d+)"
+DRIVE_PAGE_HEADING_SELECTOR = "h2.ndfHFb-c4YZDc-cYSp0e-DARUcf-Df1ZY-tJHJj"
+DRIVE_PAGE_CONTAINER_CLASS = "ndfHFb-c4YZDc-cYSp0e-DARUcf-Df1ZY-bN97Pc-haAclf"
+DRIVE_PAGE_TEXT_CLASS = "ndfHFb-c4YZDc-cYSp0e-DARUcf-Df1ZY-eEGnhe"
 
 
 class AccessChallengeError(RuntimeError):
@@ -94,20 +97,35 @@ def _launch_browser(playwright):
         return playwright.chromium.launch(headless=True)
 
 
+def _page_sequence_numbers(text: str) -> list[int]:
+    """Return sequence numbers from one page's rendered roster paragraphs."""
+    sequences = []
+    for line in text.splitlines():
+        match = re.fullmatch(r"\\s*(?P<sequence>\\d+)\\s+(?P<name>.+?)\\s*", line)
+        if match and "," in match.group("name"):
+            sequences.append(int(match.group("sequence")))
+    return sequences
+
+
 def _wait_for_page_stability(
     *,
     page,
     body,
+    heading,
+    content,
     control,
     page_number: int,
     marker: str,
     per_page_deadline: int,
     poll_ms: int,
+    previous_last_sequence: int | None = None,
     max_attempts: int = 3,
-) -> tuple[str, int]:
-    """Navigate to one exact viewer page, retrying stale UI state without accepting it."""
+) -> tuple[str, int, list[int]]:
+    """Wait for the exact page container and its own contiguous roster rows."""
     visible = ""
     selected_page = ""
+    heading_text = ""
+    sequences: list[int] = []
     for attempt in range(1, max_attempts + 1):
         control.click()
         control.fill(str(page_number))
@@ -115,32 +133,59 @@ def _wait_for_page_stability(
         deadline = time.monotonic() + per_page_deadline
         stable_samples, previous_text = 0, None
         while time.monotonic() < deadline:
-            visible = body.inner_text(timeout=10000)
             selected_page = control.input_value(timeout=3000).strip()
-            if marker in visible and selected_page == str(page_number):
+            try:
+                heading_text = heading.inner_text(timeout=3000).strip() if heading.count() == 1 else ""
+                container_class = content.get_attribute("class") if content.count() == 1 else ""
+                visible = content.inner_text(timeout=10000) if container_class and DRIVE_PAGE_CONTAINER_CLASS in container_class.split() else ""
+            except Exception:
+                heading_text, visible = "", ""
+            sequences = _page_sequence_numbers(visible)
+            contiguous = bool(sequences) and all(
+                right == left + 1 for left, right in zip(sequences, sequences[1:])
+            )
+            follows_previous = (
+                previous_last_sequence is None
+                or (bool(sequences) and sequences[0] == previous_last_sequence + 1)
+            )
+            body_text = body.inner_text(timeout=5000)
+            if _challenge_present(body_text + visible):
+                raise AccessChallengeError(
+                    "access challenge appeared during public-preview navigation"
+                )
+            valid_page = (
+                heading_text == marker
+                and selected_page == str(page_number)
+                and bool(container_class)
+                and DRIVE_PAGE_CONTAINER_CLASS in container_class.split()
+                and contiguous
+                and follows_previous
+            )
+            if valid_page:
                 if visible == previous_text:
                     stable_samples += 1
                 else:
                     stable_samples = 0
                 previous_text = visible
                 if stable_samples >= 2:
-                    return visible, attempt
+                    return visible, attempt, sequences
             else:
                 stable_samples, previous_text = 0, visible
-            if _challenge_present(visible):
-                raise AccessChallengeError(
-                    "access challenge appeared during public-preview navigation"
-                )
             page.wait_for_timeout(poll_ms)
         if attempt < max_attempts:
-            # Re-focus and submit the exact page again. A stale page is never accepted.
             page.wait_for_timeout(max(poll_ms, 250))
 
     diagnostic = {
         "requested_page": page_number,
         "selected_page": selected_page,
+        "heading_text": heading_text,
         "navigation_attempts": max_attempts,
-        "visible_text_excerpt": visible[:1600],
+        "page_container_characters": len(visible),
+        "page_sequence_count": len(sequences),
+        "page_first_sequence": sequences[0] if sequences else None,
+        "page_last_sequence": sequences[-1] if sequences else None,
+        "previous_last_sequence": previous_last_sequence,
+        "visible_page_text_excerpt": visible[:1600],
         "url": page.url,
     }
     raise RuntimeError(json.dumps(diagnostic, ensure_ascii=False))
@@ -211,20 +256,30 @@ def capture_shard(
                 raise RuntimeError("public-preview page navigation control was not found uniquely")
             _, start, end = partition_page_ranges(page_count, shard_count)[shard]
             loop_started = time.monotonic()
+            previous_last_sequence = None
 
             for page_number in range(start, end + 1):
                 # Some Drive previews ignore a navigation event while the previous
                 # page is still rendering. Retry the same page; never accept stale text.
                 try:
-                    visible, navigation_attempts_used = _wait_for_page_stability(
+                    marker = page_marker_template.format(page=page_number, count=page_count)
+                    heading = page.locator(DRIVE_PAGE_HEADING_SELECTOR).filter(has_text=marker)
+                    content = heading.locator(
+                        "xpath=following-sibling::div[1]"
+                    )
+                    visible, navigation_attempts_used, page_sequences = _wait_for_page_stability(
                         page=page,
                         body=body,
+                        heading=heading,
+                        content=content,
                         control=control,
                         page_number=page_number,
-                        marker=page_marker_template.format(page=page_number, count=page_count),
+                        marker=marker,
                         per_page_deadline=per_page_deadline,
                         poll_ms=poll_ms,
+                        previous_last_sequence=previous_last_sequence,
                     )
+                    previous_last_sequence = page_sequences[-1]
                 except AccessChallengeError:
                     raise
                 except RuntimeError as exc:
@@ -252,6 +307,7 @@ def capture_shard(
                 snapshots.append({
                     "viewer_page": page_number, "text": visible,
                     "navigation_attempts": navigation_attempts_used,
+                    "page_sequence_numbers": page_sequences,
                     "sha256": hashlib.sha256(visible.encode("utf-8")).hexdigest(),
                     "characters": len(visible),
                 })
