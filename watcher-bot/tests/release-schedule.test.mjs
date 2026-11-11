@@ -187,13 +187,45 @@ test("fresh KV snapshot prevents repeated external schedule requests", async () 
   assert.equal(calls, 0);
 });
 
-test("read-only upcoming endpoint returns cached public schedule data and rejects other paths", async () => {
-  const snapshot = { authority: "PRC", upcoming_count: 1, nearest: { exam: "Veterinarians" } };
+test("read-only upcoming endpoint returns fresh public schedule data and rejects other paths", async () => {
+  const snapshot = { authority: "PRC", fetched_at: new Date().toISOString(), as_of_date_manila: "2026-11-11", upcoming_count: 1, upcoming: [{ exam: "Veterinarians", target_release_date: "2099-11-10", days_until: 1 }], nearest: { exam: "Veterinarians" } };
   const env = { PEAK_WEEK: new MemoryKV({ [RELEASE_SCHEDULE_CACHE_KEY]: JSON.stringify(snapshot) }) };
   const response = await getReleaseScheduleResponse(new Request("https://watcher.example/api/releases/upcoming"), env);
   assert.equal(response.status, 200);
-  assert.equal((await response.json()).nearest.exam, "Veterinarians");
+  const body = await response.json();
+  assert.equal(body.nearest.exam, "Veterinarians");
+  assert.equal(body.upcoming_count, 1);
   assert.equal(response.headers.get("access-control-allow-origin"), "*");
   const missing = await getReleaseScheduleResponse(new Request("https://watcher.example/other"), env);
   assert.equal(missing.status, 404);
+});
+
+
+test("one-minute source setting refreshes after 60 seconds but uses cache before then", async () => {
+  const snapshot = {
+    fetched_at: "2026-11-08T04:00:00.000Z",
+    access_policy: { outcome: "allowed", user_agent: "PH-EXAM-RESULTS-Watcher" },
+    nearest: { exam: "Old cached entry" }
+  };
+  const kv = new MemoryKV({ [RELEASE_SCHEDULE_CACHE_KEY]: JSON.stringify(snapshot) });
+  let calls = 0;
+  const source = { source_type: "official_schedule_index", enabled: true, authorized: true, refresh_interval_minutes: 1, url: "https://www.prc.gov.ph/exam-schedules-menu" };
+  const fetchImpl = async (url) => {
+    calls += 1;
+    if (url.endsWith("/robots.txt")) return new Response("User-agent: *\\nAllow: /", { status: 200, headers: { "content-type": "text/plain" } });
+    if (url.endsWith("/exam-schedules-menu")) return new Response('<a href="/2026-schedule-examination">2026</a>', { status: 200, headers: { "content-type": "text/html" } });
+    if (url.endsWith("/2026-schedule-examination")) return new Response(scheduleHtml, { status: 200, headers: { "content-type": "text/html" } });
+    throw new Error("Unexpected URL " + url);
+  };
+  const result = await refreshOfficialReleaseSchedule({ sources: [source], kv, fetchImpl, now: new Date("2026-11-08T04:02:00.000Z") });
+  assert.equal(result.status, "updated");
+  assert.equal(calls, 3);
+});
+
+test("public schedule endpoint returns 503 instead of serving an old snapshot as current", async () => {
+  const snapshot = { authority: "PRC", fetched_at: "2026-11-08T04:00:00.000Z", upcoming: [], nearest: null };
+  const env = { PEAK_WEEK: new MemoryKV({ [RELEASE_SCHEDULE_CACHE_KEY]: JSON.stringify(snapshot) }) };
+  const response = await getReleaseScheduleResponse(new Request("https://watcher.example/api/releases/upcoming"), env);
+  assert.equal(response.status, 503);
+  assert.equal((await response.json()).status, "stale");
 });
