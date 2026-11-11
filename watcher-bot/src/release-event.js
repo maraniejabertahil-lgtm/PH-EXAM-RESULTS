@@ -246,7 +246,11 @@ export function buildReleaseEvents(source, article) {
   const attachments = discoverArticleAttachments(article);
   const rosterLinks = attachments.filter((item) => item.classification === "main_passers_list");
 
-  if (rosterLinks.length <= 1) {
+  if (rosterLinks.length === 0) {
+    return { ok: true, events: [], unresolved: [], attachments };
+  }
+
+  if (rosterLinks.length === 1) {
     const onlyRoster = rosterLinks[0];
     const requestedLevel = onlyRoster?.result_level || undefined;
     const built = buildReleaseEvent(source, article, requestedLevel ? { resultLevel: requestedLevel } : {});
@@ -266,6 +270,12 @@ export function buildReleaseEvents(source, article) {
 
   const articleText = (typeof article.title === "string" ? article.title : "") + " " +
     (typeof article.text === "string" ? article.text : "");
+  const levelCounts = new Map();
+  for (const item of rosterLinks) {
+    if (item.result_level && !item.ambiguous_result_level) {
+      levelCounts.set(item.result_level, (levelCounts.get(item.result_level) || 0) + 1);
+    }
+  }
   const events = [];
   const unresolved = [];
   for (const item of rosterLinks) {
@@ -274,6 +284,15 @@ export function buildReleaseEvents(source, article) {
         url: item.url,
         label: item.label,
         reason: "passer-list level is not clear from the official attachment label"
+      });
+      continue;
+    }
+    if (levelCounts.get(item.result_level) > 1) {
+      unresolved.push({
+        url: item.url,
+        label: item.label,
+        result_level: item.result_level,
+        reason: "more than one official passer-list attachment claims the same level"
       });
       continue;
     }
