@@ -98,7 +98,7 @@
       "robots_policy_runtime_check": true,
       "schedule_year_scope": "current_and_next",
       "max_schedule_pages": 2,
-      "refresh_interval_hours": 6,
+      "refresh_interval_minutes": 1,
       "direct_drive_fallback": false,
       "third_party_fallback": false
     }
