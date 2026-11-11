@@ -94,6 +94,59 @@ def _launch_browser(playwright):
         return playwright.chromium.launch(headless=True)
 
 
+def _wait_for_page_stability(
+    *,
+    page,
+    body,
+    control,
+    page_number: int,
+    page_count: int,
+    per_page_deadline: int,
+    poll_ms: int,
+    max_attempts: int = 3,
+) -> tuple[str, int]:
+    """Navigate to one exact viewer page, retrying stale UI state without accepting it."""
+    marker = f"Page {page_number} of {page_count}"
+    visible = ""
+    selected_page = ""
+    for attempt in range(1, max_attempts + 1):
+        control.click()
+        control.fill(str(page_number))
+        control.press("Enter")
+        deadline = time.monotonic() + per_page_deadline
+        stable_samples, previous_text = 0, None
+        while time.monotonic() < deadline:
+            visible = body.inner_text(timeout=10000)
+            selected_page = control.input_value(timeout=3000).strip()
+            if marker in visible and selected_page == str(page_number):
+                if visible == previous_text:
+                    stable_samples += 1
+                else:
+                    stable_samples = 0
+                previous_text = visible
+                if stable_samples >= 2:
+                    return visible, attempt
+            else:
+                stable_samples, previous_text = 0, visible
+            if _challenge_present(visible):
+                raise AccessChallengeError(
+                    "access challenge appeared during public-preview navigation"
+                )
+            page.wait_for_timeout(poll_ms)
+        if attempt < max_attempts:
+            # Re-focus and submit the exact page again. A stale page is never accepted.
+            page.wait_for_timeout(max(poll_ms, 250))
+
+    diagnostic = {
+        "requested_page": page_number,
+        "selected_page": selected_page,
+        "navigation_attempts": max_attempts,
+        "visible_text_excerpt": visible[:1600],
+        "url": page.url,
+    }
+    raise RuntimeError(json.dumps(diagnostic, ensure_ascii=False))
+
+
 def capture_shard(
     *, preview_url: str, shard: int, shard_count: int, output_dir: Path,
     allowed_hosts: set[str], user_agent: str = DEFAULT_USER_AGENT,
@@ -161,35 +214,26 @@ def capture_shard(
             loop_started = time.monotonic()
 
             for page_number in range(start, end + 1):
-                # Some Drive previews open on page 2 or another content page.
-                # Always navigate to the exact requested page, including page 1.
-                control.click()
-                control.fill(str(page_number))
-                control.press("Enter")
-                marker = page_marker_template.format(page=page_number, count=page_count)
-                deadline = time.monotonic() + per_page_deadline
-                stable_samples, previous_text, visible = 0, None, ""
-                while time.monotonic() < deadline:
-                    visible = body.inner_text(timeout=10000)
-                    selected_page = control.input_value(timeout=3000).strip()
-                    if marker in visible and selected_page == str(page_number):
-                        if visible == previous_text:
-                            stable_samples += 1
-                        else:
-                            stable_samples = 0
-                        previous_text = visible
-                        if stable_samples >= 2:
-                            break
-                    else:
-                        stable_samples, previous_text = 0, visible
-                    if _challenge_present(visible):
-                        raise AccessChallengeError("access challenge appeared during public-preview navigation")
-                    page.wait_for_timeout(poll_ms)
-                else:
+                # Some Drive previews ignore a navigation event while the previous
+                # page is still rendering. Retry the same page; never accept stale text.
+                try:
+                    visible, navigation_attempts_used = _wait_for_page_stability(
+                        page=page,
+                        body=body,
+                        control=control,
+                        page_number=page_number,
+                        page_count=page_count,
+                        per_page_deadline=per_page_deadline,
+                        poll_ms=poll_ms,
+                    )
+                except AccessChallengeError:
+                    raise
+                except RuntimeError as exc:
                     diagnostic = {
-                        "shard": shard, "requested_page": page_number,
-                        "selected_page": control.input_value(timeout=3000),
-                        "visible_text_excerpt": visible[:1600], "url": page.url,
+                        "shard": shard,
+                        "requested_page": page_number,
+                        "error": str(exc),
+                        "url": page.url,
                     }
                     (output_dir / f"navigation-failure-shard-{shard}.json").write_text(
                         json.dumps(diagnostic, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
@@ -198,7 +242,11 @@ def capture_shard(
                         path=str(output_dir / f"navigation-failure-shard-{shard}.png"),
                         full_page=True,
                     )
-                    raise RuntimeError("viewer page did not stabilize: " + json.dumps(diagnostic, ensure_ascii=False))
+                    raise RuntimeError(
+                        "viewer page did not stabilize after bounded retries: "
+                        + json.dumps(diagnostic, ensure_ascii=False)
+                    ) from exc
+
 
                 if page_number % 100 == 0 and _challenge_present(page.content()[:100000]):
                     raise AccessChallengeError("access challenge appeared in viewer page content")
