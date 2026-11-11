@@ -507,7 +507,17 @@ class PublicPreviewCaptureTests(unittest.TestCase):
 
     def test_lept_2026_rosters_require_owner_visual_review_even_with_source_wide_auto_publish(self):
         repository_root = Path(__file__).resolve().parents[2]
-        for exam in ("LEPT-ELEMENTARY", "LEPT-SECONDARY"):
+        registry = json.loads(
+            (repository_root / "python-engine/config/sources.json").read_text(encoding="utf-8")
+        )
+        specific_sources = {
+            "LEPT-ELEMENTARY": "PRC-LEPT-ELEMENTARY-2026-03-OFFICIAL-LIST",
+            "LEPT-SECONDARY": "PRC-LEPT-SECONDARY-2026-03-OFFICIAL-LIST",
+        }
+        for exam, source_id in specific_sources.items():
+            source = next(item for item in registry["sources"] if item.get("id") == source_id)
+            self.assertIs(source.get("enabled"), False, exam + " must remain disabled before Owner approval")
+            self.assertIs(source.get("auto_acquire"), False, exam + " must remain disabled before Owner approval")
             batch = {
                 "official_content_mode": "public_preview_capture",
                 "source_id": "PRC-EXAM-RESULTS-HOMEPAGE",
