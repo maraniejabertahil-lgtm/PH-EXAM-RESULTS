@@ -19,6 +19,7 @@ if str(ENGINE_DIR) not in sys.path:
     sys.path.insert(0, str(ENGINE_DIR))
 
 from acquisition.public_preview import load_public_preview_capture
+from publisher.gitops_manager import GitOpsError
 from main import (
     GitHubGitOps,
     PipelineError,
@@ -359,12 +360,23 @@ def publish_lept_pair(
 
     client = GitHubGitOps(os.environ.get("GITHUB_REPOSITORY", ""))
     publication_run_id = os.getenv("GITHUB_RUN_ID") or run_id
-    opened = client.open_dataset_pr(
-        artifacts=artifacts,
-        greenlight_report=combined_report,
-        title="Publish PRC March 2026 LET Elementary and Secondary results",
-        branch_name=f"data/lept-pair-{publication_run_id}-{combined_report['records_sha256'][:8]}",
-    )
+    try:
+        opened = client.open_dataset_pr(
+            artifacts=artifacts,
+            greenlight_report=combined_report,
+            title="Publish PRC March 2026 LET Elementary and Secondary results",
+            branch_name=f"data/lept-pair-{publication_run_id}-{combined_report['records_sha256'][:8]}",
+        )
+    except GitOpsError as exc:
+        message = str(exc)
+        if "403" in message and "pull request" in message.casefold():
+            raise PipelineError(
+                "GitHub blocked Actions PR creation. The repository Owner must enable "
+                "Settings > Actions > General > Workflow permissions > "
+                "Allow GitHub Actions to create and approve pull requests. "
+                "The workflow already requests pull-requests: write; no permission bypass was attempted."
+            ) from exc
+        raise
     publication = client.dispatch_ci_and_merge(
         pull_request_number=opened["pull_request_number"],
         greenlight_report=combined_report,
