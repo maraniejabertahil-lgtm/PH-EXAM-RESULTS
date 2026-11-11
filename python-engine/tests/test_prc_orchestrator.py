@@ -7,7 +7,7 @@ from unittest.mock import patch
 
 from main import process_batch
 from prc_adapters import REGISTRY
-from prc_orchestrator import NeedsReviewError, _load_tier3_mapping_key, detect_layout_mapping, greenlight, run, validate_event
+from prc_orchestrator import NeedsReviewError, _approved_public_preview, _approved_source, _load_tier3_mapping_key, detect_layout_mapping, greenlight, run, validate_event
 
 
 SOURCE = {
@@ -54,6 +54,42 @@ class PRCOrchestratorTests(unittest.TestCase):
 
     def tearDown(self):
         self.temporary.cleanup()
+
+
+    def test_prc_www_and_apex_hosts_are_same_official_origin(self):
+        payload = event("LEPT")
+        payload["article_url"] = "https://prc.gov.ph/article/march-2026-lept-results"
+        payload["result_level"] = "secondary"
+        specific = {
+            "id": "PRC-LEPT-SECONDARY-2026-OFFICIAL-LIST",
+            "authority": "PRC",
+            "exam": "LEPT-SECONDARY-2026",
+            "source_type": "official",
+            "authorized": True,
+            "enabled": True,
+            "auto_acquire": True,
+            "url": payload["article_url"],
+            "drive_file_ids": ["1RFuFGN4D1T3hkGC-iib9pRmJP1vJiJJ7"],
+            "public_preview": {
+                "enabled": True,
+                "method": "ordinary_public_preview_ui",
+                "shards": 16,
+                "allowed_hosts": ["drive.google.com"],
+                "max_pages": 901,
+            },
+        }
+        self.registry_path.write_text(
+            json.dumps({"sources": [SOURCE, specific]}), encoding="utf-8"
+        )
+        self.assertEqual(_approved_source(payload, self.registry_path)["id"], SOURCE["id"])
+        approval = _approved_public_preview(
+            payload,
+            "https://drive.google.com/file/d/1RFuFGN4D1T3hkGC-iib9pRmJP1vJiJJ7/view?usp=sharing",
+            self.registry_path,
+        )
+        self.assertIsNotNone(approval)
+        self.assertEqual(approval[1]["max_pages"], 901)
+        self.assertEqual(approval[1]["shards"], 16)
 
     def test_detects_unambiguous_csv_layout_without_approving_it(self):
         raw = b'Sequence Number,Full Name\n1,ALPHA BETA\n2,GAMMA DELTA\n'
