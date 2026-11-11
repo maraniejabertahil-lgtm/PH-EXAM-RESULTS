@@ -99,6 +99,8 @@ def validate_event(event: object) -> list[str]:
         errors.append("unsupported list_type")
     if isinstance(event.get("announced_count"), bool) or not isinstance(event.get("announced_count"), int) or event["announced_count"] < 1:
         errors.append("announced_count must be a positive integer")
+    if event.get("result_level") is not None and event.get("result_level") not in ("elementary", "secondary"):
+        errors.append("result_level must be elementary|secondary when supplied")
     if event["exam_code"] == "LEPT" and event.get("result_level") not in ("elementary", "secondary"):
         errors.append("LEPT requires result_level elementary|secondary")
     try:
