@@ -603,44 +603,55 @@ async function dispatchPrReleaseEvent(env, source, event, fetchImpl, now) {
 
 async function dispatchPrReleaseEvents(env, source, article, fetchImpl, now) {
   const built = buildReleaseEvents(source, article);
+  const attachmentClassifications = (built.attachments || []).map((item) => ({
+    label: item.label,
+    url: item.url,
+    classification: item.classification,
+    result_level: item.result_level,
+    inferred_result_level: item.inferred_result_level === true
+  }));
+
   if (!built.ok) {
     return [{
-      status: "needs_human_review_no_dispatch",
+      status: "article_pending_automatic_retry_no_dispatch",
       reason: built.reason,
-      attachment_classifications: (built.attachments || []).map(({ label, classification }) => ({
-        label, classification
-      }))
+      attachment_classifications
     }];
   }
 
   const results = [];
-  const attachmentClassifications = built.attachments.map((item) => ({
-    label: item.label,
-    url: item.url,
-    classification: item.classification,
-    result_level: item.result_level
-  }));
-  // Validate the complete article before this loop. Dispatches are then
-  // independent: a failure for one list does not hide or undo another list.
+  // Each list has its own event and retry key. A problem with one attachment
+  // must not block another attachment that has already passed its checks.
   for (const event of built.events) {
     try {
       const dispatched = await dispatchPrReleaseEvent(env, source, event, fetchImpl, now);
       results.push({
         ...dispatched,
         announced_count: event.announced_count,
-        attachment_classifications: attachmentClassifications
+        attachment_classifications
       });
     } catch (error) {
       results.push({
-        status: "dispatch_failed_manual_review_required",
+        status: "dispatch_failed_retryable",
         article_url: event.article_url,
         result_level: event.result_level || null,
         announced_count: event.announced_count,
         content_url: event.content_urls?.[0]?.url || null,
-        attachment_classifications: attachmentClassifications,
+        attachment_classifications,
         error: String(error.message || error).slice(0, 160)
       });
     }
+  }
+
+  for (const item of built.unresolved || []) {
+    results.push({
+      status: "attachment_pending_automatic_retry",
+      article_url: article.url,
+      result_level: item.result_level || null,
+      content_url: item.url,
+      reason: item.reason,
+      attachment_classifications
+    });
   }
   return results;
 }
