@@ -28,9 +28,7 @@
       "exam": "LICENSURE-EXAM-RESULTS",
       "exam_scope": "all",
       "owner_visual_review_required_exams": [
-        "VET-2026",
-        "LEPT-ELEMENTARY-2026",
-        "LEPT-SECONDARY-2026"
+        "VET-2026"
       ],
       "auto_publish_after_greenlight": true,
       "source_type": "official",
