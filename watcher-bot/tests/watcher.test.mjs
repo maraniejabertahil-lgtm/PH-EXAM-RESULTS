@@ -1042,10 +1042,9 @@ test("Watcher fans out LEPT rosters independently and retries only the list whos
       });
     }
     if (url === listingUrl && init.method === "GET") {
-      return new Response(
-        '<a href="' + articleUrl + '">March 2026 Licensure Examination for Professional Teachers Results Released</a>',
-        { status: 200, headers: { "content-type": "text/html" } }
-      );
+      const listingHtml = listingVersion === 1 ? "" :
+        '<a href="' + articleUrl + '">March 2026 Licensure Examination for Professional Teachers Results Released</a>';
+      return new Response(listingHtml, { status: 200, headers: { "content-type": "text/html" } });
     }
     if (url === articleUrl && init.method === "GET") {
       return new Response(articleHtml, { status: 200, headers: { "content-type": "text/html" } });
