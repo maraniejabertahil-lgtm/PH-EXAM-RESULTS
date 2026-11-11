@@ -18,6 +18,14 @@ on:
       - "python-engine/config/adapter_mappings.json"
       - ".github/workflows/prc-lept-march-2026-live-retrieval.yml"
 
+workflow_dispatch:
+    inputs:
+      worker_only:
+        description: "Run only the live production Worker check; skip the two full roster captures."
+        required: false
+        type: boolean
+        default: false
+
 permissions:
   contents: read
 
@@ -27,6 +35,7 @@ concurrency:
 
 jobs:
   retrieve-elementary-passers:
+    if: github.event_name != 'workflow_dispatch' || inputs.worker_only != true
     runs-on: ubuntu-latest
     timeout-minutes: 120
     steps:
@@ -420,6 +429,7 @@ jobs:
           retention-days: 7
 
   retrieve-secondary-passers:
+    if: github.event_name != 'workflow_dispatch' || inputs.worker_only != true
     runs-on: ubuntu-latest
     timeout-minutes: 120
     steps:
@@ -817,43 +827,111 @@ jobs:
     needs:
       - retrieve-elementary-passers
       - retrieve-secondary-passers
+    if: always() && (inputs.worker_only == true || (needs.retrieve-elementary-passers.result == 'success' && needs.retrieve-secondary-passers.result == 'success'))
     runs-on: ubuntu-latest
     timeout-minutes: 8
     steps:
-      - name: Check the verified public production Worker and its fresh official PRC schedule response
+      - name: Check out the deployed Worker configuration
+        uses: actions/checkout@v5
+      - name: Observe a real production cron execution through authenticated Cloudflare logs
+        working-directory: watcher-bot
         env:
-          WORKER_URL: https://ph-exam-results-watcher.bf2hbvt5mn.workers.dev/api/releases/upcoming
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
         run: |
           set -euo pipefail
-          python3 - <<'PY'
+          test -n "$CLOUDFLARE_API_TOKEN" || { echo "::error::Missing CF_API_TOKEN; cannot read production Worker logs."; exit 1; }
+          test -n "$CLOUDFLARE_ACCOUNT_ID" || { echo "::error::Missing CF_ACCOUNT_ID; cannot identify the production Worker account."; exit 1; }
+          set +e
+          timeout 95s npx --yes wrangler@4.156.2 tail --format json > "$RUNNER_TEMP/watcher-tail.jsonl" 2> "$RUNNER_TEMP/watcher-tail.stderr"
+          tail_status=$?
+          set -e
+          if [ "$tail_status" -ne 124 ] && [ "$tail_status" -ne 0 ]; then
+            echo "::error::Authenticated production Worker log tail failed (exit $tail_status)."
+            tail -c 4000 "$RUNNER_TEMP/watcher-tail.stderr"
+            exit "$tail_status"
+          fi
+          python3 - "$RUNNER_TEMP/watcher-tail.jsonl" <<'PY'
           import json
-          import os
+          import sys
           from datetime import datetime, timezone
-          from urllib.request import Request, urlopen
+          from pathlib import Path
 
-          worker_url = os.environ["WORKER_URL"]
-          request = Request(worker_url, headers={"Accept": "application/json"})
-          with urlopen(request, timeout=30) as response:
-              if response.status != 200:
-                  raise SystemExit(f"Production Watcher returned HTTP {response.status}.")
-              payload = json.load(response)
-          if payload.get("ok") is not True or payload.get("authority") != "PRC":
-              raise SystemExit("Production Watcher did not return a valid official PRC schedule.")
-          access = payload.get("access_policy")
-          if not isinstance(access, dict) or access.get("outcome") != "allowed":
-              raise SystemExit("Production Watcher did not provide an allowed robots-policy result.")
-          fetched = payload.get("fetched_at")
-          if not isinstance(fetched, str):
-              raise SystemExit("Production Watcher schedule has no fetch timestamp.")
-          age = (datetime.now(timezone.utc) - datetime.fromisoformat(fetched.replace("Z", "+00:00"))).total_seconds()
-          if age < 0 or age > 150:
-              raise SystemExit("Production Watcher schedule snapshot is not fresh.")
-          print(json.dumps({
+          path = Path(sys.argv[1])
+          if not path.is_file() or not path.stat().st_size:
+              raise SystemExit("Cloudflare returned no production Worker log events during the observation window.")
+
+          reports = []
+          def inspect(value):
+              if isinstance(value, dict):
+                  if isinstance(value.get("checked_at"), str) and isinstance(value.get("schedule_discovery"), dict):
+                      reports.append(value)
+                  for child in value.values():
+                      inspect(child)
+              elif isinstance(value, list):
+                  for child in value:
+                      inspect(child)
+              elif isinstance(value, str):
+                  candidate = value.strip()
+                  if candidate.startswith("{") or candidate.startswith("["):
+                      try:
+                          inspect(json.loads(candidate))
+                      except json.JSONDecodeError:
+                          pass
+
+          for line in path.read_text(encoding="utf-8", errors="replace").splitlines():
+              try:
+                  inspect(json.loads(line))
+              except json.JSONDecodeError:
+                  continue
+
+          now = datetime.now(timezone.utc)
+          valid = []
+          for report in reports:
+              try:
+                  checked = datetime.fromisoformat(report["checked_at"].replace("Z", "+00:00"))
+              except (TypeError, ValueError):
+                  continue
+              age = (now - checked).total_seconds()
+              schedule = report["schedule_discovery"]
+              if (
+                  0 <= age <= 150
+                  and schedule.get("status") in {"updated", "cached"}
+                  and isinstance(schedule.get("upcoming_count"), int)
+                  and schedule["upcoming_count"] > 0
+                  and not schedule.get("error")
+              ):
+                  valid.append((age, report, schedule))
+          if not valid:
+              raise SystemExit(
+                  "No fresh successful production cron report was found. "
+                  "A runner-side HTTP 403 is not bypassed or treated as a Worker pass."
+              )
+          age, report, schedule = min(valid, key=lambda item: item[0])
+          result = {
               "status": "PASS",
               "worker": "ph-exam-results-watcher",
-              "endpoint": "/api/releases/upcoming",
-              "authority": payload["authority"],
-              "access_policy": access["outcome"],
-              "schedule_snapshot_age_seconds": round(age, 1),
-          }, indent=2))
+              "verification": "authenticated_cloudflare_live_tail",
+              "cron_report_age_seconds": round(age, 1),
+              "schedule_status": schedule["status"],
+              "upcoming_count": schedule["upcoming_count"],
+              "mode": report.get("mode"),
+              "outbound_subrequests_used": report.get("outbound_subrequests_used"),
+              "outbound_subrequest_safety_limit": report.get("outbound_subrequest_safety_limit"),
+          }
+          if (
+              isinstance(result["outbound_subrequests_used"], int)
+              and isinstance(result["outbound_subrequest_safety_limit"], int)
+              and result["outbound_subrequests_used"] > result["outbound_subrequest_safety_limit"]
+          ):
+              raise SystemExit("Production Worker exceeded its configured subrequest safety limit.")
+          print(json.dumps(result, indent=2))
+          with open(__import__("os").environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as summary:
+              summary.write(
+                  "## Production PRC Watcher runtime: PASS\\n\\n"
+                  f"- Live cron report: {schedule['status']}\\n"
+                  f"- Upcoming official PRC exams: {schedule['upcoming_count']}\\n"
+                  f"- Fresh report age: {age:.1f} seconds\\n"
+                  "- Verification used authenticated Cloudflare logs; no access restriction was bypassed.\\n"
+              )
           PY
