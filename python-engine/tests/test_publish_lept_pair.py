@@ -114,6 +114,12 @@ class CombinedLeptPublicationTests(unittest.TestCase):
         with self.assertRaisesRegex(PipelineError, "record count"):
             build_combined_greenlight_report(records, self.reviews)
 
+    def test_combined_report_rejects_unapproved_or_unreviewed_receipt(self):
+        reviews = {key: dict(value) for key, value in self.reviews.items()}
+        reviews["LEPT-SECONDARY"]["decision"] = "rejected"
+        with self.assertRaisesRegex(PipelineError, "incomplete or not approved"):
+            build_combined_greenlight_report(self.records, reviews)
+
     def test_combined_report_rejects_missing_owner_reviewer(self):
         reviews = dict(self.reviews)
         reviews["LEPT-SECONDARY"] = {
