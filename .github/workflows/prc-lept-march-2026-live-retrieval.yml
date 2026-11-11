@@ -43,8 +43,18 @@ jobs:
         working-directory: python-engine
         run: |
           python -m pip install -r requirements.txt
-          python -m pip install -r requirements-preview.txt
-          python -m playwright install --with-deps chromium
+          # The GitHub runner already has Chromium's shared system libraries.
+          # Avoid apt/Ubuntu mirror access; install only the pinned Playwright browser.
+          python -m playwright install chromium
+          python - <<'PY'
+          from playwright.sync_api import sync_playwright
+          with sync_playwright() as playwright:
+              browser = playwright.chromium.launch(headless=True)
+              page = browser.new_page()
+              page.set_content("<title>playwright-ready</title>")
+              assert page.title() == "playwright-ready"
+              browser.close()
+          PY
 
       - name: Build Elementary event from the live official PRC article
         env:
@@ -426,8 +436,18 @@ jobs:
         working-directory: python-engine
         run: |
           python -m pip install -r requirements.txt
-          python -m pip install -r requirements-preview.txt
-          python -m playwright install --with-deps chromium
+          # The GitHub runner already has Chromium's shared system libraries.
+          # Avoid apt/Ubuntu mirror access; install only the pinned Playwright browser.
+          python -m playwright install chromium
+          python - <<'PY'
+          from playwright.sync_api import sync_playwright
+          with sync_playwright() as playwright:
+              browser = playwright.chromium.launch(headless=True)
+              page = browser.new_page()
+              page.set_content("<title>playwright-ready</title>")
+              assert page.title() == "playwright-ready"
+              browser.close()
+          PY
 
       - name: Build Secondary event from the live official PRC article
         env:
